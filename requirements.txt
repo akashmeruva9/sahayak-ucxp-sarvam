@@ -7,6 +7,9 @@ python-dotenv>=1.0.1
 loguru>=0.7.2
 python-multipart>=0.0.9      # multipart uploads for the /v1/voice endpoint
 
+# --- UCXP Runtime ----------------------------------------------------------
+langgraph>=1.2.0             # the runtime's state machine (backend/app/runtime/graph.py)
+
 # --- Local testing ---------------------------------------------------------
 pytest>=8.2.0
 pytest-asyncio>=0.23.0

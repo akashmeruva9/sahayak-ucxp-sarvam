@@ -18,6 +18,8 @@ from loguru import logger
 
 from ai_engine import SarvamOrchestrator
 
+from .agent_tools import router as agent_router
+from .agent_tools.execute import aclose_executor
 from .config import get_settings
 from .memory.context import get_store
 from .mock.router import router as mock_router
@@ -57,6 +59,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         await runtime.executor.aclose()
+        await aclose_executor()
         if _engine is not None:
             await _engine.aclose()
         logger.info("runtime.shutdown")
@@ -78,6 +81,8 @@ app.add_middleware(
 )
 
 app.include_router(mock_router)
+# The tool a managed voice agent (Samvaad) calls to resolve real jobs — PLAN §11.
+app.include_router(agent_router)
 
 
 def _to_response(final: dict[str, Any], conversation_id: str, latency_ms: float) -> ChatResponse:
