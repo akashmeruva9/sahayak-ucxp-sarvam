@@ -1,0 +1,190 @@
+{
+  "ucxp_version": "0.1",
+  "business": {
+    "id": "sri-pharma",
+    "name": "Sri Pharma",
+    "category": "Pharmacy",
+    "glyph": "💊",
+    "color": "#0B8A5B",
+    "languages": [
+      "en-IN",
+      "hi-IN",
+      "te-IN",
+      "ta-IN"
+    ]
+  },
+  "routing": {
+    "aliases": [
+      "sri pharma",
+      "sri",
+      "శ్రీ ఫార్మా",
+      "श्री फार्मा"
+    ],
+    "domains": [
+      "order",
+      "medicine",
+      "prescription",
+      "refill",
+      "reorder",
+      "delivery"
+    ]
+  },
+  "auth": {
+    "type": "none",
+    "identity_fields": [
+      "order_id"
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "track_order",
+      "description": "Tell the customer where their order currently is and when it will arrive.",
+      "examples": [
+        "where is my order",
+        "has my order shipped",
+        "track order 1001",
+        "मेरा ऑर्डर कहाँ है",
+        "నా ఆర్డర్ ఎక్కడ ఉంది",
+        "என் ஆர்டர் எங்கே இருக்கிறது"
+      ],
+      "required_inputs": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "prompt": "What's your order number?",
+          "default_from": "context.last_order_id",
+          "optional": false
+        }
+      ],
+      "rules": [],
+      "confirm": false,
+      "action": "get_order",
+      "response": "Your order {{order_id}} — {{result.item}} — is {{result.status}}. Total ₹{{result.amount}}. Expected by {{result.eta}}.",
+      "receipt": {
+        "label": "{{result.status}} · arriving {{result.eta}}",
+        "tone": "success"
+      }
+    },
+    {
+      "id": "reorder_prescription",
+      "description": "Repeat the customer's previous prescription order.",
+      "examples": [
+        "order the same again",
+        "repeat my last order",
+        "वही दोबारा भेज दो",
+        "మళ్ళీ అదే పంపండి",
+        "அதே மீண்டும் அனுப்பு"
+      ],
+      "required_inputs": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "prompt": "What's your order number?",
+          "default_from": "context.last_order_id",
+          "optional": false
+        }
+      ],
+      "rules": [
+        {
+          "id": "prescription_required",
+          "when": "result.prescription_on_file == false",
+          "deny": "I need a valid prescription on file before I can repeat this order. Please upload it and I'll place it right away."
+        }
+      ],
+      "confirm": true,
+      "action": "create_reorder",
+      "response": "Reordered {{result.item}} for ₹{{result.amount}}. New order {{result.new_order_id}}, arriving {{result.eta}}.",
+      "receipt": {
+        "label": "Reordered · {{result.new_order_id}}",
+        "tone": "success"
+      }
+    },
+    {
+      "id": "cancel_order",
+      "description": "Cancel an order that has not yet been delivered.",
+      "examples": [
+        "cancel my order",
+        "I don't want this order any more",
+        "मेरा ऑर्डर कैंसल करो",
+        "నా ఆర్డర్ రద్దు చేయండి",
+        "என் ஆர்டரை ரத்து செய்"
+      ],
+      "required_inputs": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "prompt": "What's your order number?",
+          "default_from": "context.last_order_id",
+          "optional": false
+        }
+      ],
+      "rules": [
+        {
+          "id": "already_delivered",
+          "when": "result.status == 'delivered'",
+          "deny": "Order {{order_id}} has already been delivered, so it can't be cancelled. I can start a return instead."
+        }
+      ],
+      "confirm": true,
+      "action": "cancel_order",
+      "response": "Done — order {{order_id}} is cancelled. Any amount paid is refunded within {{result.refund_eta_days}} days.",
+      "receipt": {
+        "label": "Cancelled · ref {{result.cancellation_ref}}",
+        "tone": "warning"
+      }
+    }
+  ],
+  "endpoints": [
+    {
+      "id": "cancel_order",
+      "method": "POST",
+      "url": "{{mock_base}}/sri-pharma/orders/{{order_id}}/cancel",
+      "headers": {},
+      "body": null,
+      "timeout_s": 5
+    },
+    {
+      "id": "create_reorder",
+      "method": "POST",
+      "url": "{{mock_base}}/sri-pharma/orders/{{order_id}}/reorder",
+      "headers": {},
+      "body": null,
+      "timeout_s": 5
+    },
+    {
+      "id": "get_order",
+      "method": "GET",
+      "url": "{{mock_base}}/sri-pharma/orders/{{order_id}}",
+      "headers": {},
+      "body": null,
+      "timeout_s": 5
+    }
+  ],
+  "knowledge": [
+    {
+      "id": "return_policy",
+      "text": "For safety reasons medicines cannot be returned once delivered, except for damaged or expired stock reported within 24 hours."
+    },
+    {
+      "id": "prescription",
+      "text": "Prescription medicines require a valid doctor's prescription uploaded before dispatch."
+    },
+    {
+      "id": "delivery",
+      "text": "Medicines are delivered the same day within city limits and next day elsewhere."
+    },
+    {
+      "id": "storage",
+      "text": "Cold-chain items are shipped in insulated packaging and must be refrigerated on arrival."
+    }
+  ],
+  "escalation": {
+    "when": [
+      "rule_denied",
+      "action_failed",
+      "user_asks_human"
+    ],
+    "message": "I'm handing this to a human agent from Sri Pharma — they'll call you back within 2 hours.",
+    "action": "create_escalation_ticket"
+  }
+}

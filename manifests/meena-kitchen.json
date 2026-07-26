@@ -1,0 +1,192 @@
+{
+  "ucxp_version": "0.1",
+  "business": {
+    "id": "meena-kitchen",
+    "name": "Meena Kitchen Store",
+    "category": "Kitchen",
+    "glyph": "🍳",
+    "color": "#E0632B",
+    "languages": [
+      "en-IN",
+      "hi-IN",
+      "te-IN",
+      "ta-IN"
+    ]
+  },
+  "routing": {
+    "aliases": [
+      "meena",
+      "meena kitchen",
+      "meena kitchen store",
+      "మీనా కిచెన్",
+      "मीना किचन"
+    ],
+    "domains": [
+      "order",
+      "delivery",
+      "cooker",
+      "mixer",
+      "kitchen",
+      "refund",
+      "cancel"
+    ]
+  },
+  "auth": {
+    "type": "none",
+    "identity_fields": [
+      "order_id"
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "track_order",
+      "description": "Tell the customer where their order currently is and when it will arrive.",
+      "examples": [
+        "where is my order",
+        "has my order shipped",
+        "track order 1001",
+        "मेरा ऑर्डर कहाँ है",
+        "నా ఆర్డర్ ఎక్కడ ఉంది",
+        "என் ஆர்டர் எங்கே இருக்கிறது"
+      ],
+      "required_inputs": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "prompt": "What's your order number?",
+          "default_from": "context.last_order_id",
+          "optional": false
+        }
+      ],
+      "rules": [],
+      "confirm": false,
+      "action": "get_order",
+      "response": "Your order {{order_id}} — {{result.item}} — is {{result.status}}. Total ₹{{result.amount}}. Expected by {{result.eta}}.",
+      "receipt": {
+        "label": "{{result.status}} · arriving {{result.eta}}",
+        "tone": "success"
+      }
+    },
+    {
+      "id": "request_refund",
+      "description": "File a refund for a delivered order the customer is unhappy with.",
+      "examples": [
+        "I want a refund",
+        "the item is damaged, refund it",
+        "मुझे रिफंड चाहिए",
+        "నాకు రీఫండ్ కావాలి",
+        "எனக்கு பணத்தைத் திருப்பி வேண்டும்"
+      ],
+      "required_inputs": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "prompt": "What's your order number?",
+          "default_from": "context.last_order_id",
+          "optional": false
+        }
+      ],
+      "rules": [
+        {
+          "id": "refund_window",
+          "when": "result.days_since_delivery > 7",
+          "deny": "Refunds are only available within 7 days of delivery. I can raise a support ticket for you instead."
+        }
+      ],
+      "confirm": true,
+      "action": "create_refund",
+      "response": "Your refund for order {{order_id}} is filed (ref {{result.refund_ref}}). ₹{{result.amount}} reaches your account in {{result.refund_eta_days}} days.",
+      "receipt": {
+        "label": "Refund filed · {{result.refund_ref}}",
+        "tone": "success"
+      }
+    },
+    {
+      "id": "cancel_order",
+      "description": "Cancel an order that has not yet been delivered.",
+      "examples": [
+        "cancel my order",
+        "I don't want this order any more",
+        "मेरा ऑर्डर कैंसल करो",
+        "నా ఆర్డర్ రద్దు చేయండి",
+        "என் ஆர்டரை ரத்து செய்"
+      ],
+      "required_inputs": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "prompt": "What's your order number?",
+          "default_from": "context.last_order_id",
+          "optional": false
+        }
+      ],
+      "rules": [
+        {
+          "id": "already_delivered",
+          "when": "result.status == 'delivered'",
+          "deny": "Order {{order_id}} has already been delivered, so it can't be cancelled. I can start a return instead."
+        }
+      ],
+      "confirm": true,
+      "action": "cancel_order",
+      "response": "Done — order {{order_id}} is cancelled. Any amount paid is refunded within {{result.refund_eta_days}} days.",
+      "receipt": {
+        "label": "Cancelled · ref {{result.cancellation_ref}}",
+        "tone": "warning"
+      }
+    }
+  ],
+  "endpoints": [
+    {
+      "id": "cancel_order",
+      "method": "POST",
+      "url": "{{mock_base}}/meena-kitchen/orders/{{order_id}}/cancel",
+      "headers": {},
+      "body": null,
+      "timeout_s": 5
+    },
+    {
+      "id": "create_refund",
+      "method": "POST",
+      "url": "{{mock_base}}/meena-kitchen/orders/{{order_id}}/refund",
+      "headers": {},
+      "body": null,
+      "timeout_s": 5
+    },
+    {
+      "id": "get_order",
+      "method": "GET",
+      "url": "{{mock_base}}/meena-kitchen/orders/{{order_id}}",
+      "headers": {},
+      "body": null,
+      "timeout_s": 5
+    }
+  ],
+  "knowledge": [
+    {
+      "id": "return_policy",
+      "text": "Kitchen appliances can be returned within 7 days of delivery if unused and in original packaging."
+    },
+    {
+      "id": "refund_policy",
+      "text": "Approved refunds are credited to the original payment method within 5-7 business days."
+    },
+    {
+      "id": "warranty",
+      "text": "All appliances carry a 1 year manufacturer warranty handled by the brand service centre."
+    },
+    {
+      "id": "delivery",
+      "text": "Orders are delivered across Telangana and Andhra Pradesh within 3-5 working days."
+    }
+  ],
+  "escalation": {
+    "when": [
+      "rule_denied",
+      "action_failed",
+      "user_asks_human"
+    ],
+    "message": "I'm handing this to a human agent from Meena Kitchen Store — they'll call you back within 2 hours.",
+    "action": "create_escalation_ticket"
+  }
+}
