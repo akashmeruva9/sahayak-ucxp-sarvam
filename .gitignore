@@ -24,3 +24,8 @@ playwright-report/
 
 # OS
 .DS_Store
+
+# E2E runs generate numbered duplicates (ravi-electronics-2.json, ...).
+# Only hand-onboarded manifests belong in git.
+manifests/*-[0-9].json
+manifests/*-[0-9].protocol.json
