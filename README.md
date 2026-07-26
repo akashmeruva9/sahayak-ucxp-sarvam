@@ -1,5 +1,18 @@
 # Sahayak — AI Engine
 
+
+PPT Link : https://docs.google.com/presentation/d/1nnpIAuOZ8mrtoTnzKNjGvEPaeVxSKGnRwMhsYY4F-AY/edit?usp=sharing
+
+Demo : 
+
+https://github.com/user-attachments/assets/ce71b48b-8d3c-4edc-8088-5113533392cf
+
+
+https://github.com/user-attachments/assets/ede17ab2-73b6-46e2-9e45-6e043a5b5059
+
+
+
+
 The AI layer of Sahayak. It integrates **every Sarvam AI capability behind one
 interface** so nothing else in the system ever calls Sarvam directly.
 
