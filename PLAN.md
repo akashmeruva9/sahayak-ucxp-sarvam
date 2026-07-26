@@ -98,10 +98,10 @@ STT → reasoning → TTS as one experience, never presented as four API calls.
 |---|---|---|---|
 | AI Engine | `ai_engine/` | ✅ **DONE** — live-verified against Sarvam 2026-07-26, 41 offline tests | Builder 3 |
 | Frontend | `frontend/` | ✅ **DONE (mocked)** — all screens built, every call mocked | Builder 1 |
-| UCXP Runtime | `backend/` | 🟡 **RUNNING** — LangGraph graph live-verified end to end (route → classify → act → compose → localize), 19 offline tests. Not yet demoed on a device | Builder 2 |
-| Manifests | `manifests/` | ✅ **DONE** — flipkart · airtel · apollo, 3 capabilities each, schema-validated by tests | Builder 2 |
-| Mock business APIs | `backend/app/mock/` | ✅ **DONE** — deterministic, so a demo repeats identically | Builder 2 |
-| WhatsApp | `backend/app/api/whatsapp.py` | ⬜ Not started | Builder 3 |
+| UCXP Runtime | `backend/` | 🟡 **RUNNING** — LangGraph graph (route → classify → act → compose → localize). Now also accepts **published (Shopify) manifests** via `runtime/normalize.py`; live-verified end-to-end 2026-07-26 (pinned → track_order → Shopify mock → receipt). ⚠️ `tests/test_runtime.py` red — targets the retired flipkart/airtel/apollo set, needs rewrite for the merchants (§7 #20) | Builder 2 |
+| Manifests | `manifests/` | 🟡 **MIGRATING** — retired flipkart/airtel/apollo; now the **published Shopify merchants** (ravi-electronics loaded; 4 more being added). Normalized to the internal shape at load | Builder 2 |
+| Mock business APIs | `backend/app/mock/` | ✅ **DONE** — legacy flipkart/airtel/apollo + one **generic Shopify connector** (`/mock/connectors/shopify/...`) serving every merchant, deterministic | Builder 2 |
+| WhatsApp | `backend/app/api/whatsapp.py` | 🟢 **LIVE over Twilio sandbox** — `POST /whatsapp/webhook` reuses `runtime.run`, keyed on the sender's number for memory. Text · voice-note (transcribe) · PDF (pypdf) · image (Tesseract OCR) in; async reply out via Twilio REST (see §7 #19). Verified end-to-end 2026-07-26: real inbound text + voice note, outbound reply delivered+read. Cloudflare tunnel for the webhook | Builder 3 |
 | Consistency harness | `backend/app/harness/` | ⬜ Not started | Builder 3 |
 | Frontend ↔ Runtime wiring | `frontend/src/api/` | 🟡 **Wired to the runtime** — `/chat` + `/transcribe`, receipts render as action cards, conversation id carries memory. Voice transcription proven on-device; the chat path is not yet | Builder 1 |
 
@@ -204,24 +204,17 @@ text ─▶ load conversation context
 
 | Dimension | Deep (real manifest + mock API + tested) | Shallow (directory only) |
 |---|---|---|
-| Businesses | **Flipkart, Airtel, Apollo** | 25 more already in the frontend directory |
+| Businesses | **5 published Shopify merchants** (see §7 #20) | the frontend directory shows more |
 | Languages | **English, Hindi, Telugu, Tamil** — perfect, harness-verified | Engine supports 11; they'll work, we don't claim them |
-| Capabilities | ~3 per business, listed below | — |
+| Capabilities | Shopify-default per merchant (`track_order`, `refund`, …) | — |
 
-The frontend ships a 28-business directory on purpose: it *shows* what a protocol
-scales to. Only 3 are wired. If asked, say exactly that — "three are live, the
-directory is what the protocol makes cheap." Never imply 28 work.
+The businesses are now **published UCXP manifests** produced by the onboarding
+tool (Shopify-connected), pasted into `manifests/`. The runtime accepts that
+richer shape via a normalization adapter (§7 #20); all merchants share one
+generic Shopify connector mock, which is the protocol claim made literal.
 
-**Capabilities to implement:**
-
-| Business | Capabilities |
-|---|---|
-| Flipkart | `track_order`, `request_refund`, `cancel_order` |
-| Airtel | `cancel_fiber`, `get_bill`, `raise_ticket` |
-| Apollo | `book_appointment`, `find_doctor`, `cancel_appointment` |
-
-Each must return a **receipt** — tracking ETA, ticket ID, refund ref, booking ref.
-A capability that only talks has not completed a job and does not count as done.
+Each capability must return a **receipt** — tracking ETA, refund ref, etc. A
+capability that only talks has not completed a job and does not count as done.
 
 ---
 
@@ -381,6 +374,13 @@ Deviations from the original brief, with reasons. Append; don't edit.
 | 14 | Product renamed **OneSupport → Sahayak**; **UCXP unchanged** | Sahayak is the project; UCXP stays the protocol it speaks, so `ucxp_version`, "UCXP Runtime" and the §10 pitch are untouched. Native identifiers (`com.ucxp.onesupport` package/bundle ID, the `onesupport` deep-link scheme) were **deliberately not renamed**: they are invisible to users, and `android/` is hand-patched with a standing "do not re-run `expo prebuild`" constraint. Rename them only alongside a planned prebuild + clean rebuild |
 | 15 | Runtime built on **LangGraph**, used purely as a state machine | Requested, and it earns its place: the turn is genuinely a graph with short-circuits (missing slot, confirmation, rule denial). LLM calls go through `SarvamOrchestrator`, so §2 rule 1 holds — LangChain never sees a Sarvam credential |
 | 16 | Prompts 2 and 3 are **gated, not unconditional** | Three ungated reasoning calls made one turn take 58 s. Gating (prompt 2 only when an input is missing and the text plausibly has one; prompt 3 only when no manifest template renders) cuts the same turn to 10 s and makes a completed job's wording deterministic. `UCXP_COMPOSE_WITH_LLM=always` restores the unconditional behaviour |
+| 17 | WhatsApp adapter accepts **documents** too — PDF via `pypdf`, images via **Tesseract OCR** | User-directed scope for the WhatsApp channel. Extraction lives in the adapter (`backend/app/api/whatsapp.py`), never the engine (its interface is frozen and has no vision) and never the runtime (stays business-generic). A customer can forward a bill PDF or snap a photo and it flows through as text. Scanned-but-empty PDFs and unreadable images return a friendly "type it instead" |
+| 18 | WhatsApp **replies are text by default**; spoken voice-note reply is opt-in (`UCXP_WHATSAPP_SPEAK=1`) | Inbound voice notes always work (transcribe → resolve). Outbound is text because it is instant and never fails; a spoken reply needs the engine's **WAV** transcoded to **MP3** (WhatsApp rejects WAV) via `ffmpeg`, served from `GET /whatsapp/media/{id}` over the tunnel. Enabled only when both the flag is set and ffmpeg is present |
+| 19 | WhatsApp replies are **async**: the webhook acks instantly (empty TwiML), the answer is sent later via the **Twilio REST API** | Live testing showed resolution takes 20–27 s (sarvam-105b), but a Twilio webhook must respond in ~10 s or it times out (error 11200) and drops the reply. So we ack in ~0.4 s and deliver out-of-band from a FastAPI `BackgroundTask` once resolution finishes — the reply lands as a follow-up message. This makes `TWILIO_ACCOUNT_SID`/`AUTH_TOKEN` required (not just for media). Mirrors §8's "show it instantly, then the answer" hygiene, adapted to a channel with no typing indicator |
+| 20 | Deep businesses switched from Flipkart/Airtel/Apollo to **5 published Shopify merchants**; runtime **adapts to the published manifest shape** instead of transforming the files | The onboarding tool emits a richer, connector-oriented manifest (business is a name string, capabilities carry `name`/`endpoint`/`parameters`/`response`, plus `profile`/`policies`/`faq`/`data_source`). A new `runtime/normalize.py` maps that shape into the internal `Manifest` at load time, so the graph/executor/renderer are unchanged and both shapes load. `raw()` still returns the original JSON judges will read. **Consequence:** `tests/test_runtime.py` targets the retired Flipkart/Airtel/Apollo manifests and is red until rewritten for the merchant set (ai_engine suite unaffected) |
+| 21 | One **generic Shopify connector** (`/connectors/shopify/{business_id}/...`) serves every merchant, **real or mock** | All published merchants are `shopify_default`. Normalised endpoints route to this one connector with the business id embedded; it resolves that store's `data_source` + token and calls the **real Shopify Admin API** (`GET /orders.json?name=…`, mapped to flat fields), falling back to deterministic mock when no token is set. `credential_ref: vault://ravi-electronics` → env `SHOPIFY_TOKEN_RAVI_ELECTRONICS` (or a single `SHOPIFY_TOKEN`). Refunds are *initiated*, never auto-committed (a real refund is destructive + write-scoped). The runtime still only knows "call the connector" |
+| 22 | WhatsApp is **pinnable to one business** via `UCXP_WHATSAPP_BUSINESS` | A business's WhatsApp number is its own support line, so every turn resolves against that business with no cross-business routing (`route source=pinned`). Added `force_business_id` to `runtime.run()`; empty config ⇒ WhatsApp routes like the app. Also hardened `classify`: a capability id with no resolved business is dropped (smalltalk) instead of crashing `gather` on a `None` manifest |
+| 23 | Conversation memory is **persisted to disk** (`.ucxp_state.json`), not just in-process | A restart mid-flow (e.g. between a refund confirmation and the customer's "Yes") lost the pending state, so the follow-up landed with nothing pending and fell back to smalltalk. The store now snapshots after every turn and reloads on startup, so multi-step flows survive restarts and process recycling. Single JSON file, atomic write, failures never break a reply — path overridable via `UCXP_STATE_FILE`. Aligns with §9's "SQLite is fine"; a file is enough at demo scale |
 | 17 | `SARVAM_REQUEST_TIMEOUT` raised 30 s → 90 s | sarvam-105b legitimately reasons past 30 s on open-ended writing. The old timeout killed a good call and retried it, doubling latency instead of saving it |
 | 18 | Runtime exposes `POST /transcribe` (STT only) alongside `POST /voice` | The app transcribes first so it can show the customer their own words immediately, then sends text to `/chat`. Pointing it at `/voice` would execute the capability twice |
 | 19 | `EXPO_PUBLIC_API_URL` accepts a **bare port**, resolved against the Metro host | A laptop's LAN IP changes with the network, and a stale IP is indistinguishable from a broken backend — it cost a debugging cycle. Metro's host is reachable by definition |

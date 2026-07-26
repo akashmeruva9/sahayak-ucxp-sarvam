@@ -14,16 +14,14 @@ export interface VoiceResponse {
 }
 
 /**
- * A rotating set of plausible transcripts so demos feel alive. Replaces the
- * future speech-to-text step of POST /voice.
+ * Generic fallback transcripts used only when no backend is configured
+ * (mock mode). Live voice always uses the real transcription endpoint.
  */
 const MOCK_TRANSCRIPTS = [
-  "Where is my Flipkart order?",
-  "I want to cancel my Airtel Fiber connection",
-  "Book me a doctor's appointment at Apollo tomorrow",
-  "Raise a complaint about a wrong charge on my HDFC card",
-  "What's the status of my Swiggy order?",
-  "Is my train ticket confirmed?",
+  "Where is my order?",
+  "I'd like a refund for my order",
+  "What's the status of order 1001?",
+  "Can I cancel my order?",
 ];
 
 /**

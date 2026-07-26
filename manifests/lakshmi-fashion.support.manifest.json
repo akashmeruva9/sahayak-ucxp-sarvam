@@ -1,34 +1,32 @@
 {
   "ucxp_version": "0.1",
-  "business": "Ravi Electronics",
-  "business_id": "ravi-electronics",
-  "category": "Electronics",
+  "business": "Lakshmi Fashion",
+  "business_id": "lakshmi-fashion",
+  "category": "Apparel & Textiles",
   "profile": {
-    "tagline": "Everyday electronics, delivered across India.",
-    "description": "Ravi Electronics sells audio, wearables and charging accessories from brands like boAt, Redmi and Boult. We ship pan-India and support customers in their own language.",
-    "support_email": "support@ravielectronics.in",
-    "support_phone": "+91 80 4718 2200",
-    "website": "https://ravi-electronics-bmxitv46.myshopify.com",
-    "hours": "Mon-Sat 10:00-19:00 IST",
-    "city": "Bengaluru"
+    "tagline": "Handpicked Indian wear for every occasion.",
+    "description": "Lakshmi Fashion sells Kanchipuram silk sarees, cotton kurta sets and Anarkali dresses. We ship pan-India and help customers in their own language.",
+    "support_email": "support@lakshmifashion.in",
+    "support_phone": "+91 44 4820 6100",
+    "website": "https://lakshmi-fashion-4kmotaah.myshopify.com",
+    "hours": "Mon-Sat 10:00-20:00 IST",
+    "city": "Chennai"
   },
-  "primary_language": "en-IN",
+  "primary_language": "ta-IN",
   "languages": [
+    "ta-IN",
     "en-IN",
     "hi-IN",
-    "kn-IN",
     "te-IN",
-    "ta-IN",
+    "kn-IN",
     "ml-IN",
     "mr-IN",
-    "bn-IN",
-    "gu-IN",
-    "pa-IN"
+    "bn-IN"
   ],
   "data_source": {
     "type": "shopify",
-    "store_subdomain": "ravi-electronics-bmxitv46.myshopify.com",
-    "credential_ref": "vault://ravi-electronics",
+    "store_subdomain": "lakshmi-fashion-4kmotaah.myshopify.com",
+    "credential_ref": "vault://lakshmi-fashion",
     "reads": [
       "read_orders",
       "read_products"
@@ -49,7 +47,7 @@
             "name": "order_id",
             "type": "string",
             "required": true,
-            "example": "1001",
+            "example": "<order_number>",
             "description": "Shopify order number. Customers are identified by order number, never by name -- see identify_by."
           }
         ]
@@ -61,14 +59,14 @@
       },
       "response": {
         "example": {
-          "order_id": "1001",
-          "status": "being prepared",
-          "payment": "PAID",
-          "amount": "1299.0",
+          "order_id": "<order number supplied by the customer>",
+          "status": "<live fulfilment status from Shopify>",
+          "payment": "<live payment status>",
+          "amount": "<order total>",
           "currency": "INR",
           "items": [
             {
-              "title": "boAt Airdopes 141 Earbuds",
+              "title": "<line item>",
               "qty": 1
             }
           ]
@@ -96,7 +94,7 @@
           "customer_message": "Something went wrong on our side. Please try again shortly"
         }
       ],
-      "notes": "Auto-configured from Shopify store ravi-electronics-bmxitv46."
+      "notes": "Auto-configured from Shopify store lakshmi-fashion-4kmotaah."
     },
     {
       "name": "refund",
@@ -110,7 +108,7 @@
             "name": "order_id",
             "type": "string",
             "required": true,
-            "example": "1001",
+            "example": "<order_number>",
             "description": "Shopify order number. Customers are identified by order number, never by name -- see identify_by."
           }
         ]
@@ -120,16 +118,16 @@
           "X-Shopify-Access-Token": "{{credential_ref}}"
         },
         "body": {
-          "order_id": "1001",
-          "reason": "damaged_on_arrival"
+          "order_id": "<order number supplied by the customer>",
+          "reason": "<reason code, e.g. damaged_on_arrival>"
         }
       },
       "response": {
         "example": {
-          "refund_id": "rf_88h2",
-          "order_id": "1001",
-          "status": "initiated",
-          "amount": "1299.0",
+          "refund_id": "<refund id returned by Shopify>",
+          "order_id": "<order number supplied by the customer>",
+          "status": "<refund status>",
+          "amount": "<refunded amount>",
           "currency": "INR",
           "eta_days": 5
         },
@@ -156,39 +154,35 @@
           "customer_message": "Something went wrong on our side. Please try again shortly"
         }
       ],
-      "notes": "Auto-configured from Shopify store ravi-electronics-bmxitv46."
+      "notes": "Auto-configured from Shopify store lakshmi-fashion-4kmotaah."
     }
   ],
   "policies": {
-    "return_policy": "Unopened items in original packaging can be returned within 7 days of delivery. Earbuds and wearables must be sealed to be eligible.",
-    "refund_policy": "Refunds are issued to the original payment method within 5 working days of the returned item passing inspection.",
-    "shipping_policy": "Dispatch within 24-48 hours. Free shipping above Rs.999, Rs.60 flat below that. Delivery in 3-5 working days across India.",
-    "warranty": "Manufacturer warranty: 1 year on boAt and Boult products, 6 months on Redmi power banks. Claims are raised with the brand's service centre using the order number."
+    "return_policy": "Unworn items with original tags intact can be returned within 7 days of delivery. Blouses stitched to custom measurements are not returnable.",
+    "refund_policy": "Refunds reach the original payment method within 5 working days of the returned item passing inspection.",
+    "shipping_policy": "Dispatch within 24-48 hours. Free shipping above Rs.1999, Rs.80 flat below that. Delivery in 3-6 working days.",
+    "warranty": "Garments are not covered by warranty. Manufacturing defects reported within 7 days of delivery are replaced free."
   },
   "faq": [
     {
       "q": "Where is my order?",
-      "a": "Share your order number (for example 1001) and I'll check the live status with the store right away."
+      "a": "Share your order number and I'll check the live status with the store."
     },
     {
       "q": "How long does delivery take?",
-      "a": "Orders are dispatched within 24-48 hours and reach most Indian pin codes in 3-5 working days."
+      "a": "Orders are dispatched in 24-48 hours and reach most Indian pin codes in 3-6 working days."
     },
     {
-      "q": "Can I return an item?",
-      "a": "Yes - unopened items in original packaging can be returned within 7 days of delivery."
+      "q": "Can I return a saree?",
+      "a": "Yes - unworn items with tags intact can be returned within 7 days of delivery. Blouses stitched to measurement are final sale."
     },
     {
-      "q": "How do refunds work?",
-      "a": "Once a return is picked up and checked, the refund goes back to your original payment method within 5 working days."
+      "q": "Do you accept exchanges for size?",
+      "a": "Kurta sets and dresses can be exchanged once for a different size, subject to availability."
     },
     {
-      "q": "Do your products carry a warranty?",
-      "a": "All audio, wearable and power products carry the manufacturer's warranty - 1 year for boAt and Boult, 6 months for Redmi power banks."
-    },
-    {
-      "q": "What do you sell?",
-      "a": "Wireless audio, smartwatches and charging accessories - including boAt Airdopes 141 Earbuds, the Redmi Power Bank 20000mAh and the Boult Smartwatch."
+      "q": "How should I care for silk?",
+      "a": "Dry clean only. Store Kanchipuram silk wrapped in cotton cloth, away from direct sunlight."
     }
   ],
   "sla": {
@@ -206,8 +200,8 @@
       "level": 2,
       "to": "grievance officer",
       "after": "48h",
-      "name": "Ravi Kumar",
-      "contact": "grievance@ravielectronics.in"
+      "name": "Lakshmi Narayanan",
+      "contact": "grievance@lakshmifashion.in"
     },
     {
       "level": 3,
@@ -215,11 +209,11 @@
       "after": "30d"
     }
   ],
-  "created_at": "2026-07-26T08:40:57Z",
+  "created_at": "2026-07-26T09:11:54Z",
   "status": "active",
   "published": {
     "version": 1,
-    "at": "2026-07-26T08:40:58Z",
-    "url": "https://api.ucxp.in/manifests/ravi-electronics.json"
+    "at": "2026-07-26T09:11:55Z",
+    "url": "https://api.ucxp.in/manifests/lakshmi-fashion.json"
   }
 }

@@ -1,20 +1,20 @@
 import { useMemo, useState } from "react";
-import { Pressable, SectionList, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, SectionList, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Search, Store, X } from "lucide-react-native";
-import type { Business, BusinessCategory } from "@/types";
-import { CATEGORY_ORDER, listBusinesses } from "@/constants/businesses";
+import type { Business } from "@/types";
 import { useConversationStore } from "@/store/useConversationStore";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { CompanyRow, ScreenContainer } from "@/components";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { palette } from "@/constants/theme";
 
 export function CompaniesScreen() {
   const router = useRouter();
   const { colors } = useThemeColors();
   const [query, setQuery] = useState("");
   const startBusinessChat = useConversationStore((s) => s.startBusinessChat);
-
-  const all = useMemo(() => listBusinesses(), []);
+  const { data: all = [], isLoading } = useBusinesses();
 
   const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -28,10 +28,12 @@ export function CompaniesScreen() {
     const grouped: Record<string, Business[]> = {};
     for (const b of matches) (grouped[b.category] ??= []).push(b);
 
-    return CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((c) => ({
-      title: c as BusinessCategory,
-      data: grouped[c].sort((a, b) => a.name.localeCompare(b.name)),
-    }));
+    return Object.keys(grouped)
+      .sort()
+      .map((c) => ({
+        title: c,
+        data: grouped[c].sort((a, b) => a.name.localeCompare(b.name)),
+      }));
   }, [all, query]);
 
   const openChat = (business: Business) => {
@@ -88,12 +90,20 @@ export function CompaniesScreen() {
           </View>
         )}
         ListEmptyComponent={
-          <View className="mt-24 items-center px-10">
-            <Store size={40} color={colors.textFaint} />
-            <Text className="mt-4 text-center text-[15px] text-ink-muted dark:text-white/40">
-              No companies match “{query}”. Try a different name.
-            </Text>
-          </View>
+          isLoading ? (
+            <View className="mt-24 items-center">
+              <ActivityIndicator color={palette.accent} />
+            </View>
+          ) : (
+            <View className="mt-24 items-center px-10">
+              <Store size={40} color={colors.textFaint} />
+              <Text className="mt-4 text-center text-[15px] text-ink-muted dark:text-white/40">
+                {query
+                  ? `No companies match “${query}”. Try a different name.`
+                  : "No businesses available. Check that the backend is running."}
+              </Text>
+            </View>
+          )
         }
       />
     </ScreenContainer>

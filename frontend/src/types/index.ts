@@ -4,54 +4,16 @@
  * so the UI never has to change when the mocks are swapped for real endpoints.
  */
 
-export type BusinessId =
-  // Shopping
-  | "flipkart"
-  | "amazon"
-  | "myntra"
-  | "meesho"
-  // Food & Delivery
-  | "swiggy"
-  | "zomato"
-  | "blinkit"
-  | "zepto"
-  // Telecom
-  | "airtel"
-  | "jio"
-  | "vi"
-  | "bsnl"
-  // Banking & Payments
-  | "hdfc"
-  | "icici"
-  | "sbi"
-  | "phonepe"
-  | "paytm"
-  // Travel
-  | "irctc"
-  | "ola"
-  | "uber"
-  | "makemytrip"
-  | "indigo"
-  // Entertainment
-  | "netflix"
-  | "hotstar"
-  | "spotify"
-  // Healthcare
-  | "apollo"
-  | "practo"
-  | "pharmeasy"
-  // Fallback
-  | "generic";
+/**
+ * A business id is whatever the runtime's manifests declare (e.g.
+ * "ravi-electronics"). It is dynamic, not a fixed union — the app learns the
+ * businesses from GET /businesses, never hardcodes them. "generic" is the
+ * only reserved value, used as the fallback before/without a resolved business.
+ */
+export type BusinessId = string;
 
-export type BusinessCategory =
-  | "Shopping"
-  | "Food & Delivery"
-  | "Telecom"
-  | "Banking & Payments"
-  | "Travel"
-  | "Entertainment"
-  | "Healthcare"
-  | "Other";
+/** A category is free text from the manifest ("Electronics", "Wellness & Ayurveda"). */
+export type BusinessCategory = string;
 
 export interface Business {
   id: BusinessId;
@@ -64,6 +26,8 @@ export interface Business {
   tint: string;
   /** Directory grouping. */
   category: BusinessCategory;
+  /** Capability ids this business exposes (from its manifest). */
+  capabilities?: string[];
 }
 
 export type MessageRole = "user" | "assistant";

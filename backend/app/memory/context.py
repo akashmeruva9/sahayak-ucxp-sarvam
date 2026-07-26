@@ -9,10 +9,15 @@ would add setup without adding a point.
 
 from __future__ import annotations
 
+import json
+import os
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
+from pathlib import Path
 from typing import Any
+
+from loguru import logger
 
 from ..config import get_settings
 
@@ -76,10 +81,20 @@ class Conversation:
 
 
 class ConversationStore:
-    """In-memory conversation registry."""
+    """Conversation registry with lightweight disk persistence.
 
-    def __init__(self) -> None:
+    Multi-step flows (a refund waiting on a yes/no, a slot waiting to be filled)
+    keep their state on the Conversation object. Without persistence a process
+    restart mid-flow loses that state and the next message ("Yes") lands with no
+    pending action — so we snapshot to a JSON file after every turn and reload it
+    on startup. Single-node and simple, per PLAN.md §9.
+    """
+
+    def __init__(self, path: Path | None = None) -> None:
         self._conversations: dict[str, Conversation] = {}
+        env_path = os.getenv("UCXP_STATE_FILE")
+        self._path = path or (Path(env_path) if env_path else Path(".ucxp_state.json"))
+        self._load()
 
     def get_or_create(self, conversation_id: str | None, user_id: str | None = None) -> Conversation:
         if conversation_id and conversation_id in self._conversations:
@@ -97,6 +112,30 @@ class ConversationStore:
 
     def clear(self) -> None:
         self._conversations.clear()
+        self.save()
+
+    # -- persistence ---------------------------------------------------- #
+    def save(self) -> None:
+        """Atomically snapshot all conversations. Never raises into a turn."""
+        try:
+            data = {cid: asdict(conv) for cid, conv in self._conversations.items()}
+            tmp = self._path.with_suffix(self._path.suffix + ".tmp")
+            tmp.write_text(json.dumps(data), encoding="utf-8")
+            os.replace(tmp, self._path)
+        except Exception as exc:  # noqa: BLE001 — persistence must not break a reply
+            logger.warning(f"conversation.save_failed path={self._path} {exc}")
+
+    def _load(self) -> None:
+        if not self._path.exists():
+            return
+        try:
+            data = json.loads(self._path.read_text(encoding="utf-8"))
+            valid = {f.name for f in fields(Conversation)}
+            for cid, raw in data.items():
+                self._conversations[cid] = Conversation(**{k: v for k, v in raw.items() if k in valid})
+            logger.info(f"conversation.loaded count={len(self._conversations)} path={self._path}")
+        except Exception as exc:  # noqa: BLE001 — a corrupt file must not block startup
+            logger.warning(f"conversation.load_failed path={self._path} {exc}")
 
 
 _store: ConversationStore | None = None

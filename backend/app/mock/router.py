@@ -164,3 +164,60 @@ async def apollo_cancel(booking_ref: str) -> dict[str, Any]:
         "cancelled": True,
         "refund_note": "The consultation fee is fully refunded since it was cancelled in advance.",
     }
+
+
+# --------------------------------------------------------------------------- #
+# Shopify connector — one generic mock for every `shopify_default` business.
+# Published manifests all point their capabilities at /connectors/shopify/…, so
+# this single connector serves all of them; it never knows which business it is,
+# which is exactly the protocol claim. Deterministic, so a demo repeats.
+# --------------------------------------------------------------------------- #
+_SHOP_ITEMS = [
+    "boAt Airdopes 141 Earbuds",
+    "Redmi Power Bank 20000mAh",
+    "Boult Smartwatch",
+    "Noise ColorFit Pro",
+    "USB-C Fast Charger",
+]
+_SHOP_STATUS = ["being prepared", "shipped", "out for delivery", "delivered"]
+
+
+def _order_view(order_id: str) -> dict[str, Any]:
+    bucket = _stable(order_id, 4)
+    amount = 799 + _stable(order_id, 60) * 50
+    return {
+        "order_id": order_id,
+        "status": _SHOP_STATUS[bucket],
+        "eta": "today, before 9 PM" if bucket == 0 else _day(bucket),
+        "payment": "PAID",
+        "amount": f"{amount}.00",
+        "currency": "INR",
+        "days_since_delivery": _stable(order_id, 12) if bucket == 3 else 0,
+        "items": [{"title": _SHOP_ITEMS[_stable(order_id, len(_SHOP_ITEMS))], "qty": 1}],
+    }
+
+
+@router.get("/connectors/shopify/orders/{order_id}")
+async def shopify_order(order_id: str) -> dict[str, Any]:
+    # A short numeric/alphanumeric order number is expected; a name is not.
+    if len(order_id.strip()) < 3:
+        raise HTTPException(status_code=404, detail="Sorry, we couldn't find that order number.")
+    return _order_view(order_id)
+
+
+@router.post("/connectors/shopify/orders/{order_id}/refund")
+async def shopify_refund(order_id: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    view = _order_view(order_id)
+    return {
+        "refund_id": f"rf_{_stable(order_id, 100000):05d}",
+        "order_id": order_id,
+        "status": "initiated",
+        "amount": view["amount"],
+        "currency": "INR",
+        "eta_days": 5,
+    }
+
+
+@router.post("/connectors/shopify/orders/{order_id}/cancel")
+async def shopify_cancel(order_id: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {"order_id": order_id, "status": "cancelled", "cancelled_at": _day(0)}

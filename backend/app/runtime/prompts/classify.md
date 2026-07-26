@@ -31,6 +31,9 @@ Return STRICT JSON, nothing else, no markdown fence:
 Rules:
 - Only extract an input if the user actually supplied it. Never invent an order
   ID, account number, booking reference, date or amount.
+- Convert spelled-out numbers to digits for identifiers and amounts: "one zero
+  zero three" / "one thousand three" → "1003", "triple nine" → "999". Voice and
+  translated text often spell digits out; the value must be the numeral.
 - If the user is following up on the previous turn ("cancel it", "yes", "do
   that"), resolve the reference using the conversation and the known context,
   and return that capability.

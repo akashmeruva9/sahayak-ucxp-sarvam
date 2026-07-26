@@ -18,6 +18,8 @@ from loguru import logger
 
 from ai_engine import SarvamOrchestrator
 
+from .api.whatsapp import router as whatsapp_router
+from .connectors.shopify import router as shopify_router
 from .config import get_settings
 from .memory.context import get_store
 from .mock.router import router as mock_router
@@ -78,6 +80,8 @@ app.add_middleware(
 )
 
 app.include_router(mock_router)
+app.include_router(shopify_router)
+app.include_router(whatsapp_router)
 
 
 def _to_response(final: dict[str, Any], conversation_id: str, latency_ms: float) -> ChatResponse:
@@ -113,6 +117,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         conversation_id=request.conversation_id,
         language=request.language,
         user_id=request.user_id,
+        force_business_id=request.business_id,
     )
     elapsed = (time.perf_counter() - started) * 1000
     logger.info(

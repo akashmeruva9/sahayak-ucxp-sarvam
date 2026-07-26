@@ -17,6 +17,9 @@ class ChatRequest(BaseModel):
     conversation_id: str | None = None
     language: str | None = None
     user_id: str | None = None
+    #: Pin the turn to one business (a scoped support chat opened from the
+    #: directory) — skips cross-business routing, like the WhatsApp channel.
+    business_id: str | None = None
 
 
 class ReceiptOut(BaseModel):

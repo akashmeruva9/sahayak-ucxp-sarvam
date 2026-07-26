@@ -49,7 +49,11 @@ class ActionExecutor:
         if endpoint is None:
             raise ActionError(f"Manifest '{manifest.id}' declares no endpoint '{endpoint_id}'")
 
-        scope = {**scope, "mock_base": self.settings.mock_base_url}
+        scope = {
+            **scope,
+            "mock_base": self.settings.mock_base_url,
+            "connector_base": self.settings.connector_base_url,
+        }
         try:
             url = render(endpoint.url, scope)
             body = render_value(endpoint.body, scope) if endpoint.body is not None else None
