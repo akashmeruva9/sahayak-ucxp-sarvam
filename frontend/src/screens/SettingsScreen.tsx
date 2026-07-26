@@ -1,0 +1,243 @@
+import { useState } from "react";
+import { Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { useColorScheme } from "nativewind";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
+import Constants from "expo-constants";
+import {
+  Check,
+  ChevronRight,
+  Globe,
+  Info,
+  Moon,
+  Smartphone,
+  Sun,
+  X,
+  type LucideIcon,
+} from "lucide-react-native";
+import type { ThemePreference } from "@/types";
+import { SUPPORTED_LANGUAGES } from "@/constants/theme";
+import { useSettingsStore } from "@/store/useSettingsStore";
+import { ScreenContainer } from "@/components";
+import { useThemeColors } from "@/hooks/useThemeColors";
+import { palette } from "@/constants/theme";
+
+const THEME_OPTIONS: { value: ThemePreference; label: string; icon: LucideIcon }[] = [
+  { value: "system", label: "System", icon: Smartphone },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+];
+
+export function SettingsScreen() {
+  const { colors } = useThemeColors();
+  const { setColorScheme } = useColorScheme();
+  const theme = useSettingsStore((s) => s.theme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
+  const languageCode = useSettingsStore((s) => s.languageCode);
+  const setLanguage = useSettingsStore((s) => s.setLanguage);
+
+  const [langOpen, setLangOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+
+  const activeLanguage =
+    SUPPORTED_LANGUAGES.find((l) => l.code === languageCode) ?? SUPPORTED_LANGUAGES[0];
+
+  const applyTheme = (value: ThemePreference) => {
+    Haptics.selectionAsync().catch(() => {});
+    setTheme(value);
+    setColorScheme(value);
+  };
+
+  const version =
+    Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "1.0.0";
+
+  return (
+    <ScreenContainer>
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-5 pb-40 pt-2"
+        showsVerticalScrollIndicator={false}
+      >
+        <Text className="text-[32px] font-bold tracking-tight text-ink dark:text-white">
+          Settings
+        </Text>
+
+        {/* Appearance */}
+        <Animated.View entering={FadeInDown.duration(360)} className="mt-8">
+          <SectionLabel>Appearance</SectionLabel>
+          <View className="flex-row gap-2 rounded-2xl border border-hairline/70 bg-elevated p-1.5 dark:border-hairline-dark/70 dark:bg-elevated-dark">
+            {THEME_OPTIONS.map((opt) => {
+              const active = theme === opt.value;
+              const Icon = opt.icon;
+              return (
+                <Pressable
+                  key={opt.value}
+                  onPress={() => applyTheme(opt.value)}
+                  className={`flex-1 flex-row items-center justify-center rounded-xl py-3 ${
+                    active ? "bg-accent" : ""
+                  }`}
+                >
+                  <Icon size={17} color={active ? "#FFFFFF" : colors.textMuted} />
+                  <Text
+                    className={`ml-2 text-[14px] font-semibold ${
+                      active ? "text-white" : "text-ink-muted dark:text-white/50"
+                    }`}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Animated.View>
+
+        {/* Language */}
+        <Animated.View entering={FadeInDown.delay(80).duration(360)} className="mt-8">
+          <SectionLabel>Language</SectionLabel>
+          <SettingsRow
+            icon={Globe}
+            title="App language"
+            value={activeLanguage.native}
+            onPress={() => setLangOpen(true)}
+          />
+        </Animated.View>
+
+        {/* About */}
+        <Animated.View entering={FadeInDown.delay(160).duration(360)} className="mt-8">
+          <SectionLabel>About</SectionLabel>
+          <View className="overflow-hidden rounded-2xl border border-hairline/70 bg-elevated dark:border-hairline-dark/70 dark:bg-elevated-dark">
+            <SettingsRow
+              icon={Info}
+              title="About UCXP"
+              value=""
+              onPress={() => setAboutOpen(true)}
+              flat
+            />
+            <View className="h-px bg-hairline/70 dark:bg-hairline-dark/70" />
+            <View className="flex-row items-center justify-between px-4 py-4">
+              <Text className="text-[15px] text-ink dark:text-white">App version</Text>
+              <Text className="text-[15px] text-ink-muted dark:text-white/40">{version}</Text>
+            </View>
+          </View>
+        </Animated.View>
+
+        <Text className="mt-10 text-center text-[13px] text-ink-faint dark:text-white/30">
+          OneSupport · Unified Customer Experience Protocol
+        </Text>
+      </ScrollView>
+
+      {/* Language picker */}
+      <PickerModal visible={langOpen} title="Choose language" onClose={() => setLangOpen(false)}>
+        {SUPPORTED_LANGUAGES.map((lang) => {
+          const active = lang.code === languageCode;
+          return (
+            <Pressable
+              key={lang.code}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                setLanguage(lang.code);
+                setLangOpen(false);
+              }}
+              className="flex-row items-center justify-between px-5 py-4"
+            >
+              <View>
+                <Text className="text-[16px] font-medium text-ink dark:text-white">
+                  {lang.native}
+                </Text>
+                <Text className="text-[13px] text-ink-muted dark:text-white/40">{lang.label}</Text>
+              </View>
+              {active ? <Check size={20} color={palette.accent} /> : null}
+            </Pressable>
+          );
+        })}
+      </PickerModal>
+
+      {/* About UCXP */}
+      <PickerModal visible={aboutOpen} title="About UCXP" onClose={() => setAboutOpen(false)}>
+        <View className="px-5 pb-2">
+          <Text className="text-[15px] leading-[23px] text-ink-soft dark:text-white/70">
+            The Unified Customer Experience Protocol (UCXP) is an open standard that lets a single
+            client talk to any business — track orders, cancel services, book appointments, raise
+            complaints — in any language, without app-hopping or hold music.
+          </Text>
+          <Text className="mt-4 text-[15px] leading-[23px] text-ink-soft dark:text-white/70">
+            OneSupport is the reference client for UCXP: one place, every business, every language.
+          </Text>
+        </View>
+      </PickerModal>
+    </ScreenContainer>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Text className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-ink-faint dark:text-white/40">
+      {children}
+    </Text>
+  );
+}
+
+function SettingsRow({
+  icon: Icon,
+  title,
+  value,
+  onPress,
+  flat = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  value: string;
+  onPress: () => void;
+  flat?: boolean;
+}) {
+  const { colors } = useThemeColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      className={`flex-row items-center px-4 py-4 ${
+        flat
+          ? ""
+          : "rounded-2xl border border-hairline/70 bg-elevated dark:border-hairline-dark/70 dark:bg-elevated-dark"
+      }`}
+    >
+      <Icon size={20} color={colors.textMuted} />
+      <Text className="ml-3 flex-1 text-[15px] text-ink dark:text-white">{title}</Text>
+      {value ? (
+        <Text className="mr-1 text-[15px] text-ink-muted dark:text-white/40">{value}</Text>
+      ) : null}
+      <ChevronRight size={18} color={colors.textFaint} />
+    </Pressable>
+  );
+}
+
+function PickerModal({
+  visible,
+  title,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const { colors } = useThemeColors();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable className="flex-1 justify-end bg-black/50" onPress={onClose}>
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          className="rounded-t-3xl bg-canvas pb-8 pt-4 dark:bg-canvas-dark"
+        >
+          <View className="mb-2 flex-row items-center justify-between px-5">
+            <Text className="text-[18px] font-bold text-ink dark:text-white">{title}</Text>
+            <Pressable onPress={onClose} hitSlop={10} className="h-8 w-8 items-center justify-center">
+              <X size={22} color={colors.textMuted} />
+            </Pressable>
+          </View>
+          {children}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
