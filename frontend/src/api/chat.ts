@@ -8,6 +8,11 @@ export interface ChatRequest {
   /** Prior turns, so the mock can stay in-context. */
   history?: Message[];
   businessId?: BusinessId;
+  /**
+   * Runtime conversation id. Memory lives server-side, so without this every
+   * turn starts fresh and "Cancel it." can't resolve.
+   */
+  conversationId?: string;
 }
 
 export interface ChatResponse {
@@ -112,33 +117,44 @@ function classifyBusiness(text: string, hint?: BusinessId): BusinessId {
   return INTENTS.find((i) => i.match.test(text))?.businessId ?? "generic";
 }
 
-/** The AI Engine's TextResponse — the subset the client needs. */
-interface EngineTextResponse {
-  success: boolean;
-  response_text: string;
-  detected_language: string;
-  degraded_stages?: string[];
+/** The UCXP Runtime's POST /chat response — PLAN.md §6. */
+interface RuntimeChatResponse {
+  success?: boolean;
+  conversation_id: string;
+  reply_text: string;
+  business_id?: string | null;
+  capability?: string | null;
+  receipt?: { label: string; tone?: "info" | "success" | "warning" } | null;
+  needs?: { input: string; prompt: string } | null;
+  state: string;
+  language: string;
+  degraded?: string[];
 }
 
 /**
- * Live path: the AI Engine's full text pipeline —
- * detect language → translate → reason → translate back.
+ * Live path: the UCXP Runtime.
  *
- * It answers in the user's own language but knows nothing about businesses, so
- * there is no `action` receipt here. Receipts arrive when the runtime lands and
- * executes a real capability; faking one would be worse than omitting it.
+ * It detects the language, routes to a business via its manifest, executes a
+ * real capability and returns a receipt — so unlike the mock, the outcomes
+ * here actually happened. Business routing and memory are server-side; the
+ * client just carries the conversation id.
  */
 async function sendChatLive(req: ChatRequest): Promise<ChatResponse> {
-  const history = (req.history ?? [])
-    .filter((m) => !m.pending && m.text.trim().length > 0)
-    .map((m) => ({ role: m.role, content: m.text }));
-
-  const data = await postJson<EngineTextResponse>("/v1/text", {
+  const data = await postJson<RuntimeChatResponse>("/chat", {
     text: req.text,
-    history,
+    conversation_id: req.conversationId,
   });
 
-  return buildMessage(classifyBusiness(req.text, req.businessId), data.response_text);
+  // The runtime's receipt IS the action card the UI already renders.
+  const action: BusinessAction | undefined = data.receipt
+    ? { label: data.receipt.label, tone: data.receipt.tone ?? "info" }
+    : undefined;
+
+  // Trust the runtime's manifest-driven routing; fall back to the local hint
+  // only while it is still deciding (small talk, first turn).
+  const businessId = (data.business_id as BusinessId | undefined) ?? classifyBusiness(req.text, req.businessId);
+
+  return buildMessage(businessId, data.reply_text, action);
 }
 
 /** POST /chat — returns a single assistant message. */

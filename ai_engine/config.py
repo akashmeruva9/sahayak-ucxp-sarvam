@@ -1,4 +1,4 @@
-"""Configuration for the OneSupport AI Engine.
+"""Configuration for the Sahayak AI Engine.
 
 Every knob the engine has is read from the environment (``.env``) so that no
 Sarvam-specific value is ever hard-coded in a caller.  Nothing in this module
@@ -167,7 +167,7 @@ class Settings(BaseModel):
     # ---- http surface (the engine's own service, not business APIs) -------- #
     api_host: str = "0.0.0.0"
     api_port: int = 8080
-    api_title: str = "OneSupport AI Engine"
+    api_title: str = "Sahayak AI Engine"
 
     @field_validator("sarvam_base_url")
     @classmethod
@@ -248,7 +248,7 @@ class Settings(BaseModel):
             log_payloads=_env_bool("AI_ENGINE_LOG_PAYLOADS", False),
             api_host=_env("AI_ENGINE_HOST", "0.0.0.0"),
             api_port=_env_int("AI_ENGINE_PORT", 8080),
-            api_title=_env("AI_ENGINE_TITLE", "OneSupport AI Engine"),
+            api_title=_env("AI_ENGINE_TITLE", "Sahayak AI Engine"),
         )
 
 

@@ -131,7 +131,7 @@ async def run(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Drive the OneSupport AI Engine")
+    parser = argparse.ArgumentParser(description="Drive the Sahayak AI Engine")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("health")

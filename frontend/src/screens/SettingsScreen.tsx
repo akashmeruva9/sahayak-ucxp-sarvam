@@ -122,7 +122,7 @@ export function SettingsScreen() {
         </Animated.View>
 
         <Text className="mt-10 text-center text-[13px] text-ink-faint dark:text-white/30">
-          OneSupport · Unified Customer Experience Protocol
+          Sahayak · Unified Customer Experience Protocol
         </Text>
       </ScrollView>
 
@@ -161,7 +161,7 @@ export function SettingsScreen() {
             complaints — in any language, without app-hopping or hold music.
           </Text>
           <Text className="mt-4 text-[15px] leading-[23px] text-ink-soft dark:text-white/70">
-            OneSupport is the reference client for UCXP: one place, every business, every language.
+            Sahayak is the reference client for UCXP: one place, every business, every language.
           </Text>
         </View>
       </PickerModal>

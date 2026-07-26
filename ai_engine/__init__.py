@@ -1,4 +1,4 @@
-"""OneSupport AI Engine — one interface over every Sarvam AI capability.
+"""Sahayak AI Engine — one interface over every Sarvam AI capability.
 
 The rest of the application talks to :class:`SarvamOrchestrator` and nothing
 else::

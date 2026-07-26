@@ -208,6 +208,9 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
         text: trimmed,
         history: conv?.messages,
         businessId: businessId ?? conv?.businessId,
+        // Server-side memory is keyed on this — it's what lets "Cancel it."
+        // resolve the business and the order without repeating them.
+        conversationId,
       });
       applyAssistant({
         text: message.text,

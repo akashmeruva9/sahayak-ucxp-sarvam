@@ -48,7 +48,7 @@ export const BUSINESSES: Record<BusinessId, Business> = {
   pharmeasy: { id: "pharmeasy", name: "PharmEasy", glyph: "💊", color: "#10847E", tint: "#DCF2F1", category: "Healthcare" },
 
   // Fallback (never shown in the directory)
-  generic: { id: "generic", name: "OneSupport", glyph: "✦", color: "#2563EB", tint: "#DBEAFE", category: "Other" },
+  generic: { id: "generic", name: "Sahayak", glyph: "✦", color: "#2563EB", tint: "#DBEAFE", category: "Other" },
 };
 
 export function getBusiness(id?: BusinessId): Business {

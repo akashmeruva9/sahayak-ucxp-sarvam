@@ -1,0 +1,163 @@
+{
+  "ucxp_version": "0.1",
+
+  "business": {
+    "id": "airtel",
+    "name": "Airtel",
+    "category": "Telecom",
+    "glyph": "📶",
+    "color": "#E40000",
+    "languages": ["en-IN", "hi-IN", "te-IN", "ta-IN"]
+  },
+
+  "routing": {
+    "aliases": ["airtel", "एयरटेल", "ఎయిర్‌టెల్", "ஏர்டெல்"],
+    "domains": ["fiber", "broadband", "wifi", "internet", "connection", "bill", "recharge", "plan", "network"]
+  },
+
+  "auth": {
+    "type": "none",
+    "identity_fields": ["phone"]
+  },
+
+  "capabilities": [
+    {
+      "id": "cancel_fiber",
+      "description": "Cancel or disconnect an Airtel Fiber broadband connection.",
+      "examples": [
+        "cancel my fiber connection",
+        "disconnect my broadband",
+        "Airtel Fiber बंद कर दो",
+        "నా ఫైబర్ కనెక్షన్ రద్దు చేయండి",
+        "என் ஃபைபர் இணைப்பை நிறுத்துங்கள்"
+      ],
+      "required_inputs": [
+        {
+          "name": "account_id",
+          "type": "string",
+          "prompt": "What's your Airtel account or registered mobile number?",
+          "default_from": "context.last_account_id",
+          "optional": false
+        }
+      ],
+      "rules": [
+        {
+          "id": "dues_pending",
+          "when": "result.outstanding_amount > 0",
+          "deny": "There's an outstanding balance on this account. Please clear it before the connection can be closed."
+        }
+      ],
+      "confirm": true,
+      "action": "cancel_fiber_connection",
+      "response": "Your Airtel Fiber connection {{account_id}} is scheduled for disconnection. {{result.pickup_note}}",
+      "receipt": {
+        "label": "Ticket {{result.ticket_id}} · pickup {{result.pickup_date}}",
+        "tone": "warning"
+      }
+    },
+    {
+      "id": "get_bill",
+      "description": "Check the current outstanding bill amount and its due date.",
+      "examples": [
+        "what's my bill",
+        "how much do I owe",
+        "मेरा बिल कितना है",
+        "నా బిల్లు ఎంత"
+      ],
+      "required_inputs": [
+        {
+          "name": "account_id",
+          "type": "string",
+          "prompt": "What's your Airtel account or registered mobile number?",
+          "default_from": "context.last_account_id",
+          "optional": false
+        }
+      ],
+      "rules": [],
+      "confirm": false,
+      "action": "get_account_bill",
+      "response": "Your current Airtel bill is {{result.amount}}, due on {{result.due_date}}.",
+      "receipt": {
+        "label": "{{result.amount}} due {{result.due_date}}",
+        "tone": "info"
+      }
+    },
+    {
+      "id": "raise_ticket",
+      "description": "Raise a support ticket for a network, speed or service problem.",
+      "examples": [
+        "my internet is not working",
+        "the network is very slow",
+        "इंटरनेट नहीं चल रहा है",
+        "నా ఇంటర్నెట్ పని చేయడం లేదు"
+      ],
+      "required_inputs": [
+        {
+          "name": "account_id",
+          "type": "string",
+          "prompt": "What's your Airtel account or registered mobile number?",
+          "default_from": "context.last_account_id",
+          "optional": false
+        },
+        {
+          "name": "issue",
+          "type": "string",
+          "prompt": "What problem are you facing?",
+          "optional": true
+        }
+      ],
+      "rules": [],
+      "confirm": false,
+      "action": "create_support_ticket",
+      "response": "I've raised a ticket for you. An engineer will be assigned within {{result.sla_hours}} hours.",
+      "receipt": {
+        "label": "Ticket {{result.ticket_id}} opened",
+        "tone": "info"
+      }
+    }
+  ],
+
+  "endpoints": [
+    {
+      "id": "cancel_fiber_connection",
+      "method": "POST",
+      "url": "{{mock_base}}/airtel/accounts/{{account_id}}/fiber/cancel",
+      "headers": {},
+      "body": {},
+      "timeout_s": 5
+    },
+    {
+      "id": "get_account_bill",
+      "method": "GET",
+      "url": "{{mock_base}}/airtel/accounts/{{account_id}}/bill",
+      "headers": {},
+      "body": null,
+      "timeout_s": 5
+    },
+    {
+      "id": "create_support_ticket",
+      "method": "POST",
+      "url": "{{mock_base}}/airtel/accounts/{{account_id}}/tickets",
+      "headers": {},
+      "body": { "issue": "{{issue}}" },
+      "timeout_s": 5
+    }
+  ],
+
+  "knowledge": [
+    {
+      "id": "disconnection_policy",
+      "text": "Fiber disconnection requires router pickup, which is scheduled within 48 hours of the request."
+    },
+    {
+      "id": "billing_cycle",
+      "text": "Airtel postpaid bills are generated monthly and are due 15 days after generation."
+    }
+  ],
+
+  "escalation": {
+    "when": ["rule_denied", "action_failed", "user_asks_human"],
+    "message": "Let me connect you to an Airtel specialist — they'll call you shortly.",
+    "action": "create_escalation_ticket"
+  }
+}

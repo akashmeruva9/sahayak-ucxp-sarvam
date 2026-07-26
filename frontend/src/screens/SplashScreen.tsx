@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
   FadeIn,
   FadeInDown,
+  FadeOutUp,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -13,6 +14,7 @@ import Animated, {
 import { BrandGradient, LoadingDots, ScreenContainer } from "@/components";
 import { GRADIENT, palette } from "@/constants/theme";
 import { ALPHABET_GLYPHS } from "@/constants/alphabets";
+import { LANGUAGE_GREETINGS } from "@/constants/languages";
 import { useThemeColors } from "@/hooks/useThemeColors";
 
 /** Branded splash → a Sarvam-style wall of language scripts, then auto-advances. */
@@ -24,6 +26,8 @@ export function SplashScreen() {
   const scale = useSharedValue(0.7);
   const glow = useSharedValue(0);
   const wall = useSharedValue(1.06);
+  const wallFade = useSharedValue(0);
+  const [greetIndex, setGreetIndex] = useState(0);
 
   useEffect(() => {
     scale.value = withSequence(
@@ -31,15 +35,28 @@ export function SplashScreen() {
       withTiming(1, { duration: 260 })
     );
     glow.value = withDelay(200, withTiming(1, { duration: 600 }));
-    wall.value = withTiming(1, { duration: 2200 });
+    wall.value = withTiming(1, { duration: 2400 });
+    wallFade.value = withTiming(1, { duration: 700 });
 
-    const t = setTimeout(() => router.replace("/home"), 1800);
-    return () => clearTimeout(t);
-  }, [glow, router, scale, wall]);
+    const cycle = setInterval(
+      () => setGreetIndex((i) => (i + 1) % LANGUAGE_GREETINGS.length),
+      560
+    );
+    const t = setTimeout(() => router.replace("/home"), 2100);
+    return () => {
+      clearInterval(cycle);
+      clearTimeout(t);
+    };
+  }, [glow, router, scale, wall, wallFade]);
+
+  const greeting = LANGUAGE_GREETINGS[greetIndex];
 
   const logoStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value * 0.5 }));
-  const wallStyle = useAnimatedStyle(() => ({ transform: [{ scale: wall.value }] }));
+  const wallStyle = useAnimatedStyle(() => ({
+    opacity: wallFade.value,
+    transform: [{ scale: wall.value }],
+  }));
 
   // Build a grid that covers the screen.
   const cols = Math.max(6, Math.round(width / 56));
@@ -65,9 +82,8 @@ export function SplashScreen() {
           const color = lit ? spectrum[Math.floor(i / 8) % 3] : colors.textFaint;
           const opacity = lit ? 0.85 : isDark ? 0.16 : 0.24;
           return (
-            <Animated.Text
+            <Text
               key={i}
-              entering={FadeIn.delay(Math.min(i * 6, 500)).duration(500)}
               style={{
                 width: cellW,
                 height: cellW,
@@ -79,7 +95,7 @@ export function SplashScreen() {
               }}
             >
               {glyph}
-            </Animated.Text>
+            </Text>
           );
         })}
       </Animated.View>
@@ -129,13 +145,32 @@ export function SplashScreen() {
 
           <Animated.Text
             entering={FadeInDown.delay(280).duration(500)}
-            className="mt-6 text-[30px] font-bold tracking-tight text-ink dark:text-white"
+            className="mt-6 text-[28px] font-bold tracking-tight text-ink dark:text-white"
           >
-            OneSupport
+            Sahayak
           </Animated.Text>
+
+          {/* The "different languages" animation — greeting cycles across scripts */}
+          <View className="mt-4 h-16 w-full items-center justify-center">
+            <Animated.View
+              key={greeting.code}
+              entering={FadeInDown.duration(340)}
+              exiting={FadeOutUp.duration(280)}
+              style={{ position: "absolute" }}
+              className="items-center"
+            >
+              <Text className="text-[34px] font-bold text-ink dark:text-white">
+                {greeting.hello}
+              </Text>
+              <Text className="mt-1 text-[11px] font-semibold uppercase tracking-[3px] text-accent">
+                {greeting.native}
+              </Text>
+            </Animated.View>
+          </View>
+
           <Animated.Text
             entering={FadeInDown.delay(400).duration(500)}
-            className="mt-2 text-center text-[13px] font-medium leading-[19px] text-ink-muted dark:text-white/50"
+            className="mt-3 text-center text-[13px] font-medium leading-[19px] text-ink-muted dark:text-white/50"
           >
             One Place · Every Business · Every Language
           </Animated.Text>

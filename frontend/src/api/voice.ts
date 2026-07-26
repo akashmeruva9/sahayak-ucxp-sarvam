@@ -116,6 +116,6 @@ export async function transcribeVoice(req: VoiceRequest): Promise<VoiceResponse>
   form.append("file", part as unknown as Blob);
   reportDiag("voice.uploading", { name: part.name, type: part.type });
 
-  const data = await postForm<EngineSpeechResponse>("/v1/transcribe", form);
+  const data = await postForm<EngineSpeechResponse>("/transcribe", form);
   return { transcript: data.transcript };
 }

@@ -86,7 +86,7 @@ export function HomeScreen() {
           {/* Header */}
           <Animated.View entering={FadeInDown.duration(400)}>
             <Text className="text-[32px] font-bold tracking-tight text-ink dark:text-white">
-              OneSupport
+              Sahayak
             </Text>
             <Text className="mt-1 text-[16px] text-ink-muted dark:text-white/50">
               Talk to any business.

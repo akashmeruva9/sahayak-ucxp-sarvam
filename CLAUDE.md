@@ -1,4 +1,4 @@
-# UCXP / OneSupport
+# UCXP / Sahayak
 
 **Read [`PLAN.md`](./PLAN.md) before doing anything in this repo.** It is the single
 source of truth for architecture, scope, and cross-layer contracts. This applies

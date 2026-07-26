@@ -1,10 +1,10 @@
-# UCXP / OneSupport — Central Plan
+# UCXP / Sahayak — Central Plan
 
 > **This file is the single source of truth.** `frontend/`, `backend/`, and `ai_engine/`
 > all follow it. If code and this file disagree, one of them is a bug — fix the
 > disagreement, don't ignore it.
 
-**Last updated:** 2026-07-26 · **Status:** AI Engine done · Frontend done (mocked) · Runtime not started
+**Last updated:** 2026-07-26 · **Status:** AI Engine done · Runtime running (3 businesses, 9 capabilities) · Frontend wired to the runtime
 
 ---
 
@@ -98,12 +98,12 @@ STT → reasoning → TTS as one experience, never presented as four API calls.
 |---|---|---|---|
 | AI Engine | `ai_engine/` | ✅ **DONE** — live-verified against Sarvam 2026-07-26, 41 offline tests | Builder 3 |
 | Frontend | `frontend/` | ✅ **DONE (mocked)** — all screens built, every call mocked | Builder 1 |
-| UCXP Runtime | `backend/` | ⬜ **NOT STARTED** — this is the critical path | Builder 2 |
-| Manifests | `manifests/` | ⬜ Not started | Builder 2 |
-| Mock business APIs | `backend/app/mock/` | ⬜ Not started | Builder 2 |
+| UCXP Runtime | `backend/` | 🟡 **RUNNING** — LangGraph graph live-verified end to end (route → classify → act → compose → localize), 19 offline tests. Not yet demoed on a device | Builder 2 |
+| Manifests | `manifests/` | ✅ **DONE** — flipkart · airtel · apollo, 3 capabilities each, schema-validated by tests | Builder 2 |
+| Mock business APIs | `backend/app/mock/` | ✅ **DONE** — deterministic, so a demo repeats identically | Builder 2 |
 | WhatsApp | `backend/app/api/whatsapp.py` | ⬜ Not started | Builder 3 |
 | Consistency harness | `backend/app/harness/` | ⬜ Not started | Builder 3 |
-| Frontend ↔ Runtime wiring | `frontend/src/api/` | 🟡 **Wired to the AI Engine (interim)** — chat + voice live, typechecked and contract-verified against a running engine; **not yet run on a device**. History stays local. Repoint at the runtime when it lands | Builder 1 |
+| Frontend ↔ Runtime wiring | `frontend/src/api/` | 🟡 **Wired to the runtime** — `/chat` + `/transcribe`, receipts render as action cards, conversation id carries memory. Voice transcription proven on-device; the chat path is not yet | Builder 1 |
 
 ### 3.1 AI Engine — done, treat the interface as frozen
 
@@ -167,7 +167,7 @@ Business badges in live mode come from a client-side regex in `chat.ts`
 (`classifyBusiness`). That is UI theming only, and the runtime's manifest-driven
 resolver replaces it.
 
-### 3.3 UCXP Runtime — to build
+### 3.3 UCXP Runtime — built, LangGraph
 
 ```
 backend/
@@ -378,6 +378,12 @@ Deviations from the original brief, with reasons. Append; don't edit.
 | 11 | AI Engine pre-checks audio duration and rejects >30 s locally | Live testing found Sarvam's realtime STT hard-caps at 30 s. Failing in 2 ms with an actionable message beats a 400 after three retries. Constrains `POST /voice` — see §3.1 |
 | 12 | Unknown source languages are resolved via `/text-lid` before translating | Live `/translate` and `/transliterate` reject `"auto"`, which the original implementation sent. Callers can still omit the source; the engine pays one extra ~300 ms hop only when it doesn't know |
 | 13 | Frontend wired **directly to `ai_engine.app`**, not to the runtime | Deviates from §6 ("standalone testing only"). The runtime doesn't exist yet and the frontend was 100% mocked; this makes real Sarvam voice and multilingual replies demonstrable in the app today. Cost: no receipts, no memory, no business routing until the runtime lands — at which point only `EXPO_PUBLIC_API_URL` changes, because the client contracts are unchanged |
+| 14 | Product renamed **OneSupport → Sahayak**; **UCXP unchanged** | Sahayak is the project; UCXP stays the protocol it speaks, so `ucxp_version`, "UCXP Runtime" and the §10 pitch are untouched. Native identifiers (`com.ucxp.onesupport` package/bundle ID, the `onesupport` deep-link scheme) were **deliberately not renamed**: they are invisible to users, and `android/` is hand-patched with a standing "do not re-run `expo prebuild`" constraint. Rename them only alongside a planned prebuild + clean rebuild |
+| 15 | Runtime built on **LangGraph**, used purely as a state machine | Requested, and it earns its place: the turn is genuinely a graph with short-circuits (missing slot, confirmation, rule denial). LLM calls go through `SarvamOrchestrator`, so §2 rule 1 holds — LangChain never sees a Sarvam credential |
+| 16 | Prompts 2 and 3 are **gated, not unconditional** | Three ungated reasoning calls made one turn take 58 s. Gating (prompt 2 only when an input is missing and the text plausibly has one; prompt 3 only when no manifest template renders) cuts the same turn to 10 s and makes a completed job's wording deterministic. `UCXP_COMPOSE_WITH_LLM=always` restores the unconditional behaviour |
+| 17 | `SARVAM_REQUEST_TIMEOUT` raised 30 s → 90 s | sarvam-105b legitimately reasons past 30 s on open-ended writing. The old timeout killed a good call and retried it, doubling latency instead of saving it |
+| 18 | Runtime exposes `POST /transcribe` (STT only) alongside `POST /voice` | The app transcribes first so it can show the customer their own words immediately, then sends text to `/chat`. Pointing it at `/voice` would execute the capability twice |
+| 19 | `EXPO_PUBLIC_API_URL` accepts a **bare port**, resolved against the Metro host | A laptop's LAN IP changes with the network, and a stale IP is indistinguishable from a broken backend — it cost a debugging cycle. Metro's host is reachable by definition |
 
 ---
 

@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 /**
@@ -14,10 +15,36 @@ import { Platform } from "react-native";
  * backend degrades to the scripted demo instead of a broken screen.
  */
 
-/** Set e.g. EXPO_PUBLIC_API_URL=http://192.168.1.5:8080 — a LAN IP, not localhost, for devices. */
+/**
+ * EXPO_PUBLIC_API_URL accepts either:
+ *   - a bare port, e.g. `8000` — resolved against the machine serving Metro
+ *   - a full URL, e.g. `http://10.0.0.5:8000`
+ *
+ * Prefer the port form. A laptop's LAN IP changes every time you switch
+ * network, and a stale IP in .env.local looks exactly like a broken backend.
+ * Metro's host is reachable by definition — the app was downloaded from it.
+ */
 const RAW_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.trim();
 
-export const API_BASE_URL = (RAW_BASE_URL || "http://localhost:8080").replace(/\/+$/, "");
+/** The host serving the JS bundle, from the Expo dev-client connection. */
+function metroHost(): string | null {
+  const hostUri =
+    Constants.expoConfig?.hostUri ??
+    (Constants.expoGoConfig as { debuggerHost?: string } | undefined)?.debuggerHost;
+  const host = hostUri?.split("://").pop()?.split("/")[0]?.split(":")[0];
+  return host && host !== "localhost" ? host : null;
+}
+
+function resolveBaseUrl(): string {
+  if (!RAW_BASE_URL) return "http://localhost:8000";
+  if (/^\d+$/.test(RAW_BASE_URL)) {
+    const host = metroHost() ?? "localhost";
+    return `http://${host}:${RAW_BASE_URL}`;
+  }
+  return RAW_BASE_URL.replace(/\/+$/, "");
+}
+
+export const API_BASE_URL = resolveBaseUrl();
 
 /** Simulate realistic, slightly variable network latency. */
 export function networkDelay(min = 550, max = 1200): Promise<void> {
@@ -63,6 +90,16 @@ export class ApiError extends Error {
 interface EngineEnvelope {
   success?: boolean;
   error?: { message?: string; code?: string; stage?: string } | null;
+  /** FastAPI's error shape, which the runtime raises via HTTPException. */
+  detail?: string | unknown;
+}
+
+/** The engine answers with `error.message`; the runtime with FastAPI's `detail`. */
+function errorMessage(payload: EngineEnvelope | undefined, status: number): string {
+  const fromEngine = payload?.error?.message;
+  if (fromEngine) return fromEngine;
+  if (typeof payload?.detail === "string" && payload.detail) return payload.detail;
+  return `Request failed (HTTP ${status})`;
 }
 
 async function parse<T extends EngineEnvelope>(response: Response): Promise<T> {
@@ -78,12 +115,7 @@ async function parse<T extends EngineEnvelope>(response: Response): Promise<T> {
 
   const payload = body as T;
   if (!response.ok || payload?.success === false) {
-    const error = payload?.error;
-    throw new ApiError(
-      error?.message ?? `Request failed (HTTP ${response.status})`,
-      response.status,
-      error?.code
-    );
+    throw new ApiError(errorMessage(payload, response.status), response.status, payload?.error?.code);
   }
   return payload;
 }

@@ -605,12 +605,12 @@ def test_prompt_library_loads_and_renders():
         ["system", "business"],
         response_language="en-IN",
         user_language="ta-IN",
-        brand="OneSupport",
+        brand="Sahayak",
         domain="orders and refunds",
         tone="warm",
         escalation_path="a human agent",
     )
-    assert "You represent OneSupport" in composed
+    assert "You represent Sahayak" in composed
     assert "Tamil" in composed
 
 
@@ -637,7 +637,7 @@ async def test_prompt_variables_reach_the_model():
             language="hi-IN",
             prompt_key=["system", "business"],
             prompt_variables={
-                "brand": "OneSupport",
+                "brand": "Sahayak",
                 "domain": "orders",
                 "tone": "warm",
                 "escalation_path": "a human agent",
@@ -645,7 +645,7 @@ async def test_prompt_variables_reach_the_model():
         )
     system_message = next(b for p, b in recorder.calls if p == "/v1/chat/completions")["messages"][0]
     assert system_message["role"] == "system"
-    assert "You represent OneSupport" in system_message["content"]
+    assert "You represent Sahayak" in system_message["content"]
 
 
 async def test_history_is_trimmed_to_the_configured_window():

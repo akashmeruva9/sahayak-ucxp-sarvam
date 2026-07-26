@@ -326,7 +326,7 @@ class SarvamHTTPClient:
             ),
             limits=httpx.Limits(max_connections=self.settings.max_connections),
             transport=transport,
-            headers={"User-Agent": "onesupport-ai-engine/1.0"},
+            headers={"User-Agent": "sahayak-ai-engine/1.0"},
         )
 
     # -- lifecycle ------------------------------------------------------- #

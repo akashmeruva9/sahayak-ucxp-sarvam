@@ -1,6 +1,6 @@
 """Public contracts of the AI Engine.
 
-Everything the rest of OneSupport sees comes back as one of these models.
+Everything the rest of Sahayak sees comes back as one of these models.
 Callers never touch a Sarvam payload: they read these fields.
 
 All responses share the same envelope::

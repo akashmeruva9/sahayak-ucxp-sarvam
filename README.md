@@ -1,6 +1,6 @@
-# OneSupport — AI Engine
+# Sahayak — AI Engine
 
-The AI layer of OneSupport. It integrates **every Sarvam AI capability behind one
+The AI layer of Sahayak. It integrates **every Sarvam AI capability behind one
 interface** so nothing else in the system ever calls Sarvam directly.
 
 ```
@@ -212,7 +212,7 @@ Prompts are files, not code. Three ship by default:
 await engine.process_text(
     "मेरा ऑर्डर कहाँ है?",
     prompt_key=["system", "business"],
-    prompt_variables={"brand": "OneSupport", "domain": "orders", "tone": "warm",
+    prompt_variables={"brand": "Sahayak", "domain": "orders", "tone": "warm",
                       "escalation_path": "a human agent"},
 )
 ```
