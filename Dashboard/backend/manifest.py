@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from .constants import (
     AUTH_METHODS,
     CAPABILITY_BY_KEY,
+    SHOPIFY_AUTO_CAPABILITIES,
     CAPABILITY_KEYS,
     CATEGORIES,
     DEFAULT_ERRORS,
@@ -81,13 +82,18 @@ def shopify_contract(key, slug, store_subdomain=""):
     Starts `locked` so the merchant sees it is connector-managed, exactly as in
     the design. "Customize" flips locked to False and every field becomes
     editable -- nothing here is ever permanently read-only.
+
+    Only the capabilities in SHOPIFY_AUTO_CAPABILITIES may use this. Shopify
+    exposes no warranty or exchange endpoint, so those capabilities get a blank,
+    editable contract from empty_contract() even when a store is connected.
     """
+    if key not in SHOPIFY_AUTO_CAPABILITIES:
+        return empty_contract(key)
+
     cap = CAPABILITY_BY_KEY[key]
     path = "/connectors/shopify/orders/{order_id}"
     if key == "refund":
         path = "/connectors/shopify/orders/{order_id}/refund"
-    elif key not in ("track_order", "refund"):
-        path = cap["default_path"]
     return {
         "name": key,
         "enabled": True,
@@ -577,9 +583,12 @@ def _binding_headers(headers):
 def to_protocol(flat):
     """Map the flat dashboard manifest onto the formal UCXP 0.1.0 protocol schema."""
     ds = flat.get("data_source") or {}
+    # Section 2 stores whatever Shopify returned, which is the full domain
+    # ("acme.myshopify.com"). Strip it before re-adding, or the base URL doubles.
+    subdomain = (ds.get("store_subdomain") or "").removesuffix(".myshopify.com")
     base_url = ds.get("base_url") or (
-        "https://{}.myshopify.com/admin/api/2026-01".format(ds["store_subdomain"])
-        if ds.get("store_subdomain") else "https://api.ucxp.in/{}".format(
+        "https://{}.myshopify.com/admin/api/2026-01".format(subdomain)
+        if subdomain else "https://api.ucxp.in/{}".format(
             flat.get("business_id", "business")))
 
     api_mappings = {}

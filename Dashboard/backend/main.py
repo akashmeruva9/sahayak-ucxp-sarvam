@@ -22,7 +22,9 @@ from . import constants, manifest as manifest_mod, shopify_client, store, vault
 
 log = logging.getLogger("ucxp")
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# backend lives at <repo>/Dashboard/backend, so the repo root is three levels up.
+# manifests/, stores.json and ucxp.db all stay at the repo root.
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MANIFEST_DIR = os.path.join(ROOT, "manifests")
 
 ALLOWED_ORIGINS = [
@@ -79,6 +81,9 @@ class CreateBusiness(BaseModel):
 
 class SectionPayload(BaseModel):
     data: dict = {}
+    # Set once the merchant has finished editing the business name (on blur), so
+    # the slug is adopted from the settled name rather than from each keystroke.
+    commit_slug: bool = False
 
 
 class ShopifyConnect(BaseModel):
@@ -166,8 +171,23 @@ def save_section(business_id: str, section: str, payload: SectionPayload):
     biz = store.save_section(business_id, section, payload.data or {})
     if not biz:
         raise FriendlyError("We couldn't find that business.", status=404)
+
+    # A business created from the home screen has no name yet, so it starts on a
+    # placeholder id. Once the merchant names it, adopt the real slug -- the
+    # business_id is what names the manifest file, the hosted URL and the vault
+    # entry, so "Ravi Electronics" must not stay "your-business-7".
+    if (section == "1" and payload.commit_slug and biz["status"] == "draft"
+            and store.is_placeholder_id(business_id)):
+        desired = manifest_mod.slugify((payload.data or {}).get("name"))
+        if desired != store.PLACEHOLDER_SLUG:
+            new_id = store.rename_business(business_id, store.unique_slug(desired))
+            if new_id != business_id:
+                business_id = new_id
+                biz = store.get_business(business_id)
+
     return {
         "ok": True,
+        "business_id": business_id,
         "saved_at": biz["updated_at"],
         "statuses": {str(n): manifest_mod.section_status(n, biz["sections"])
                      for n in range(1, 8)},

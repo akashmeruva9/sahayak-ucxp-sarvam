@@ -17,7 +17,7 @@ node_modules/
 dist/
 
 # Test artifacts
-frontend/test-results/
+Dashboard/frontend/test-results/
 tests/test-results/
 playwright-report/
 .playwright/

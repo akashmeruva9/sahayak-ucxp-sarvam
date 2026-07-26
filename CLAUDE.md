@@ -22,7 +22,7 @@ Python is 3.12 in `./venv`. System python is 3.9 and has no FastAPI — always u
 - **`.env` and `stores.json` hold live Shopify tokens. Never commit them.**
   They are gitignored and `run.sh` refuses to start if either becomes tracked.
 - **A raw token never enters a manifest, a response, or a log.** The vault
-  (`backend/vault.py`) is the only place secrets live; everything else carries a
+  (`Dashboard/backend/vault.py`) is the only place secrets live; everything else carries a
   `credential_ref` of the form `vault://<business_id>`. Gate B4 enforces this.
 - **Never add customer fields to a Shopify GraphQL query.** The Basic plan blocks
   customer PII, so customers are identified by order number
@@ -30,7 +30,7 @@ Python is 3.12 in `./venv`. System python is 3.9 and has no FastAPI — always u
 - **No capability contract field is ever permanently read-only.** Shopify-seeded
   contracts start locked but "Customize" unlocks every field; Custom REST and
   No-data-source contracts start blank and editable. Gates F3/F4 enforce this.
-- **All colour comes from `frontend/tailwind.config.js`.** No component hardcodes
+- **All colour comes from `Dashboard/frontend/tailwind.config.js`.** No component hardcodes
   a hex value.
 
 ## Design source of truth
@@ -45,4 +45,4 @@ with the older markdown specs in `docs/`, **the design wins** — see HANDOFF.md
   (₹0.00 totals, Shopify sample data, three USD orders).
 - Order numbers collide across stores — always key on `(business_id, order_number)`.
 - The brief mentions `fetch_all.py`; it does not exist. The real client is
-  `ucxp_handoff/dump_shopify.py`, ported to `backend/shopify_client.py`.
+  `ucxp_handoff/dump_shopify.py`, ported to `Dashboard/backend/shopify_client.py`.

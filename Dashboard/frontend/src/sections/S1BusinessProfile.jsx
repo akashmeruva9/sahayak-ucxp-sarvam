@@ -36,6 +36,10 @@ export default function S1BusinessProfile({ sections, updateSection, slug }) {
             placeholder="e.g. Meenakshi Silks"
             value={p.name || ''}
             onChange={(e) => set({ name: e.target.value })}
+            onBlur={(e) =>
+              // Adopt the slug from the finished name, not from each keystroke.
+              updateSection(1, { name: e.target.value }, { immediate: true, commitSlug: true })
+            }
           />
         </Field>
 

@@ -18,8 +18,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from backend import manifest as manifest_mod  # noqa: E402
-from backend import shopify_client, store, vault  # noqa: E402
+from Dashboard.backend import manifest as manifest_mod  # noqa: E402
+from Dashboard.backend import shopify_client, store, vault  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STORES_JSON = os.path.join(ROOT, "stores.json")
@@ -30,7 +30,7 @@ def client(tmp_path):
     """A TestClient backed by a throwaway database."""
     store.set_db_path(str(tmp_path / "test.db"))
     from fastapi.testclient import TestClient
-    from backend.main import app
+    from Dashboard.backend.main import app
     with TestClient(app) as test_client:
         yield test_client
     store.set_db_path(os.environ.get("UCXP_DB", store.DEFAULT_DB))
@@ -279,7 +279,7 @@ def test_b4_protocol_export_is_wellformed():
 # B5 -- activate writes files that reload and revalidate
 # --------------------------------------------------------------------------
 def test_b5_activate_writes_and_reloads(client, tmp_path, monkeypatch):
-    from backend import main as main_mod
+    from Dashboard.backend import main as main_mod
     manifest_dir = tmp_path / "manifests"
     monkeypatch.setattr(main_mod, "MANIFEST_DIR", str(manifest_dir))
 
@@ -307,7 +307,7 @@ def test_b5_activate_writes_and_reloads(client, tmp_path, monkeypatch):
 
 
 def test_b5_activate_twice_updates_not_duplicates(client, tmp_path, monkeypatch):
-    from backend import main as main_mod
+    from Dashboard.backend import main as main_mod
     manifest_dir = tmp_path / "manifests"
     monkeypatch.setattr(main_mod, "MANIFEST_DIR", str(manifest_dir))
 
@@ -356,12 +356,12 @@ def test_b6_two_hundred_businesses(client):
 # Contract parity: the frontend mirror must match the backend vocabulary
 # --------------------------------------------------------------------------
 def test_frontend_mirrors_backend_vocabulary():
-    mirror = os.path.join(ROOT, "frontend", "src", "lib", "contract.js")
+    mirror = os.path.join(ROOT, "Dashboard", "frontend", "src", "lib", "contract.js")
     if not os.path.exists(mirror):
         pytest.skip("frontend not scaffolded yet")
     source = open(mirror, "r", encoding="utf-8").read()
 
-    from backend import constants
+    from Dashboard.backend import constants
     for code in constants.LANGUAGE_CODES:
         assert '"{}"'.format(code) in source or "'{}'".format(code) in source, (
             "frontend contract.js is missing language '{}'".format(code))

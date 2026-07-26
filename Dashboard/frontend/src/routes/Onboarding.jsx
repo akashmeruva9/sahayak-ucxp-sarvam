@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SECTIONS, STATUS_GLYPH, slugify } from '../lib/contract';
 import { useBusiness } from '../state/useBusiness';
@@ -26,7 +26,13 @@ export default function Onboarding() {
   const { businessId } = useParams();
   const navigate = useNavigate();
   const [section, setSection] = useState(1);
-  const state = useBusiness(businessId);
+  // Naming a draft adopts the real slug, so the business is re-keyed and the URL
+  // has to follow it. `replace` keeps the placeholder id out of the back stack.
+  const handleRename = useCallback(
+    (newId) => navigate(`/business/${newId}`, { replace: true }),
+    [navigate],
+  );
+  const state = useBusiness(businessId, handleRename);
   const {
     business, sections, statuses, completion, missing, manifest,
     loading, error, saveState, dirty, updateSection, flushAll, reload,

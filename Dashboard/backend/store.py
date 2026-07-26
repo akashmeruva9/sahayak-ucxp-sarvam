@@ -17,8 +17,10 @@ from datetime import datetime, timezone
 
 from . import manifest as manifest_mod
 
-DEFAULT_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                          "ucxp.db")
+# <repo>/Dashboard/backend/store.py -> three levels up is the repo root.
+DEFAULT_DB = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "ucxp.db")
 _local = threading.local()
 _db_path = os.environ.get("UCXP_DB", DEFAULT_DB)
 
@@ -171,6 +173,44 @@ def save_section(business_id, section, data):
                      (stamp, business_id))
     conn.commit()
     return get_business(business_id)
+
+
+PLACEHOLDER_SLUG = "your-business"
+
+
+def is_placeholder_id(business_id):
+    """True for the id given to a business created before it had a name."""
+    return business_id == PLACEHOLDER_SLUG or business_id.startswith(PLACEHOLDER_SLUG + "-")
+
+
+def rename_business(old_id, new_id):
+    """Re-key a business and everything hanging off it.
+
+    The business_id is the only identifier in UCXP -- it names the manifest file,
+    the hosted URL and the vault entry -- so a draft created before the merchant
+    typed a name must pick up the real slug once they have. Returns the id in
+    effect afterwards, which is `old_id` if the rename could not be applied.
+    """
+    if not new_id or new_id == old_id:
+        return old_id
+    conn = connect()
+    if conn.execute("SELECT 1 FROM businesses WHERE id = ?", (new_id,)).fetchone():
+        return old_id
+    try:
+        with conn:
+            # The FK is ON DELETE CASCADE, not ON UPDATE CASCADE, so re-keying the
+            # parent orphans the children until the child updates land. Defer the
+            # check to commit, by which point everything is consistent again.
+            conn.execute("PRAGMA defer_foreign_keys=ON")
+            conn.execute("UPDATE businesses SET id = ?, updated_at = ? WHERE id = ?",
+                         (new_id, _now(), old_id))
+            conn.execute("UPDATE sections SET business_id = ? WHERE business_id = ?",
+                         (new_id, old_id))
+            conn.execute("UPDATE vault SET business_id = ? WHERE business_id = ?",
+                         (new_id, old_id))
+    except sqlite3.Error:
+        return old_id
+    return new_id
 
 
 def set_status(business_id, status):

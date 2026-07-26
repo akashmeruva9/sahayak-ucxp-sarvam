@@ -14,7 +14,8 @@ import os
 
 from . import store
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# <repo>/Dashboard/backend/vault.py -> three levels up is the repo root.
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STORES_JSON = os.path.join(ROOT, "stores.json")
 
 # The five pre-seeded demo stores: subdomain -> canonical business_id slug.

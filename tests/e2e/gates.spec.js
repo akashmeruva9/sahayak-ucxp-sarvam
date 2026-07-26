@@ -34,9 +34,10 @@ test('F1 every screen renders with no console errors', async ({ page }) => {
 /* ========================================================================== */
 test('F2 every section persists across a reload', async ({ page }) => {
   const errors = watchConsole(page);
-  const id = await createBusiness(page);
+  await createBusiness(page);
 
   const profile = await fillProfile(page);
+  const id = profile.id;
   await connectShopify(page);
 
   await gotoSection(page, 3);
@@ -338,7 +339,9 @@ test('F8 failures render an inline message, not a blank screen', async ({ page }
   await expect(page.getByText('Back to your businesses')).toBeVisible();
 
   expect(id).toBeTruthy();
-  assertNoConsoleErrors(errors);
+  // This test aborts requests and hits a deliberate 404, so Chromium logs a
+  // resource-load entry for each. Everything else must still be clean.
+  assertNoConsoleErrors(errors, { allowInducedNetworkFailures: true });
 });
 
 /* ========================================================================== */

@@ -65,10 +65,10 @@ else
   FAILED=1
 fi
 
-if [ -d frontend/node_modules ]; then
+if [ -d Dashboard/frontend/node_modules ]; then
   ok "frontend dependencies installed"
 else
-  bad "frontend/node_modules missing — run: npm --prefix frontend install"
+  bad "Dashboard/frontend/node_modules missing — run: npm --prefix Dashboard/frontend install"
   FAILED=1
 fi
 
@@ -110,11 +110,11 @@ trap cleanup INT TERM EXIT
 
 echo
 echo "Starting backend  → http://localhost:8000"
-./venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload &
+./venv/bin/python -m uvicorn Dashboard.backend.main:app --host 127.0.0.1 --port 8000 --reload &
 PIDS+=($!)
 
 echo "Starting frontend → http://localhost:5173"
-npm --prefix frontend run dev -- --host 127.0.0.1 &
+npm --prefix Dashboard/frontend run dev -- --host 127.0.0.1 &
 PIDS+=($!)
 
 echo

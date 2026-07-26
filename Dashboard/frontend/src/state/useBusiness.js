@@ -9,7 +9,7 @@ const AUTOSAVE_MS = 600;
  * it is never assembled a second time in the browser. That is what makes the
  * preview and the downloaded file byte-identical (gate F6).
  */
-export function useBusiness(businessId) {
+export function useBusiness(businessId, onRename) {
   const [business, setBusiness] = useState(null);
   const [statuses, setStatuses] = useState({});
   const [completion, setCompletion] = useState(0);
@@ -67,7 +67,7 @@ export function useBusiness(businessId) {
 
   /** Merge a patch into a section locally, then debounce the save. */
   const updateSection = useCallback(
-    (section, patch, { immediate = false } = {}) => {
+    (section, patch, { immediate = false, commitSlug = false } = {}) => {
       const key = String(section);
       setDirty(true);
       setBusiness((previous) => {
@@ -86,7 +86,7 @@ export function useBusiness(businessId) {
         const data = pending.current[key];
         if (data === undefined) return;
         setSaveState('saving');
-        const result = await api.saveSection(businessId, key, data);
+        const result = await api.saveSection(businessId, key, data, commitSlug);
         if (!alive.current) return;
         if (result.error) {
           setSaveState('error');
@@ -100,11 +100,16 @@ export function useBusiness(businessId) {
         setSaveState('saved');
         delete pending.current[key];
         if (Object.keys(pending.current).length === 0) setDirty(false);
+        // Naming a draft adopts the real slug, which re-keys the business.
+        if (result.business_id && result.business_id !== businessId) {
+          onRename?.(result.business_id);
+          return;
+        }
         refreshManifest(businessId);
       };
       timers.current[key] = setTimeout(flush, immediate ? 0 : AUTOSAVE_MS);
     },
-    [businessId, refreshManifest],
+    [businessId, refreshManifest, onRename],
   );
 
   /** Force any queued edits to land now — used before activating. */

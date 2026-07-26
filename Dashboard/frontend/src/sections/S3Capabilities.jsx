@@ -1,4 +1,6 @@
-import { CAPABILITIES, emptyContract, shopifyContract } from '../lib/contract';
+import {
+  CAPABILITIES, SHOPIFY_AUTO_CAPABILITIES, emptyContract, shopifyContract,
+} from '../lib/contract';
 import ContractEditor from '../components/ContractEditor';
 import { Toggle, useToast } from '../components/Primitives';
 import SectionCard from './SectionCard';
@@ -24,10 +26,14 @@ export default function S3Capabilities({ sections, updateSection, slug }) {
       const existing = next[key];
       if (existing) {
         next[key] = { ...existing, enabled: true };
-      } else if (shopifyConnected) {
+      } else if (shopifyConnected && SHOPIFY_AUTO_CAPABILITIES.includes(key)) {
+        // Only the capabilities the Shopify connector can actually serve get a
+        // seeded, connector-managed contract. Shopify exposes no warranty or
+        // exchange endpoint, so those must start blank and editable even when a
+        // store is connected — otherwise the merchant is handed a locked
+        // contract they can neither use nor fill in.
         next[key] = shopifyContract(key, slug, subdomain);
       } else {
-        // Custom REST and No-data-source start blank and fully editable.
         next[key] = emptyContract(key);
       }
       return next;

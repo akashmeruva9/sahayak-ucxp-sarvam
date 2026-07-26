@@ -43,10 +43,10 @@ export const api = {
   getBusiness: (id) => request(`/business/${id}`),
   deleteBusiness: (id) => request(`/business/${id}`, { method: 'DELETE' }),
 
-  saveSection: (id, section, data) =>
+  saveSection: (id, section, data, commitSlug = false) =>
     request(`/business/${id}/section/${section}`, {
       method: 'PUT',
-      body: JSON.stringify({ data }),
+      body: JSON.stringify({ data, commit_slug: commitSlug }),
     }),
 
   getManifest: (id) => request(`/business/${id}/manifest`),

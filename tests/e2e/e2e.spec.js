@@ -13,10 +13,12 @@ test.describe.configure({ retries: 0 });
 for (const run of [1, 2, 3]) {
   test(`E1 onboard Ravi Electronics end to end (run ${run})`, async ({ page }) => {
     const errors = watchConsole(page);
-    const id = await createBusiness(page);
+    await createBusiness(page);
 
-    // 1. Profile
-    await fillProfile(page);
+    // 1. Profile. Naming the draft adopts the real slug, so the id settles here.
+    const { id } = await fillProfile(page);
+    expect(id, 'business_id should be slugged from the business name')
+      .toMatch(/^ravi-electronics(-\d+)?$/);
 
     // 2. Real Shopify connect — the counts must come from the live store.
     await connectShopify(page, 'ravi-electronics-bmxitv46');
@@ -99,9 +101,9 @@ for (const run of [1, 2, 3]) {
 for (const run of [1, 2, 3]) {
   test(`E2 onboard a custom REST business end to end (run ${run})`, async ({ page }) => {
     const errors = watchConsole(page);
-    const id = await createBusiness(page);
+    await createBusiness(page);
 
-    await fillProfile(page, {
+    const { id } = await fillProfile(page, {
       name: 'Meenakshi Silks',
       tagline: 'Handwoven Kanchipuram silks since 1962',
       category: 'Apparel & Textiles',
@@ -109,6 +111,7 @@ for (const run of [1, 2, 3]) {
       email: 'support@meenakshisilks.in',
       website: 'https://meenakshisilks.in',
     });
+    expect(id).toMatch(/^meenakshi-silks(-\d+)?$/);
 
     // Custom REST source, with no secret ever typed into the page.
     await gotoSection(page, 2);

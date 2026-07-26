@@ -10,10 +10,21 @@ export function watchConsole(page) {
   return errors;
 }
 
-export function assertNoConsoleErrors(errors) {
-  // React Router emits future-flag notices as warnings, not errors; anything that
-  // reaches this list is a real problem.
-  const real = errors.filter((text) => !/favicon|Download the React DevTools/i.test(text));
+/** Browser noise that is never an application defect. */
+const IGNORED = /favicon|Download the React DevTools/i;
+
+/** Chromium logs a console entry for every failed request, including ones a test
+ *  induced on purpose. Only a test that deliberately breaks the network may opt
+ *  into ignoring these — the default stays strict so a genuinely broken request
+ *  still fails F1. */
+const INDUCED_NETWORK_FAILURE = /Failed to load resource/i;
+
+export function assertNoConsoleErrors(errors, { allowInducedNetworkFailures = false } = {}) {
+  const real = errors.filter((text) => {
+    if (IGNORED.test(text)) return false;
+    if (allowInducedNetworkFailures && INDUCED_NETWORK_FAILURE.test(text)) return false;
+    return true;
+  });
   expect(real, `console errors: ${real.join(' | ')}`).toHaveLength(0);
 }
 
@@ -37,7 +48,9 @@ export async function gotoSection(page, n) {
   if (wide) {
     await page.getByTestId(`nav-section-${n}`).click();
   } else {
-    await page.getByTestId('section-tabs').getByRole('button').nth(n).click();
+    // The strip's first child is the percentage pill (a span), so the seven
+    // section buttons are 0-indexed: section n is button n-1.
+    await page.getByTestId('section-tabs').getByRole('button').nth(n - 1).click();
   }
   await expect(page.getByTestId(`section-${n}`)).toBeVisible();
 }
@@ -80,7 +93,11 @@ export async function fillProfile(page, profile = {}) {
   await page.getByTestId('field-website').fill(data.website);
   await page.getByTestId('field-hours').fill(data.hours);
   await waitForSave(page);
-  return data;
+  // Naming a draft adopts the real slug and re-keys the business, so the URL the
+  // caller started with is stale. Hand back the id now in effect.
+  await expect(page).toHaveURL(/\/business\/[^/]+$/);
+  const id = page.url().split('/business/')[1].split('/')[0];
+  return { ...data, id };
 }
 
 export async function connectShopify(page, subdomain = 'ravi-electronics-bmxitv46') {
