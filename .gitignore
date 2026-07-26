@@ -1,0 +1,24 @@
+# Secrets — these hold live Shopify admin tokens and API keys. NEVER commit.
+.env
+stores.json
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+*.db
+*.db-journal
+
+# Node
+node_modules/
+dist/
+
+# Test artifacts
+frontend/test-results/
+tests/test-results/
+playwright-report/
+.playwright/
+
+# OS
+.DS_Store

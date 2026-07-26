@@ -1,0 +1,19 @@
+{
+  "business": "Ravi Electronics",
+  "business_id": "ravi-electronics",
+  "languages": ["te-IN", "hi-IN", "ta-IN", "en-IN"],
+  "capabilities": ["track_order", "refund", "return_policy", "warranty"],
+  "policies": {
+    "return_policy": "Electronics can be returned within 10 days if unopened. Opened items only if defective.",
+    "warranty": "All products carry 1 year manufacturer warranty."
+  },
+  "faq": [
+    {"q": "Do you deliver to villages?", "a": "Yes, we deliver across the state within 5-7 days."},
+    {"q": "Is COD available?", "a": "Cash on delivery is available for orders under 10000 rupees."}
+  ],
+  "orders": {
+    "RE_2001": {"item": "boAt Airdopes 141 Earbuds", "status": "SHIPPED",   "amount": 1299, "eta": "tomorrow"},
+    "RE_2002": {"item": "Redmi Power Bank 20000mAh", "status": "DELIVERED", "amount": 1699, "eta": null},
+    "RE_2003": {"item": "Boult Smartwatch",          "status": "UNFULFILLED","amount": 1999, "eta": "3-4 days"}
+  }
+}

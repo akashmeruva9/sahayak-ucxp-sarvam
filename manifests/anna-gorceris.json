@@ -1,0 +1,19 @@
+{
+  "business": "Anna Groceries",
+  "business_id": "anna-groceries",
+  "languages": ["te-IN", "ta-IN", "hi-IN", "en-IN"],
+  "capabilities": ["track_order", "reorder", "refund", "return_policy"],
+  "policies": {
+    "return_policy": "Perishable items can be returned only if damaged on delivery, reported within 2 hours.",
+    "reorder": "Reorder your usual monthly groceries with one message."
+  },
+  "faq": [
+    {"q": "Do you have a minimum order?", "a": "Minimum order value is 200 rupees for free delivery."},
+    {"q": "Are vegetables fresh?", "a": "Vegetables are sourced daily from the local market."}
+  ],
+  "orders": {
+    "AG_5001": {"item": "Sona Masoori Rice 25kg", "status": "SHIPPED",    "amount": 1450, "eta": "tomorrow morning"},
+    "AG_5002": {"item": "Monthly Grocery Bundle",  "status": "DELIVERED",  "amount": 2340, "eta": null},
+    "AG_5003": {"item": "Cooking Oil 5L + Dal",    "status": "UNFULFILLED","amount": 890,  "eta": "2 days"}
+  }
+}

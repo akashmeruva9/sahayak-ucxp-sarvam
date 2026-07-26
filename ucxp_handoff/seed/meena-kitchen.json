@@ -1,0 +1,332 @@
+{
+  "business_id": "meena-kitchen",
+  "name": "Meena Kitchen Store",
+  "currency": "INR",
+  "shopify_subdomain": "meena-kitchen-store",
+  "source": "Shopify Admin GraphQL API 2026-01 (live)",
+  "products": [
+    {
+      "title": "Prestige Mixer Grinder 750W",
+      "handle": "prestige-mixer-grinder-750w",
+      "type": "Kitchen Appliances",
+      "price": "4499.00",
+      "sku": "",
+      "stock": -1
+    },
+    {
+      "title": "Butterfly Pressure Cooker 5L",
+      "handle": "butterfly-pressure-cooker-5l",
+      "type": "Kitchen Appliances",
+      "price": "2199.00",
+      "sku": "",
+      "stock": -1
+    },
+    {
+      "title": "Bajaj Induction Cooktop 1900W",
+      "handle": "bajaj-induction-cooktop-1900w",
+      "type": "Kitchen Appliances",
+      "price": "2799.00",
+      "sku": "",
+      "stock": -1
+    },
+    {
+      "title": "Pigeon Non-Stick Dosa Tawa",
+      "handle": "pigeon-non-stick-dosa-tawa",
+      "type": "Cookware",
+      "price": "899.00",
+      "sku": "",
+      "stock": 0
+    },
+    {
+      "title": "Milton Thermosteel Flask 1L",
+      "handle": "milton-thermosteel-flask-1l",
+      "type": "Kitchenware",
+      "price": "1099.00",
+      "sku": "",
+      "stock": 0
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "Meena_1009",
+      "item": "Bajaj Induction Cooktop 1900W",
+      "items": [
+        {
+          "title": "Bajaj Induction Cooktop 1900W",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 0.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:25:12Z",
+      "eta": "28 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": [
+        "zero_total"
+      ]
+    },
+    {
+      "order_id": "Meena_1008",
+      "item": "Butterfly Pressure Cooker 5L",
+      "items": [
+        {
+          "title": "Butterfly Pressure Cooker 5L",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "delivered",
+      "status_raw": "FULFILLED",
+      "payment": "PAID",
+      "amount": 0.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:25:08Z",
+      "eta": "already delivered",
+      "days_since_delivery": 3,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": [
+        "zero_total"
+      ]
+    },
+    {
+      "order_id": "Meena_1007",
+      "item": "Prestige Mixer Grinder 750W",
+      "items": [
+        {
+          "title": "Prestige Mixer Grinder 750W",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "delivered",
+      "status_raw": "FULFILLED",
+      "payment": "PAID",
+      "amount": 0.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:25:04Z",
+      "eta": "already delivered",
+      "days_since_delivery": 3,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": [
+        "zero_total"
+      ]
+    },
+    {
+      "order_id": "Meena_1006",
+      "item": "The Compare at Price Snowboard",
+      "items": [
+        {
+          "title": "The Compare at Price Snowboard",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "delivered",
+      "status_raw": "FULFILLED",
+      "payment": "PAID",
+      "amount": 785.95,
+      "currency": "INR",
+      "created_at": "2026-07-25T15:26:23Z",
+      "eta": "already delivered",
+      "days_since_delivery": 3,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": [
+        "shopify_sample_data"
+      ]
+    },
+    {
+      "order_id": "Meena_1005",
+      "item": "The 3p Fulfilled Snowboard",
+      "items": [
+        {
+          "title": "The 3p Fulfilled Snowboard",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 2629.95,
+      "currency": "INR",
+      "created_at": "2026-07-25T15:25:19Z",
+      "eta": "29 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": [
+        "shopify_sample_data"
+      ]
+    },
+    {
+      "order_id": "Meena_1004",
+      "item": "Selling Plans Ski Wax",
+      "items": [
+        {
+          "title": "Selling Plans Ski Wax",
+          "qty": 1
+        },
+        {
+          "title": "Selling Plans Ski Wax",
+          "qty": 1
+        },
+        {
+          "title": "Selling Plans Ski Wax",
+          "qty": 1
+        }
+      ],
+      "quantity": 3,
+      "status": "delivered",
+      "status_raw": "FULFILLED",
+      "payment": "PAID",
+      "amount": 84.85,
+      "currency": "INR",
+      "created_at": "2026-07-25T15:24:16Z",
+      "eta": "already delivered",
+      "days_since_delivery": 3,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": [
+        "shopify_sample_data"
+      ]
+    },
+    {
+      "order_id": "1003",
+      "item": "The Complete Snowboard",
+      "items": [
+        {
+          "title": "The Complete Snowboard",
+          "qty": 4
+        }
+      ],
+      "quantity": 4,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "REFUNDED",
+      "amount": 2799.8,
+      "currency": "USD",
+      "created_at": "2026-07-25T15:06:33Z",
+      "eta": "28 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": [
+        "shopify_sample_data",
+        "off_currency"
+      ]
+    },
+    {
+      "order_id": "1002",
+      "item": "Custom Snowboard",
+      "items": [
+        {
+          "title": "Custom Snowboard",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "REFUNDED",
+      "amount": 234.15,
+      "currency": "USD",
+      "created_at": "2026-07-25T15:06:23Z",
+      "eta": "29 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": [
+        "shopify_sample_data",
+        "off_currency"
+      ]
+    },
+    {
+      "order_id": "1001",
+      "item": "The Complete Snowboard",
+      "items": [
+        {
+          "title": "The Complete Snowboard",
+          "qty": 1
+        },
+        {
+          "title": "The 3p Fulfilled Snowboard",
+          "qty": 1
+        }
+      ],
+      "quantity": 2,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "REFUNDED",
+      "amount": 3212.14,
+      "currency": "USD",
+      "created_at": "2026-07-25T15:06:05Z",
+      "eta": "30 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": [
+        "shopify_sample_data",
+        "off_currency"
+      ]
+    }
+  ],
+  "_warnings": [
+    "order Meena_1009: total is 0.00 — real item but no price",
+    "order Meena_1008: total is 0.00 — real item but no price",
+    "order Meena_1007: total is 0.00 — real item but no price",
+    "order Meena_1006: Shopify sample product (The Compare at Price Snowboard) — do not demo",
+    "order Meena_1005: Shopify sample product (The 3p Fulfilled Snowboard) — do not demo",
+    "order Meena_1004: Shopify sample product (Selling Plans Ski Wax) — do not demo",
+    "order 1003: Shopify sample product (The Complete Snowboard) — do not demo",
+    "order 1003: currency is USD, store is INR",
+    "order 1002: Shopify sample product (Custom Snowboard) — do not demo",
+    "order 1002: currency is USD, store is INR",
+    "order 1001: Shopify sample product (The Complete Snowboard) — do not demo",
+    "order 1001: currency is USD, store is INR"
+  ]
+}

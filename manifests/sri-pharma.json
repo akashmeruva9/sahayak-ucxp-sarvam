@@ -1,0 +1,19 @@
+{
+  "business": "Sri Pharma",
+  "business_id": "sri-pharma",
+  "languages": ["te-IN", "hi-IN", "en-IN"],
+  "capabilities": ["track_order", "reorder", "refund", "return_policy"],
+  "policies": {
+    "return_policy": "Medicines cannot be returned once delivered, for safety reasons.",
+    "reorder": "Repeat your previous prescription order with one message."
+  },
+  "faq": [
+    {"q": "Do you need a prescription?", "a": "Prescription medicines require a valid doctor prescription upload."},
+    {"q": "How fast is delivery?", "a": "Medicines are delivered same day within the city."}
+  ],
+  "orders": {
+    "SP_4001": {"item": "Monthly BP Medicines", "status": "DELIVERED",  "amount": 640, "eta": null},
+    "SP_4002": {"item": "Diabetes Test Strips",  "status": "SHIPPED",    "amount": 899, "eta": "today evening"},
+    "SP_4003": {"item": "Vitamin D Supplements", "status": "UNFULFILLED","amount": 450, "eta": "tomorrow"}
+  }
+}

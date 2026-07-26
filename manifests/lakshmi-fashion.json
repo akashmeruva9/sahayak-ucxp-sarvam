@@ -1,0 +1,19 @@
+{
+  "business": "Lakshmi Fashion",
+  "business_id": "lakshmi-fashion",
+  "languages": ["te-IN", "hi-IN", "ta-IN", "en-IN"],
+  "capabilities": ["track_order", "refund", "return_policy", "exchange"],
+  "policies": {
+    "return_policy": "Clothing can be returned or exchanged within 7 days if unworn with tags.",
+    "exchange": "Free size exchange available once per order."
+  },
+  "faq": [
+    {"q": "Can I exchange for a different size?", "a": "Yes, one free size exchange per order within 7 days."},
+    {"q": "Are the colours same as photos?", "a": "Colours may vary slightly due to screen differences."}
+  ],
+  "orders": {
+    "LF_3001": {"item": "Kanchipuram Silk Saree", "status": "SHIPPED",    "amount": 3499, "eta": "2 days"},
+    "LF_3002": {"item": "Cotton Kurta Set",        "status": "DELIVERED",  "amount": 1299, "eta": null},
+    "LF_3003": {"item": "Anarkali Dress",          "status": "UNFULFILLED","amount": 2199, "eta": "4-5 days"}
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "meena-kitchen": {
+    "name": "Meena Kitchen Store",
+    "manifest": "manifests/meena-kitchen.json",
+    "seed": "seed/meena-kitchen.json",
+    "capabilities": [
+      "track_order",
+      "request_refund",
+      "cancel_order"
+    ],
+    "orders": 9,
+    "products": 5,
+    "warnings": 12
+  },
+  "lakshmi-fashion": {
+    "name": "Lakshmi Fashion",
+    "manifest": "manifests/lakshmi-fashion.json",
+    "seed": "seed/lakshmi-fashion.json",
+    "capabilities": [
+      "track_order",
+      "request_exchange",
+      "cancel_order"
+    ],
+    "orders": 4,
+    "products": 3,
+    "warnings": 0
+  },
+  "ravi-electronics": {
+    "name": "Ravi Electronics",
+    "manifest": "manifests/ravi-electronics.json",
+    "seed": "seed/ravi-electronics.json",
+    "capabilities": [
+      "track_order",
+      "request_refund",
+      "warranty_claim"
+    ],
+    "orders": 3,
+    "products": 3,
+    "warnings": 0
+  },
+  "sri-pharma": {
+    "name": "Sri Pharma",
+    "manifest": "manifests/sri-pharma.json",
+    "seed": "seed/sri-pharma.json",
+    "capabilities": [
+      "track_order",
+      "reorder_prescription",
+      "cancel_order"
+    ],
+    "orders": 3,
+    "products": 3,
+    "warnings": 0
+  },
+  "anna-groceries": {
+    "name": "Anna Groceries",
+    "manifest": "manifests/anna-groceries.json",
+    "seed": "seed/anna-groceries.json",
+    "capabilities": [
+      "track_order",
+      "reorder",
+      "cancel_order"
+    ],
+    "orders": 3,
+    "products": 3,
+    "warnings": 0
+  }
+}

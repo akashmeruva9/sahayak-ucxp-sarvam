@@ -1,0 +1,114 @@
+{
+  "business_id": "sri-pharma",
+  "name": "Sri Pharma",
+  "currency": "INR",
+  "shopify_subdomain": "sri-pharma",
+  "source": "Shopify Admin GraphQL API 2026-01 (live)",
+  "products": [
+    {
+      "title": "BP Monitor Digital",
+      "handle": "bp-monitor-digital",
+      "type": "Devices",
+      "price": "1450.00",
+      "sku": "",
+      "stock": -1
+    },
+    {
+      "title": "Diabetes Test Strips (50)",
+      "handle": "diabetes-test-strips-50",
+      "type": "Supplies",
+      "price": "899.00",
+      "sku": "",
+      "stock": -1
+    },
+    {
+      "title": "Vitamin D3 Supplements",
+      "handle": "vitamin-d3-supplements",
+      "type": "Supplements",
+      "price": "450.00",
+      "sku": "",
+      "stock": -1
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "1003",
+      "item": "Vitamin D3 Supplements",
+      "items": [
+        {
+          "title": "Vitamin D3 Supplements",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 450.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:20:34Z",
+      "eta": "28 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": true,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    },
+    {
+      "order_id": "1002",
+      "item": "Diabetes Test Strips (50)",
+      "items": [
+        {
+          "title": "Diabetes Test Strips (50)",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 899.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:20:30Z",
+      "eta": "29 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": true,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    },
+    {
+      "order_id": "1001",
+      "item": "BP Monitor Digital",
+      "items": [
+        {
+          "title": "BP Monitor Digital",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 1450.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:20:27Z",
+      "eta": "30 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": true,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    }
+  ],
+  "_warnings": []
+}

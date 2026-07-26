@@ -1,0 +1,140 @@
+{
+  "business_id": "lakshmi-fashion",
+  "name": "Lakshmi Fashion",
+  "currency": "INR",
+  "shopify_subdomain": "lakshmi-fashion-4kmotaah",
+  "source": "Shopify Admin GraphQL API 2026-01 (live)",
+  "products": [
+    {
+      "title": "Kanchipuram Silk Saree",
+      "handle": "kanchipuram-silk-saree",
+      "type": "Sarees",
+      "price": "3499.00",
+      "sku": "",
+      "stock": -2
+    },
+    {
+      "title": "Cotton Kurta Set",
+      "handle": "cotton-kurta-set",
+      "type": "Kurtas",
+      "price": "1299.00",
+      "sku": "",
+      "stock": -1
+    },
+    {
+      "title": "Anarkali Dress",
+      "handle": "anarkali-dress",
+      "type": "Dresses",
+      "price": "2199.00",
+      "sku": "",
+      "stock": -1
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "1004",
+      "item": "Anarkali Dress",
+      "items": [
+        {
+          "title": "Anarkali Dress",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 2199.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:25:23Z",
+      "eta": "28 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    },
+    {
+      "order_id": "1003",
+      "item": "Cotton Kurta Set",
+      "items": [
+        {
+          "title": "Cotton Kurta Set",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 1299.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:25:20Z",
+      "eta": "29 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    },
+    {
+      "order_id": "1002",
+      "item": "Kanchipuram Silk Saree",
+      "items": [
+        {
+          "title": "Kanchipuram Silk Saree",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 3499.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:25:16Z",
+      "eta": "30 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    },
+    {
+      "order_id": "1001",
+      "item": "Kanchipuram Silk Saree",
+      "items": [
+        {
+          "title": "Kanchipuram Silk Saree",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 3499.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:16:37Z",
+      "eta": "28 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    }
+  ],
+  "_warnings": []
+}

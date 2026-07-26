@@ -1,0 +1,114 @@
+{
+  "business_id": "anna-groceries",
+  "name": "Anna Groceries",
+  "currency": "INR",
+  "shopify_subdomain": "anna-groceries",
+  "source": "Shopify Admin GraphQL API 2026-01 (live)",
+  "products": [
+    {
+      "title": "Sona Masoori Rice 25kg",
+      "handle": "sona-masoori-rice-25kg",
+      "type": "Staples",
+      "price": "1450.00",
+      "sku": "",
+      "stock": -1
+    },
+    {
+      "title": "Cooking Oil 5L",
+      "handle": "cooking-oil-5l",
+      "type": "Staples",
+      "price": "890.00",
+      "sku": "",
+      "stock": -1
+    },
+    {
+      "title": "Toor Dal 5kg",
+      "handle": "toor-dal-5kg",
+      "type": "Pulses",
+      "price": "640.00",
+      "sku": "",
+      "stock": -1
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "1003",
+      "item": "Toor Dal 5kg",
+      "items": [
+        {
+          "title": "Toor Dal 5kg",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 640.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:20:47Z",
+      "eta": "28 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    },
+    {
+      "order_id": "1002",
+      "item": "Cooking Oil 5L",
+      "items": [
+        {
+          "title": "Cooking Oil 5L",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 890.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:20:42Z",
+      "eta": "29 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    },
+    {
+      "order_id": "1001",
+      "item": "Sona Masoori Rice 25kg",
+      "items": [
+        {
+          "title": "Sona Masoori Rice 25kg",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 1450.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:20:38Z",
+      "eta": "30 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    }
+  ],
+  "_warnings": []
+}

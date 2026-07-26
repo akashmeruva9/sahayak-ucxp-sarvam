@@ -1,0 +1,114 @@
+{
+  "business_id": "ravi-electronics",
+  "name": "Ravi Electronics",
+  "currency": "INR",
+  "shopify_subdomain": "ravi-electronics-bmxitv46",
+  "source": "Shopify Admin GraphQL API 2026-01 (live)",
+  "products": [
+    {
+      "title": "boAt Airdopes 141 Earbuds",
+      "handle": "boat-airdopes-141-earbuds",
+      "type": "Audio",
+      "price": "1299.00",
+      "sku": "",
+      "stock": -1
+    },
+    {
+      "title": "Redmi Power Bank 20000mAh",
+      "handle": "redmi-power-bank-20000mah",
+      "type": "Accessories",
+      "price": "1699.00",
+      "sku": "",
+      "stock": -1
+    },
+    {
+      "title": "Boult Smartwatch",
+      "handle": "boult-smartwatch",
+      "type": "Wearables",
+      "price": "1999.00",
+      "sku": "",
+      "stock": -1
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "1003",
+      "item": "Boult Smartwatch",
+      "items": [
+        {
+          "title": "Boult Smartwatch",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 1999.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:20:22Z",
+      "eta": "28 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    },
+    {
+      "order_id": "1002",
+      "item": "Redmi Power Bank 20000mAh",
+      "items": [
+        {
+          "title": "Redmi Power Bank 20000mAh",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 1699.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:20:18Z",
+      "eta": "29 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    },
+    {
+      "order_id": "1001",
+      "item": "boAt Airdopes 141 Earbuds",
+      "items": [
+        {
+          "title": "boAt Airdopes 141 Earbuds",
+          "qty": 1
+        }
+      ],
+      "quantity": 1,
+      "status": "being prepared",
+      "status_raw": "UNFULFILLED",
+      "payment": "PAID",
+      "amount": 1299.0,
+      "currency": "INR",
+      "created_at": "2026-07-26T01:20:14Z",
+      "eta": "30 Jul",
+      "days_since_delivery": 0,
+      "prescription_on_file": false,
+      "_synthetic_fields": [
+        "eta",
+        "days_since_delivery",
+        "prescription_on_file"
+      ],
+      "_flags": []
+    }
+  ],
+  "_warnings": []
+}

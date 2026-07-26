@@ -1,0 +1,535 @@
+{
+  "meena-kitchen": {
+    "business_id": "meena-kitchen",
+    "name": "Meena Kitchen Store",
+    "shop_name": "Meena Kitchen Store",
+    "currency": "INR",
+    "shopify_subdomain": "meena-kitchen-store",
+    "products": [
+      {
+        "title": "Prestige Mixer Grinder 750W",
+        "handle": "prestige-mixer-grinder-750w",
+        "type": "Kitchen Appliances",
+        "price": "4499.00",
+        "sku": "",
+        "stock": -1
+      },
+      {
+        "title": "Butterfly Pressure Cooker 5L",
+        "handle": "butterfly-pressure-cooker-5l",
+        "type": "Kitchen Appliances",
+        "price": "2199.00",
+        "sku": "",
+        "stock": -1
+      },
+      {
+        "title": "Bajaj Induction Cooktop 1900W",
+        "handle": "bajaj-induction-cooktop-1900w",
+        "type": "Kitchen Appliances",
+        "price": "2799.00",
+        "sku": "",
+        "stock": -1
+      },
+      {
+        "title": "Pigeon Non-Stick Dosa Tawa",
+        "handle": "pigeon-non-stick-dosa-tawa",
+        "type": "Cookware",
+        "price": "899.00",
+        "sku": "",
+        "stock": 0
+      },
+      {
+        "title": "Milton Thermosteel Flask 1L",
+        "handle": "milton-thermosteel-flask-1l",
+        "type": "Kitchenware",
+        "price": "1099.00",
+        "sku": "",
+        "stock": 0
+      }
+    ],
+    "orders": [
+      {
+        "order_id": "Meena_1009",
+        "created_at": "2026-07-26T01:25:12Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "0.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Bajaj Induction Cooktop 1900W",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "Meena_1008",
+        "created_at": "2026-07-26T01:25:08Z",
+        "status_raw": "FULFILLED",
+        "status": "delivered",
+        "payment": "PAID",
+        "amount": "0.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Butterfly Pressure Cooker 5L",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "Meena_1007",
+        "created_at": "2026-07-26T01:25:04Z",
+        "status_raw": "FULFILLED",
+        "status": "delivered",
+        "payment": "PAID",
+        "amount": "0.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Prestige Mixer Grinder 750W",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "Meena_1006",
+        "created_at": "2026-07-25T15:26:23Z",
+        "status_raw": "FULFILLED",
+        "status": "delivered",
+        "payment": "PAID",
+        "amount": "785.95",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "The Compare at Price Snowboard",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "Meena_1005",
+        "created_at": "2026-07-25T15:25:19Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "2629.95",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "The 3p Fulfilled Snowboard",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "Meena_1004",
+        "created_at": "2026-07-25T15:24:16Z",
+        "status_raw": "FULFILLED",
+        "status": "delivered",
+        "payment": "PAID",
+        "amount": "84.85",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Selling Plans Ski Wax",
+            "qty": 1
+          },
+          {
+            "title": "Selling Plans Ski Wax",
+            "qty": 1
+          },
+          {
+            "title": "Selling Plans Ski Wax",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1003",
+        "created_at": "2026-07-25T15:06:33Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "REFUNDED",
+        "amount": "2799.8",
+        "currency": "USD",
+        "items": [
+          {
+            "title": "The Complete Snowboard",
+            "qty": 4
+          }
+        ]
+      },
+      {
+        "order_id": "1002",
+        "created_at": "2026-07-25T15:06:23Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "REFUNDED",
+        "amount": "234.15",
+        "currency": "USD",
+        "items": [
+          {
+            "title": "Custom Snowboard",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1001",
+        "created_at": "2026-07-25T15:06:05Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "REFUNDED",
+        "amount": "3212.14",
+        "currency": "USD",
+        "items": [
+          {
+            "title": "The Complete Snowboard",
+            "qty": 1
+          },
+          {
+            "title": "The 3p Fulfilled Snowboard",
+            "qty": 1
+          }
+        ]
+      }
+    ]
+  },
+  "lakshmi-fashion": {
+    "business_id": "lakshmi-fashion",
+    "name": "Lakshmi Fashion",
+    "shop_name": "Lakshmi Fashion",
+    "currency": "INR",
+    "shopify_subdomain": "lakshmi-fashion-4kmotaah",
+    "products": [
+      {
+        "title": "Kanchipuram Silk Saree",
+        "handle": "kanchipuram-silk-saree",
+        "type": "Sarees",
+        "price": "3499.00",
+        "sku": "",
+        "stock": -2
+      },
+      {
+        "title": "Cotton Kurta Set",
+        "handle": "cotton-kurta-set",
+        "type": "Kurtas",
+        "price": "1299.00",
+        "sku": "",
+        "stock": -1
+      },
+      {
+        "title": "Anarkali Dress",
+        "handle": "anarkali-dress",
+        "type": "Dresses",
+        "price": "2199.00",
+        "sku": "",
+        "stock": -1
+      }
+    ],
+    "orders": [
+      {
+        "order_id": "1004",
+        "created_at": "2026-07-26T01:25:23Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "2199.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Anarkali Dress",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1003",
+        "created_at": "2026-07-26T01:25:20Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "1299.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Cotton Kurta Set",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1002",
+        "created_at": "2026-07-26T01:25:16Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "3499.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Kanchipuram Silk Saree",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1001",
+        "created_at": "2026-07-26T01:16:37Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "3499.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Kanchipuram Silk Saree",
+            "qty": 1
+          }
+        ]
+      }
+    ]
+  },
+  "ravi-electronics": {
+    "business_id": "ravi-electronics",
+    "name": "Ravi Electronics",
+    "shop_name": "Ravi Electronics",
+    "currency": "INR",
+    "shopify_subdomain": "ravi-electronics-bmxitv46",
+    "products": [
+      {
+        "title": "boAt Airdopes 141 Earbuds",
+        "handle": "boat-airdopes-141-earbuds",
+        "type": "Audio",
+        "price": "1299.00",
+        "sku": "",
+        "stock": -1
+      },
+      {
+        "title": "Redmi Power Bank 20000mAh",
+        "handle": "redmi-power-bank-20000mah",
+        "type": "Accessories",
+        "price": "1699.00",
+        "sku": "",
+        "stock": -1
+      },
+      {
+        "title": "Boult Smartwatch",
+        "handle": "boult-smartwatch",
+        "type": "Wearables",
+        "price": "1999.00",
+        "sku": "",
+        "stock": -1
+      }
+    ],
+    "orders": [
+      {
+        "order_id": "1003",
+        "created_at": "2026-07-26T01:20:22Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "1999.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Boult Smartwatch",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1002",
+        "created_at": "2026-07-26T01:20:18Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "1699.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Redmi Power Bank 20000mAh",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1001",
+        "created_at": "2026-07-26T01:20:14Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "1299.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "boAt Airdopes 141 Earbuds",
+            "qty": 1
+          }
+        ]
+      }
+    ]
+  },
+  "sri-pharma": {
+    "business_id": "sri-pharma",
+    "name": "Sri Pharma",
+    "shop_name": "Sri Pharma",
+    "currency": "INR",
+    "shopify_subdomain": "sri-pharma",
+    "products": [
+      {
+        "title": "BP Monitor Digital",
+        "handle": "bp-monitor-digital",
+        "type": "Devices",
+        "price": "1450.00",
+        "sku": "",
+        "stock": -1
+      },
+      {
+        "title": "Diabetes Test Strips (50)",
+        "handle": "diabetes-test-strips-50",
+        "type": "Supplies",
+        "price": "899.00",
+        "sku": "",
+        "stock": -1
+      },
+      {
+        "title": "Vitamin D3 Supplements",
+        "handle": "vitamin-d3-supplements",
+        "type": "Supplements",
+        "price": "450.00",
+        "sku": "",
+        "stock": -1
+      }
+    ],
+    "orders": [
+      {
+        "order_id": "1003",
+        "created_at": "2026-07-26T01:20:34Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "450.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Vitamin D3 Supplements",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1002",
+        "created_at": "2026-07-26T01:20:30Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "899.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Diabetes Test Strips (50)",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1001",
+        "created_at": "2026-07-26T01:20:27Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "1450.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "BP Monitor Digital",
+            "qty": 1
+          }
+        ]
+      }
+    ]
+  },
+  "anna-groceries": {
+    "business_id": "anna-groceries",
+    "name": "Anna Groceries",
+    "shop_name": "Anna Groceries",
+    "currency": "INR",
+    "shopify_subdomain": "anna-groceries",
+    "products": [
+      {
+        "title": "Sona Masoori Rice 25kg",
+        "handle": "sona-masoori-rice-25kg",
+        "type": "Staples",
+        "price": "1450.00",
+        "sku": "",
+        "stock": -1
+      },
+      {
+        "title": "Cooking Oil 5L",
+        "handle": "cooking-oil-5l",
+        "type": "Staples",
+        "price": "890.00",
+        "sku": "",
+        "stock": -1
+      },
+      {
+        "title": "Toor Dal 5kg",
+        "handle": "toor-dal-5kg",
+        "type": "Pulses",
+        "price": "640.00",
+        "sku": "",
+        "stock": -1
+      }
+    ],
+    "orders": [
+      {
+        "order_id": "1003",
+        "created_at": "2026-07-26T01:20:47Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "640.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Toor Dal 5kg",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1002",
+        "created_at": "2026-07-26T01:20:42Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "890.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Cooking Oil 5L",
+            "qty": 1
+          }
+        ]
+      },
+      {
+        "order_id": "1001",
+        "created_at": "2026-07-26T01:20:38Z",
+        "status_raw": "UNFULFILLED",
+        "status": "being prepared",
+        "payment": "PAID",
+        "amount": "1450.0",
+        "currency": "INR",
+        "items": [
+          {
+            "title": "Sona Masoori Rice 25kg",
+            "qty": 1
+          }
+        ]
+      }
+    ]
+  }
+}
