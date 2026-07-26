@@ -1,0 +1,12 @@
+{
+  "name": "ucxp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:backend": "./venv/bin/python -m pytest tests/backend -v"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0"
+  }
+}

@@ -11,6 +11,7 @@ import logging
 import os
 import urllib.error
 import urllib.request
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +30,13 @@ ALLOWED_ORIGINS = [
     "http://localhost:4173", "http://127.0.0.1:4173",
 ]
 
-app = FastAPI(title="UCXP Dashboard API", version="1.0")
+@asynccontextmanager
+async def lifespan(_app):
+    store.init_db()
+    yield
+
+
+app = FastAPI(title="UCXP Dashboard API", version="1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -37,11 +44,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def _startup():
-    store.init_db()
 
 
 # --------------------------------------------------------------------------
