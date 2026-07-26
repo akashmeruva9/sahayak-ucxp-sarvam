@@ -1,0 +1,190 @@
+{
+  "ucxp_version": "0.1",
+  "business": {
+    "id": "ravi-electronics",
+    "name": "Ravi Electronics",
+    "category": "Electronics",
+    "glyph": "🎧",
+    "color": "#1E5EFF",
+    "languages": [
+      "en-IN",
+      "hi-IN",
+      "te-IN",
+      "ta-IN"
+    ]
+  },
+  "routing": {
+    "aliases": [
+      "ravi",
+      "ravi electronics",
+      "రవి ఎలక్ట్రానిక్స్",
+      "रवि इलेक्ट्रॉनिक्स"
+    ],
+    "domains": [
+      "order",
+      "earbuds",
+      "power bank",
+      "smartwatch",
+      "warranty",
+      "refund"
+    ]
+  },
+  "auth": {
+    "type": "none",
+    "identity_fields": [
+      "order_id"
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "track_order",
+      "description": "Tell the customer where their order currently is and when it will arrive.",
+      "examples": [
+        "where is my order",
+        "has my order shipped",
+        "track order 1001",
+        "मेरा ऑर्डर कहाँ है",
+        "నా ఆర్డర్ ఎక్కడ ఉంది",
+        "என் ஆர்டர் எங்கே இருக்கிறது"
+      ],
+      "required_inputs": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "prompt": "What's your order number?",
+          "default_from": "context.last_order_id",
+          "optional": false
+        }
+      ],
+      "rules": [],
+      "confirm": false,
+      "action": "get_order",
+      "response": "Your order {{order_id}} — {{result.item}} — is {{result.status}}. Total ₹{{result.amount}}. Expected by {{result.eta}}.",
+      "receipt": {
+        "label": "{{result.status}} · arriving {{result.eta}}",
+        "tone": "success"
+      }
+    },
+    {
+      "id": "request_refund",
+      "description": "File a refund for a delivered order the customer is unhappy with.",
+      "examples": [
+        "I want a refund",
+        "the item is damaged, refund it",
+        "मुझे रिफंड चाहिए",
+        "నాకు రీఫండ్ కావాలి",
+        "எனக்கு பணத்தைத் திருப்பி வேண்டும்"
+      ],
+      "required_inputs": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "prompt": "What's your order number?",
+          "default_from": "context.last_order_id",
+          "optional": false
+        }
+      ],
+      "rules": [
+        {
+          "id": "refund_window",
+          "when": "result.days_since_delivery > 7",
+          "deny": "Refunds are only available within 7 days of delivery. I can raise a support ticket for you instead."
+        }
+      ],
+      "confirm": true,
+      "action": "create_refund",
+      "response": "Your refund for order {{order_id}} is filed (ref {{result.refund_ref}}). ₹{{result.amount}} reaches your account in {{result.refund_eta_days}} days.",
+      "receipt": {
+        "label": "Refund filed · {{result.refund_ref}}",
+        "tone": "success"
+      }
+    },
+    {
+      "id": "warranty_claim",
+      "description": "Register a warranty claim for a faulty product and book a service visit.",
+      "examples": [
+        "my earbuds stopped working",
+        "raise a warranty claim",
+        "वारंटी क्लेम करना है",
+        "వారంటీ క్లెయిమ్ చేయాలి",
+        "உத்திரவாதக் கோரிக்கை"
+      ],
+      "required_inputs": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "prompt": "What's your order number?",
+          "default_from": "context.last_order_id",
+          "optional": false
+        }
+      ],
+      "rules": [
+        {
+          "id": "warranty_expired",
+          "when": "result.days_since_delivery > 365",
+          "deny": "This product is past its 1 year warranty period. I can share paid service centre options instead."
+        }
+      ],
+      "confirm": true,
+      "action": "create_warranty_claim",
+      "response": "Warranty claim {{result.claim_ref}} is open for order {{order_id}}. A service partner will call you within {{result.callback_hours}} hours.",
+      "receipt": {
+        "label": "Claim open · {{result.claim_ref}}",
+        "tone": "info"
+      }
+    }
+  ],
+  "endpoints": [
+    {
+      "id": "create_refund",
+      "method": "POST",
+      "url": "{{mock_base}}/ravi-electronics/orders/{{order_id}}/refund",
+      "headers": {},
+      "body": null,
+      "timeout_s": 5
+    },
+    {
+      "id": "create_warranty_claim",
+      "method": "POST",
+      "url": "{{mock_base}}/ravi-electronics/orders/{{order_id}}/warranty",
+      "headers": {},
+      "body": null,
+      "timeout_s": 5
+    },
+    {
+      "id": "get_order",
+      "method": "GET",
+      "url": "{{mock_base}}/ravi-electronics/orders/{{order_id}}",
+      "headers": {},
+      "body": null,
+      "timeout_s": 5
+    }
+  ],
+  "knowledge": [
+    {
+      "id": "return_policy",
+      "text": "Electronics can be returned within 10 days if unopened. Opened items are accepted only if defective."
+    },
+    {
+      "id": "refund_policy",
+      "text": "Refunds are processed within 5-7 business days after the item passes inspection."
+    },
+    {
+      "id": "warranty",
+      "text": "Every product carries a 1 year manufacturer warranty. Keep the invoice for claims."
+    },
+    {
+      "id": "cod",
+      "text": "Cash on delivery is available for orders under 10000 rupees."
+    }
+  ],
+  "escalation": {
+    "when": [
+      "rule_denied",
+      "action_failed",
+      "user_asks_human"
+    ],
+    "message": "I'm handing this to a human agent from Ravi Electronics — they'll call you back within 2 hours.",
+    "action": "create_escalation_ticket"
+  }
+}
