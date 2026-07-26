@@ -131,7 +131,9 @@ def classification(business: str | None, capability: str | None, inputs: dict | 
 # --------------------------------------------------------------------------- #
 def test_all_manifests_load_and_are_internally_consistent():
     registry = ManifestRegistry(settings())
-    assert set(registry.ids()) == {"airtel", "apollo", "flipkart"}
+    # The three demo businesses must always be present; merchants are additive,
+    # so this is a superset check — adding a manifest must never fail the suite.
+    assert {"airtel", "apollo", "flipkart"} <= set(registry.ids())
 
     for manifest in registry.all():
         assert manifest.capabilities, manifest.id
