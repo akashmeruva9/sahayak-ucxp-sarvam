@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from ..config import RuntimeSettings, get_settings
 from ..schemas.manifest import Manifest
+from .normalize import is_published_shape, normalize
 
 
 class ManifestRegistry:
@@ -39,7 +40,10 @@ class ManifestRegistry:
         for path in sorted(directory.glob("*.json")):
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
-                manifest = Manifest.model_validate(payload)
+                # Published (Shopify-style) manifests are mapped to the internal
+                # shape before validation — see runtime/normalize.py.
+                internal = normalize(payload) if is_published_shape(payload) else payload
+                manifest = Manifest.model_validate(internal)
             except (OSError, json.JSONDecodeError) as exc:
                 logger.error(f"manifests.unreadable file={path.name} error={exc}")
                 continue

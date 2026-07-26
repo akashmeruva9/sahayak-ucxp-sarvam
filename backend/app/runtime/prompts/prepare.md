@@ -30,8 +30,11 @@ Return STRICT JSON, nothing else, no markdown fence:
 
 Rules:
 - Normalise what the user gave you: strip filler ("order number is OD123" →
-  "OD123"), keep identifiers exactly as written, and turn relative dates into
-  plain words ("kal" / "tomorrow" → "tomorrow").
+  "OD123"), and turn relative dates into plain words ("kal" / "tomorrow" →
+  "tomorrow").
+- Convert spelled-out numbers to digits for identifiers and amounts: "one zero
+  zero three" → "1003", "triple nine" → "999". Otherwise keep identifiers
+  exactly as written.
 - Never fabricate a value. If an input is missing, leave it out — the runtime
   will ask the customer for it.
 - Only set answer_from_knowledge when the documented text genuinely answers the

@@ -35,6 +35,8 @@ class TurnState(TypedDict, total=False):
     raw_text: str
     #: Caller-supplied language hint; otherwise detected.
     language_hint: str | None
+    #: Pin resolution to one business (a dedicated channel); skips routing.
+    forced_business_id: str | None
 
     # -- understand ------------------------------------------------------ #
     language: str

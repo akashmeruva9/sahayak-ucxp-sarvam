@@ -16,14 +16,19 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import httpx  # noqa: E402
-
 from backend.app.agent_tools import execute as exec_mod  # noqa: E402
 from backend.app.agent_tools.router import get_runtime_dep, router  # noqa: E402
-from backend.app.config import RuntimeSettings  # noqa: E402
 from backend.app.memory.context import get_store  # noqa: E402
-from backend.app.mock.router import router as mock_router  # noqa: E402
-from backend.app.runtime.executor import ActionExecutor  # noqa: E402
+from backend.app.runtime.loader import get_registry  # noqa: E402
+from backend.app.schemas.manifest import (  # noqa: E402
+    BusinessInfo,
+    Capability,
+    Endpoint,
+    Manifest,
+    Receipt,
+    RequiredInput,
+    Rule,
+)
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -166,83 +171,138 @@ def test_no_token_means_open(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# The tool spec is generated from the live manifests
+# The tool specs are generated from whatever manifests are loaded
 # --------------------------------------------------------------------------- #
-def test_tool_spec_lists_real_businesses():
+def _loaded_capability_ids() -> set[str]:
+    return {c.id for m in get_registry().all() for c in m.capabilities}
+
+
+def test_tool_spec_is_generated_from_manifests():
     client, _ = make_client(COMPLETED)
     spec = client.get("/agent/tool-spec").json()
     assert spec["name"] == "resolve_customer_request"
     assert spec["method"] == "POST"
     assert spec["url"].endswith("/agent/resolve")
-    # Built from manifests, not hardcoded — the three demo brands must show up.
-    for brand in ("Flipkart", "Airtel", "Apollo"):
-        assert brand in spec["description"]
+    # Built from the live manifests, not hardcoded: a real capability id appears.
+    assert any(cid in spec["description"] for cid in _loaded_capability_ids())
+
+
+def test_execute_spec_is_generated_from_manifests():
+    client, _ = make_client(COMPLETED)
+    spec = client.get("/agent/execute-spec").json()
+    assert spec["name"] == "execute_capability"
+    assert spec["url"].endswith("/agent/execute")
+    # Enums are populated from whatever manifests are loaded — must be non-empty.
+    assert spec["parameters"]["properties"]["business"]["enum"]
+    assert spec["parameters"]["properties"]["capability"]["enum"]
+    assert any(cid in spec["description"] for cid in _loaded_capability_ids())
 
 
 # --------------------------------------------------------------------------- #
-# The fast, Sarvam-free execute path (real manifests + mock business APIs)
+# The fast, Sarvam-free execute path — tested against a synthetic manifest so it
+# is independent of whichever real businesses happen to be loaded.
 # --------------------------------------------------------------------------- #
-def _wire_executor() -> None:
-    """Point the execute path's action executor at the in-process mock APIs."""
+def _demo_manifest() -> Manifest:
+    return Manifest(
+        business=BusinessInfo(id="acme", name="Acme"),
+        capabilities=[
+            Capability(
+                id="track_order",
+                description="Track an order.",
+                required_inputs=[
+                    RequiredInput(name="order_id", prompt="What's your order ID?", default_from="context.last_order_id")
+                ],
+                action="get_order",
+                response="Your order {{order_id}} is {{result.status}}.",
+                receipt=Receipt(label="Arriving {{result.eta}}", tone="success"),
+            ),
+            Capability(
+                id="cancel_order",
+                description="Cancel an order.",
+                required_inputs=[
+                    RequiredInput(name="order_id", prompt="Which order?", default_from="context.last_order_id")
+                ],
+                confirm=True,
+                action="cancel",
+                response="Order {{order_id}} is cancelled.",
+                receipt=Receipt(label="Cancelled", tone="success"),
+                rules=[Rule(id="already_delivered", when="result.delivered == True", deny="That order is already delivered and can't be cancelled.")],
+            ),
+        ],
+        endpoints=[Endpoint(id="get_order", url="x"), Endpoint(id="cancel", method="POST", url="x")],
+    )
+
+
+class _FakeRegistry:
+    def __init__(self, manifest: Manifest) -> None:
+        self._m = manifest
+
+    def get(self, business_id):
+        return self._m if business_id == self._m.id else None
+
+    def all(self):
+        return [self._m]
+
+
+class _FakeExecutor:
+    """Stands in for the HTTP action call — returns a scripted business result."""
+
+    def __init__(self, result: dict) -> None:
+        self.result = result
+
+    async def execute(self, manifest, endpoint_id, scope):
+        out = dict(self.result)
+        out.setdefault("order_id", scope.get("order_id"))
+        return out
+
+
+def _wire(monkeypatch, result: dict) -> None:
     get_store().clear()
-    app = FastAPI()
-    app.include_router(mock_router)
-    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://mock")
-    cfg = RuntimeSettings(manifests_dir=REPO / "manifests", mock_base_url="http://mock/mock")
-    exec_mod._executor = ActionExecutor(cfg, client=client)
+    monkeypatch.setattr(exec_mod, "get_registry", lambda: _FakeRegistry(_demo_manifest()))
+    exec_mod._executor = _FakeExecutor(result)
 
 
-async def test_execute_runs_a_real_action_and_returns_a_receipt():
-    _wire_executor()
-    out = await exec_mod.run_capability("flipkart", "track_order", {"order_id": "OD123456"})
-    assert out["state"] == "resolved"
-    assert out["done"] is True
-    assert out["receipt"] and out["receipt"]["label"]
+async def test_execute_runs_an_action_and_returns_a_receipt(monkeypatch):
+    _wire(monkeypatch, {"status": "packed", "eta": "Tuesday"})
+    out = await exec_mod.run_capability("acme", "track_order", {"order_id": "OD1"})
+    assert out["state"] == "resolved" and out["done"] is True
+    assert out["receipt"]["label"] == "Arriving Tuesday"
     assert out["capability"] == "track_order"
-    assert "OD123456" in out["say"]
+    assert "OD1" in out["say"]
 
 
-async def test_execute_asks_for_a_missing_required_input():
-    _wire_executor()
-    out = await exec_mod.run_capability("flipkart", "track_order", {})
+async def test_execute_asks_for_a_missing_required_input(monkeypatch):
+    _wire(monkeypatch, {})
+    out = await exec_mod.run_capability("acme", "track_order", {})
     assert out["state"] == "needs_input"
     assert out["needs_input"] == "order_id"
     assert out["done"] is False
 
 
-async def test_execute_gates_a_destructive_action_on_confirmation():
-    _wire_executor()
-    # OD100 is a cancellable (not-yet-delivered) order in the deterministic mock.
-    first = await exec_mod.run_capability("flipkart", "cancel_order", {"order_id": "OD100"})
-    assert first["state"] == "confirm"
-    assert first["done"] is False
-    done = await exec_mod.run_capability(
-        "flipkart", "cancel_order", {"order_id": "OD100"}, confirmed=True
-    )
-    assert done["state"] == "resolved"
-    assert done["done"] is True
+async def test_execute_gates_a_destructive_action_on_confirmation(monkeypatch):
+    _wire(monkeypatch, {"cancelled": True, "delivered": False})
+    first = await exec_mod.run_capability("acme", "cancel_order", {"order_id": "OD1"})
+    assert first["state"] == "confirm" and first["done"] is False
+    done = await exec_mod.run_capability("acme", "cancel_order", {"order_id": "OD1"}, confirmed=True)
+    assert done["state"] == "resolved" and done["done"] is True
 
 
-async def test_execute_memory_carries_order_id_across_turns():
-    _wire_executor()
-    await exec_mod.run_capability("flipkart", "track_order", {"order_id": "OD200"}, conversation_id="c1")
+async def test_execute_enforces_a_manifest_business_rule(monkeypatch):
+    _wire(monkeypatch, {"cancelled": False, "delivered": True})
+    out = await exec_mod.run_capability("acme", "cancel_order", {"order_id": "OD1"}, confirmed=True)
+    assert out["state"] == "denied"
+    assert "delivered" in out["say"].lower()
+
+
+async def test_execute_memory_carries_order_id_across_turns(monkeypatch):
+    _wire(monkeypatch, {"status": "packed", "eta": "Tue", "delivered": False, "cancelled": True})
+    await exec_mod.run_capability("acme", "track_order", {"order_id": "OD9"}, conversation_id="c1")
     # Second capability omits the id — it should come from remembered facts.
-    out = await exec_mod.run_capability("flipkart", "cancel_order", {}, conversation_id="c1", confirmed=True)
-    assert out["state"] == "resolved"
-    assert out["done"] is True
+    out = await exec_mod.run_capability("acme", "cancel_order", {}, conversation_id="c1", confirmed=True)
+    assert out["state"] == "resolved" and out["done"] is True
 
 
-async def test_execute_rejects_unknown_business_and_capability():
-    _wire_executor()
+async def test_execute_rejects_unknown_business_and_capability(monkeypatch):
+    _wire(monkeypatch, {})
     assert (await exec_mod.run_capability("nope", "track_order", {}))["state"] == "unknown_business"
-    assert (await exec_mod.run_capability("flipkart", "fly_me_to_the_moon", {}))["state"] == "unknown_capability"
-
-
-def test_execute_spec_enumerates_capabilities_with_inputs():
-    client, _ = make_client(COMPLETED)
-    spec = client.get("/agent/execute-spec").json()
-    assert spec["name"] == "execute_capability"
-    assert spec["url"].endswith("/agent/execute")
-    assert "flipkart" in spec["parameters"]["properties"]["business"]["enum"]
-    assert "track_order" in spec["parameters"]["properties"]["capability"]["enum"]
-    assert "order_id" in spec["description"]
+    assert (await exec_mod.run_capability("acme", "fly_me_to_the_moon", {}))["state"] == "unknown_capability"

@@ -154,6 +154,33 @@ async function send<T extends EngineEnvelope>(
   }
 }
 
+/**
+ * Plain GET returning parsed JSON (no engine envelope). Used for protocol
+ * introspection endpoints like GET /businesses that return a bare array.
+ */
+export async function getJson<T>(path: string, timeoutMs = 10_000): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, { signal: controller.signal });
+    if (!response.ok) {
+      throw new ApiError(`Request failed (HTTP ${response.status})`, response.status);
+    }
+    return (await response.json()) as T;
+  } catch (err) {
+    const failure =
+      err instanceof ApiError
+        ? err
+        : err instanceof Error && err.name === "AbortError"
+          ? new ApiError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`)
+          : new ApiError(err instanceof Error ? err.message : "Could not reach the backend");
+    if (__DEV__) console.error(`[api] FAIL GET ${API_BASE_URL}${path} :: ${failure.message}`);
+    throw failure;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** The reasoning model thinks before it answers, so allow a generous budget. */
 export function postJson<T extends EngineEnvelope>(
   path: string,

@@ -144,6 +144,16 @@ class UcxpRuntime:
         conversation = self.store.get_or_create(state["conversation_id"])
         text = state["english_text"]
 
+        # A pinned channel (e.g. a business's own WhatsApp line) resolves against
+        # exactly one business — no routing, no cross-business leakage.
+        forced = state.get("forced_business_id")
+        if forced:
+            manifest = self.registry.get(forced)
+            if manifest is not None:
+                logger.info(f"route business={forced} source=pinned")
+                return {"business_id": forced, "manifest": manifest, "business_source": "pinned"}
+            logger.warning(f"route.pinned_unknown business={forced}")
+
         # The brand was named outright: no inference needed, no LLM call.
         business_id = self.registry.match_alias(text) or self.registry.match_alias(state["raw_text"])
         source = "alias"
@@ -218,7 +228,12 @@ class UcxpRuntime:
 
         capability_id = parsed.get("capability_id")
         confidence = float(parsed.get("confidence") or 0.0)
-        if capability_id and manifest_out and manifest_out.capability(capability_id) is None:
+        if capability_id and manifest_out is None:
+            # A capability with no business can't be acted on — treat as smalltalk
+            # rather than crashing gather on a None manifest.
+            logger.warning(f"classify.capability_without_business id={capability_id}")
+            capability_id = None
+        elif capability_id and manifest_out.capability(capability_id) is None:
             # Validate against the manifest before acting — never trust the model's id.
             logger.warning(f"classify.invalid_capability id={capability_id}")
             capability_id = None
@@ -432,6 +447,8 @@ class UcxpRuntime:
                     outcome=outcome,
                     facts=facts or "(no data)",
                     template=template or "(no template)",
+                    knowledge=(manifest.knowledge_text() if manifest else "")
+                    or "(no documented policies)",
                 ),
                 step="respond",
                 user_text=state["english_text"],
@@ -487,7 +504,9 @@ class UcxpRuntime:
             facts = "\n".join(f"- {k}: {v}" for k, v in result.items() if not isinstance(v, (dict, list)))
             return ("The action completed successfully.", facts, rendered, "resolved")
 
-        # No capability matched: greeting, thanks, or something out of scope.
+        # No capability matched: a greeting, a thank-you, or a general question
+        # (product, policy, hours). If we know the business, answer in-persona
+        # from its documented knowledge rather than deflecting.
         known = manifest.business.name if manifest else "Sahayak"
         catalogue = (
             "; ".join(c.description for c in manifest.capabilities) if manifest else ""
@@ -496,7 +515,12 @@ class UcxpRuntime:
             f"I can help with {catalogue}" if catalogue else
             "I can help with orders, connections and appointments. What do you need?"
         )
-        return (f"Small talk or an out-of-scope request for {known}.", "", template, "smalltalk")
+        outcome = (
+            f"The customer sent a greeting or a general question to {known}. Answer it warmly "
+            f"as {known}, using the business's documented policies where relevant, and point "
+            f"them to what you can do (order status, refunds)."
+        )
+        return (outcome, "", template, "smalltalk")
 
     def _receipt(self, capability: Capability | None, state: TurnState) -> dict[str, Any] | None:
         if not capability or not capability.receipt:
@@ -545,6 +569,7 @@ class UcxpRuntime:
         conversation_id: str | None = None,
         language: str | None = None,
         user_id: str | None = None,
+        force_business_id: str | None = None,
     ) -> tuple[TurnState, Conversation]:
         conversation = self.store.get_or_create(conversation_id, user_id)
         conversation.add_turn("user", text)
@@ -554,6 +579,7 @@ class UcxpRuntime:
             "user_id": user_id,
             "raw_text": text,
             "language_hint": language,
+            "forced_business_id": force_business_id,
             "inputs": {},
             "degraded": [],
             "latency": {},
@@ -567,4 +593,7 @@ class UcxpRuntime:
         conversation.language = final.get("language", conversation.language)
         conversation.remember(final.get("capability_id"), final.get("inputs") or {})
         conversation.add_turn("assistant", final.get("reply_en", ""))
+        # Snapshot to disk so a mid-flow restart doesn't lose pending state
+        # (a confirmation or an unfilled slot) between turns.
+        self.store.save()
         return final, conversation

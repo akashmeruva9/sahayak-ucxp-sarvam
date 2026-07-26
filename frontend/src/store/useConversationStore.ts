@@ -4,89 +4,6 @@ import { deriveTitle, sendChat } from "@/api/chat";
 import { getBusiness } from "@/constants/businesses";
 import { uid } from "@/utils/id";
 
-const HOUR = 60 * 60 * 1000;
-const DAY = 24 * HOUR;
-
-/** Seed conversations so History + Home feel populated on first launch. */
-function seedConversations(): Conversation[] {
-  const now = Date.now();
-  const make = (
-    id: string,
-    businessId: BusinessId,
-    title: string,
-    userText: string,
-    assistantText: string,
-    action: Message["action"],
-    updatedAt: number
-  ): Conversation => ({
-    id,
-    title,
-    businessId,
-    createdAt: updatedAt - 4 * 60000,
-    updatedAt,
-    messages: [
-      { id: uid("msg"), role: "user", text: userText, createdAt: updatedAt - 4 * 60000, status: "sent" },
-      {
-        id: uid("msg"),
-        role: "assistant",
-        text: assistantText,
-        createdAt: updatedAt - 3 * 60000,
-        status: "sent",
-        businessId,
-        action,
-      },
-    ],
-  });
-
-  return [
-    make(
-      "seed-flipkart",
-      "flipkart",
-      "Track my Flipkart order",
-      "Where is my Flipkart order?",
-      "Your package has left the Bengaluru hub and is out for delivery.",
-      { label: "Order arriving tomorrow", tone: "success" },
-      now - 2 * HOUR
-    ),
-    make(
-      "seed-swiggy",
-      "swiggy",
-      "Swiggy order status",
-      "What's the status of my Swiggy order?",
-      "Your order from Meghana Foods is being prepared and will be picked up shortly.",
-      { label: "Arriving in ~35 min", tone: "success" },
-      now - 5 * HOUR
-    ),
-    make(
-      "seed-airtel",
-      "airtel",
-      "Cancel Airtel Fiber",
-      "I want to cancel my Airtel Fiber connection",
-      "I've raised a cancellation request. Pickup will be scheduled within 48 hours.",
-      { label: "Cancellation submitted", tone: "warning" },
-      now - DAY - 3 * HOUR
-    ),
-    make(
-      "seed-hdfc",
-      "hdfc",
-      "Raise a bank complaint",
-      "There's a wrong charge on my HDFC card",
-      "Your complaint has been logged. Resolution is expected within 3 working days.",
-      { label: "Complaint #HDFC-48213 opened", tone: "info" },
-      now - 3 * DAY
-    ),
-    make(
-      "seed-apollo",
-      "apollo",
-      "Book Apollo appointment",
-      "Book me a doctor's appointment at Apollo",
-      "Dr. Meera Rao has an opening tomorrow at 11:30 AM at Apollo Clinic, Indiranagar.",
-      { label: "Slot held for 10 minutes", tone: "info" },
-      now - 6 * DAY
-    ),
-  ];
-}
-
 interface ConversationState {
   conversations: Conversation[];
   activeId: string | null;
@@ -103,7 +20,7 @@ interface ConversationState {
 }
 
 export const useConversationStore = create<ConversationState>((set, get) => ({
-  conversations: seedConversations(),
+  conversations: [],
   activeId: null,
   selectedBusinessId: undefined,
 

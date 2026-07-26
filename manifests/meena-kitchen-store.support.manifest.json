@@ -1,34 +1,31 @@
 {
   "ucxp_version": "0.1",
-  "business": "Ravi Electronics",
-  "business_id": "ravi-electronics",
-  "category": "Electronics",
+  "business": "Meena Kitchen Store",
+  "business_id": "meena-kitchen-store",
+  "category": "Home & Living",
   "profile": {
-    "tagline": "Everyday electronics, delivered across India.",
-    "description": "Ravi Electronics sells audio, wearables and charging accessories from brands like boAt, Redmi and Boult. We ship pan-India and support customers in their own language.",
-    "support_email": "support@ravielectronics.in",
-    "support_phone": "+91 80 4718 2200",
-    "website": "https://ravi-electronics-bmxitv46.myshopify.com",
-    "hours": "Mon-Sat 10:00-19:00 IST",
+    "tagline": "Kitchen appliances and cookware that last.",
+    "description": "Meena Kitchen Store sells mixer grinders, pressure cookers, induction cooktops, tawas and flasks from trusted Indian brands.",
+    "support_email": "support@meenakitchen.in",
+    "support_phone": "+91 80 4655 9100",
+    "website": "https://meena-kitchen-store.myshopify.com",
+    "hours": "Mon-Sat 10:00-19:30 IST",
     "city": "Bengaluru"
   },
-  "primary_language": "en-IN",
+  "primary_language": "kn-IN",
   "languages": [
+    "kn-IN",
     "en-IN",
     "hi-IN",
-    "kn-IN",
-    "te-IN",
     "ta-IN",
+    "te-IN",
     "ml-IN",
-    "mr-IN",
-    "bn-IN",
-    "gu-IN",
-    "pa-IN"
+    "mr-IN"
   ],
   "data_source": {
     "type": "shopify",
-    "store_subdomain": "ravi-electronics-bmxitv46.myshopify.com",
-    "credential_ref": "vault://ravi-electronics",
+    "store_subdomain": "meena-kitchen-store.myshopify.com",
+    "credential_ref": "vault://meena-kitchen-store",
     "reads": [
       "read_orders",
       "read_products"
@@ -49,7 +46,7 @@
             "name": "order_id",
             "type": "string",
             "required": true,
-            "example": "1001",
+            "example": "<order_number>",
             "description": "Shopify order number. Customers are identified by order number, never by name -- see identify_by."
           }
         ]
@@ -61,14 +58,14 @@
       },
       "response": {
         "example": {
-          "order_id": "1001",
-          "status": "being prepared",
-          "payment": "PAID",
-          "amount": "1299.0",
+          "order_id": "<order number supplied by the customer>",
+          "status": "<live fulfilment status from Shopify>",
+          "payment": "<live payment status>",
+          "amount": "<order total>",
           "currency": "INR",
           "items": [
             {
-              "title": "boAt Airdopes 141 Earbuds",
+              "title": "<line item>",
               "qty": 1
             }
           ]
@@ -96,7 +93,7 @@
           "customer_message": "Something went wrong on our side. Please try again shortly"
         }
       ],
-      "notes": "Auto-configured from Shopify store ravi-electronics-bmxitv46."
+      "notes": "Auto-configured from Shopify store meena-kitchen-store."
     },
     {
       "name": "refund",
@@ -110,7 +107,7 @@
             "name": "order_id",
             "type": "string",
             "required": true,
-            "example": "1001",
+            "example": "<order_number>",
             "description": "Shopify order number. Customers are identified by order number, never by name -- see identify_by."
           }
         ]
@@ -120,16 +117,16 @@
           "X-Shopify-Access-Token": "{{credential_ref}}"
         },
         "body": {
-          "order_id": "1001",
-          "reason": "damaged_on_arrival"
+          "order_id": "<order number supplied by the customer>",
+          "reason": "<reason code, e.g. damaged_on_arrival>"
         }
       },
       "response": {
         "example": {
-          "refund_id": "rf_88h2",
-          "order_id": "1001",
-          "status": "initiated",
-          "amount": "1299.0",
+          "refund_id": "<refund id returned by Shopify>",
+          "order_id": "<order number supplied by the customer>",
+          "status": "<refund status>",
+          "amount": "<refunded amount>",
           "currency": "INR",
           "eta_days": 5
         },
@@ -156,39 +153,35 @@
           "customer_message": "Something went wrong on our side. Please try again shortly"
         }
       ],
-      "notes": "Auto-configured from Shopify store ravi-electronics-bmxitv46."
+      "notes": "Auto-configured from Shopify store meena-kitchen-store."
     }
   ],
   "policies": {
-    "return_policy": "Unopened items in original packaging can be returned within 7 days of delivery. Earbuds and wearables must be sealed to be eligible.",
-    "refund_policy": "Refunds are issued to the original payment method within 5 working days of the returned item passing inspection.",
-    "shipping_policy": "Dispatch within 24-48 hours. Free shipping above Rs.999, Rs.60 flat below that. Delivery in 3-5 working days across India.",
-    "warranty": "Manufacturer warranty: 1 year on boAt and Boult products, 6 months on Redmi power banks. Claims are raised with the brand's service centre using the order number."
+    "return_policy": "Unused appliances in original packaging with all accessories can be returned within 7 days of delivery.",
+    "refund_policy": "Refunds reach the original payment method within 5 working days of the returned appliance passing inspection.",
+    "shipping_policy": "Dispatch within 24-48 hours. Free shipping above Rs.999. Delivery in 3-5 working days across India.",
+    "warranty": "Manufacturer warranty applies - typically 2 years on mixer grinders and 1 year on cooktops and cookers. Claims are raised with the brand service centre using the order number."
   },
   "faq": [
     {
       "q": "Where is my order?",
-      "a": "Share your order number (for example 1001) and I'll check the live status with the store right away."
+      "a": "Share your order number and I'll check the live status with the store."
     },
     {
       "q": "How long does delivery take?",
-      "a": "Orders are dispatched within 24-48 hours and reach most Indian pin codes in 3-5 working days."
+      "a": "Appliances are dispatched in 24-48 hours and delivered in 3-5 working days across India."
     },
     {
-      "q": "Can I return an item?",
-      "a": "Yes - unopened items in original packaging can be returned within 7 days of delivery."
+      "q": "Can I return an appliance?",
+      "a": "Unused appliances in original packaging can be returned within 7 days of delivery."
     },
     {
-      "q": "How do refunds work?",
-      "a": "Once a return is picked up and checked, the refund goes back to your original payment method within 5 working days."
+      "q": "What warranty do appliances carry?",
+      "a": "Mixer grinders, pressure cookers and induction cooktops carry the manufacturer's warranty - typically 1 to 2 years."
     },
     {
-      "q": "Do your products carry a warranty?",
-      "a": "All audio, wearable and power products carry the manufacturer's warranty - 1 year for boAt and Boult, 6 months for Redmi power banks."
-    },
-    {
-      "q": "What do you sell?",
-      "a": "Wireless audio, smartwatches and charging accessories - including boAt Airdopes 141 Earbuds, the Redmi Power Bank 20000mAh and the Boult Smartwatch."
+      "q": "Is installation or demo included?",
+      "a": "Induction cooktops and mixer grinders come with a free demo call. No physical installation is required."
     }
   ],
   "sla": {
@@ -206,8 +199,8 @@
       "level": 2,
       "to": "grievance officer",
       "after": "48h",
-      "name": "Ravi Kumar",
-      "contact": "grievance@ravielectronics.in"
+      "name": "Meena Prasad",
+      "contact": "grievance@meenakitchen.in"
     },
     {
       "level": 3,
@@ -215,11 +208,11 @@
       "after": "30d"
     }
   ],
-  "created_at": "2026-07-26T08:40:57Z",
+  "created_at": "2026-07-26T09:11:58Z",
   "status": "active",
   "published": {
     "version": 1,
-    "at": "2026-07-26T08:40:58Z",
-    "url": "https://api.ucxp.in/manifests/ravi-electronics.json"
+    "at": "2026-07-26T09:11:59Z",
+    "url": "https://api.ucxp.in/manifests/meena-kitchen-store.json"
   }
 }

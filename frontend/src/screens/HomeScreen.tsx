@@ -10,8 +10,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import type { BusinessId, ConversationSummary, SuggestedAction } from "@/types";
-import { SUGGESTED_ACTIONS } from "@/constants/suggestions";
+import { suggestionsFor } from "@/constants/suggestions";
 import { useConversationStore } from "@/store/useConversationStore";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { useSendMessage } from "@/hooks/useChat";
 import {
   ChatComposer,
@@ -35,6 +36,9 @@ export function HomeScreen() {
   const conversations = useConversationStore((s) => s.conversations);
   const createConversation = useConversationStore((s) => s.createConversation);
   const { mutate: send } = useSendMessage();
+  // Loads + caches the business directory app-wide, and drives suggestions.
+  const { data: businesses = [] } = useBusinesses();
+  const suggestions = useMemo(() => suggestionsFor(businesses), [businesses]);
 
   const recent: ConversationSummary[] = useMemo(
     () =>
@@ -119,17 +123,19 @@ export function HomeScreen() {
             </View>
           ) : null}
 
-          {/* Suggested actions */}
-          <View className="mt-8">
-            <SectionLabel>Suggested for you</SectionLabel>
-            <View className="flex-row flex-wrap gap-3">
-              {SUGGESTED_ACTIONS.map((action, i) => (
-                <View key={action.id} style={{ width: "47.5%" }} className="grow">
-                  <SuggestedActionCard action={action} index={i} onPress={handleSuggestion} />
-                </View>
-              ))}
+          {/* Suggested actions — derived from the live business directory */}
+          {suggestions.length > 0 ? (
+            <View className="mt-8">
+              <SectionLabel>Suggested for you</SectionLabel>
+              <View className="flex-row flex-wrap gap-3">
+                {suggestions.map((action, i) => (
+                  <View key={action.id} style={{ width: "47.5%" }} className="grow">
+                    <SuggestedActionCard action={action} index={i} onPress={handleSuggestion} />
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
+          ) : null}
 
         </ScrollView>
 
