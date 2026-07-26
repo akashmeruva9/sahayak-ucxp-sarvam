@@ -10,6 +10,7 @@ https://github.com/user-attachments/assets/ce71b48b-8d3c-4edc-8088-5113533392cf
 
 https://github.com/user-attachments/assets/ede17ab2-73b6-46e2-9e45-6e043a5b5059
 
+Merchant Onboarding Demo : https://www.loom.com/share/73375028c6ec49cd958a4cf720a6f29e
 
 
 
