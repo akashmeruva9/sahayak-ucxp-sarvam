@@ -449,7 +449,7 @@ a typing indicator. Never a frozen screen. Pre-warm the engine before presenting
 ## 9. Not building
 
 Payments · real business integrations · admin dashboard · analytics ·
-push notifications · multi-user · production security · OAuth · database tuning ·
+push notifications · multi-user · production security · database tuning ·
 landing page · 22 languages · offline mode.
 
 If something here starts getting built, stop and move it to §4 with a reason, or delete it.
