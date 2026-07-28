@@ -21,6 +21,16 @@ export type RecordingIssue = "permission-denied" | "web-unsupported" | "recorder
 
 type RecorderState = "idle" | "requesting" | "recording";
 
+/** Mirrors the native hook so CallScreen's silence detection works on web too. */
+export interface Loudness {
+  level: number;
+  heardSpeech: boolean;
+  silentMs: number;
+}
+
+/** Above this RMS counts as speech rather than room noise. */
+const SPEECH_LEVEL = 0.045;
+
 /** Sarvam reads the container from the filename, so prefer a format it knows. */
 function pickMimeType(): string | undefined {
   const candidates = [
@@ -38,6 +48,9 @@ export function useVoiceRecorder() {
   const [state, setState] = useState<RecorderState>("idle");
   const [durationMs, setDurationMs] = useState(0);
   const [issue, setIssue] = useState<RecordingIssue | null>(null);
+  const [loudness, setLoudness] = useState<Loudness>({ level: 0, heardSpeech: false, silentMs: 0 });
+  const audioCtx = useRef<AudioContext | null>(null);
+  const meter = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -55,6 +68,9 @@ export function useVoiceRecorder() {
 
   /** Release the mic so the browser's recording indicator goes away. */
   const stopTracks = useCallback(() => {
+    if (meter.current) { clearInterval(meter.current); meter.current = null; }
+    audioCtx.current?.close().catch(() => {});
+    audioCtx.current = null;
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
   }, []);
@@ -76,6 +92,7 @@ export function useVoiceRecorder() {
     issueRef.current = null;
     setIssue(null);
     chunks.current = [];
+    setLoudness({ level: 0, heardSpeech: false, silentMs: 0 });
 
     const media = globalThis.navigator?.mediaDevices;
     const MR = (globalThis as { MediaRecorder?: typeof MediaRecorder }).MediaRecorder;
@@ -104,6 +121,41 @@ export function useVoiceRecorder() {
       setDurationMs(0);
       clearTimer();
       timer.current = setInterval(() => setDurationMs(Date.now() - startedAt.current), 100);
+
+      // Live level, so CallScreen can end the turn on silence exactly as it
+      // does on the phone. MediaRecorder exposes no meter, so read the stream.
+      try {
+        const Ctx = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext;
+        if (Ctx) {
+          const ctx = new Ctx();
+          audioCtx.current = ctx;
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 512;
+          ctx.createMediaStreamSource(s).connect(analyser);
+          const buf = new Uint8Array(analyser.fftSize);
+          let last = Date.now();
+          meter.current = setInterval(() => {
+            analyser.getByteTimeDomainData(buf);
+            let sum = 0;
+            for (const v of buf) { const d = (v - 128) / 128; sum += d * d; }
+            const level = Math.sqrt(sum / buf.length);
+            const now = Date.now();
+            const dt = now - last;
+            last = now;
+            setLoudness((prev) => {
+              const speaking = level >= SPEECH_LEVEL;
+              return {
+                level,
+                heardSpeech: prev.heardSpeech || speaking,
+                silentMs: speaking ? 0 : prev.silentMs + dt,
+              };
+            });
+          }, 100);
+        }
+      } catch {
+        // No meter: the caller falls back to its manual stop button.
+      }
+
       setState("recording");
     } catch (err) {
       const name = (err as { name?: string })?.name ?? "";
@@ -167,6 +219,8 @@ export function useVoiceRecorder() {
     isRecording: state === "recording",
     isPreparing: state === "requesting",
     durationMs,
+    /** Live mic level + silence run, for the waveform and the end-of-turn call. */
+    loudness,
     issue,
     start,
     finish,
