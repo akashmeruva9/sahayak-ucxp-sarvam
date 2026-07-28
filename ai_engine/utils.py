@@ -597,6 +597,12 @@ _LANGUAGE_TO_SCRIPT: dict[Language, str] = {
 #: Enough ordinary English to recognise an ordinary English sentence. Function
 #: words carry most of the signal — a romanised Indic sentence borrows English
 #: nouns ("order", "refund") but almost never English glue ("is", "with", "my").
+#:
+#: Greetings are here because they are the whole message when they appear, and
+#: one of them is a trap: "hi" is also the ISO code for Hindi, and Sarvam's LID
+#: duly returns hi-IN for it. Without "hi" on this list a customer opening with
+#: it got the entire conversation in Devanagari. "namaste" and "haan" are
+#: deliberately absent — those really are Hindi, and should stay Hindi.
 _ENGLISH_MARKERS: frozenset[str] = frozenset(
     """
     a an the this that these those there here it its
@@ -610,6 +616,7 @@ _ENGLISH_MARKERS: frozenset[str] = frozenset(
     deliver delivered track tracking status ticket bill invoice payment
     booking book appointment complaint help support account price cost
     where's what's i'm i've don't can't won't
+    hi hello hey yes no ok okay thanks thank please sorry sure bye
     """.split()
 )
 
