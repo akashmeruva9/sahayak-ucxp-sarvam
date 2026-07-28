@@ -33,7 +33,7 @@ MANIFEST_DIR = os.environ.get("UCXP_MANIFEST_DIR") or os.path.join(ROOT, "manife
 
 # Where a published manifest can be fetched. Defaults to the aspirational domain
 # the design used; set UCXP_PUBLIC_BASE_URL to whatever actually serves this app.
-PUBLIC_BASE_URL = (os.environ.get("UCXP_PUBLIC_BASE_URL") or "https://api.ucxp.in").rstrip("/")
+PUBLIC_BASE_URL = (os.environ.get("UCXP_PUBLIC_BASE_URL") or "https://api.ucxp.in").strip().rstrip("/")
 
 # Same-origin deployments never consult this -- the frontend is served by this
 # app and calls a relative /api. It matters only when the two are split apart.

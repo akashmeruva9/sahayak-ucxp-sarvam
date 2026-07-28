@@ -38,7 +38,7 @@ UCXP_VERSION = "0.1"
 
 # Where a published manifest is fetchable. Set UCXP_PUBLIC_BASE_URL to whatever
 # actually serves this deployment; the default is the design's placeholder.
-PUBLIC_BASE_URL = (os.environ.get("UCXP_PUBLIC_BASE_URL") or "https://api.ucxp.in").rstrip("/")
+PUBLIC_BASE_URL = (os.environ.get("UCXP_PUBLIC_BASE_URL") or "https://api.ucxp.in").strip().rstrip("/")
 PROTOCOL_VERSION = "0.1.0"
 CREDENTIAL_REF_RE = re.compile(r"^vault://[a-z0-9-]{2,64}$")
 EMAIL_RE = re.compile(r"^\S+@\S+\.\S+$")

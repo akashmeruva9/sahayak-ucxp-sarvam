@@ -56,8 +56,13 @@ export default function Success() {
 
   const text = JSON.stringify(manifest, null, 2);
   const slug = manifest?.business_id || businessId;
-  const manifestUrl = `https://api.ucxp.in/manifests/${slug}.json`;
-  const embed = `<script async src="https://cdn.ucxp.in/badge.js" data-business="${slug}"></script>`;
+  // The server already resolved where this deployment publishes to, so take its
+  // answer rather than repeating the guess here -- hardcoding it a second time
+  // is how this screen ended up advertising a domain the backend had stopped
+  // using. Fall back only when an older manifest carries no published block.
+  const manifestUrl =
+    manifest?.published?.url || `${window.location.origin}/manifests/${slug}.json`;
+  const embed = `<script async src="${window.location.origin}/badge.js" data-business="${slug}"></script>`;
   const version = manifest?.published?.version || 1;
 
   const languages = manifest?.languages || [];
