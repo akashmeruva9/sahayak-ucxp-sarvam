@@ -37,28 +37,27 @@ const ISSUE_MESSAGE: Record<RecordingIssue, string> = {
 
 /** Full-screen voice capture: waveform, live timer, transcription hand-off. */
 export function VoiceOverlay({ visible, onClose, onResult }: VoiceOverlayProps) {
-  const { isRecording, durationMs, issue, start, finish, cancel } = useVoiceRecorder();
+  const { isRecording, durationMs, start, stop, cancel } = useVoiceRecorder();
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Say it up front rather than letting someone speak into a dead mic and only
+  // find out when the turn fails. `start` now reports why instead of falling
+  // back to a simulated capture, so the message is exact.
   useEffect(() => {
-    if (visible) {
-      setProcessing(false);
-      setError(null);
-      start();
-    }
+    if (!visible) return;
+    setProcessing(false);
+    setError(null);
+    void (async () => {
+      const result = await start();
+      if (result.ok || isMockMode()) return;
+      const issue = result.issue ?? "recorder-error";
+      reportDiag("recorder.unavailable", { issue });
+      setError(ISSUE_MESSAGE[issue]);
+    })();
     // Recorder cleanup is handled by the hook on unmount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
-
-  // Say it up front rather than letting someone speak into a dead mic and only
-  // then fail. In mock mode a simulated capture is intentional, so stay quiet.
-  useEffect(() => {
-    if (issue && !isMockMode()) {
-      reportDiag("recorder.unavailable", { issue });
-      setError(ISSUE_MESSAGE[issue]);
-    }
-  }, [issue]);
 
   const handleCancel = async () => {
     await cancel();
@@ -67,7 +66,7 @@ export function VoiceOverlay({ visible, onClose, onResult }: VoiceOverlayProps) 
 
   const handleStop = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    const result = await finish();
+    const result = await stop();
     setProcessing(true);
     try {
       const { transcript } = await transcribeVoice(result);
