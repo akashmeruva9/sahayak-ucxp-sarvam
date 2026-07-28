@@ -139,7 +139,15 @@ class RuntimeSettings(BaseModel):
             search_timeout_s=float(_env("UCXP_SEARCH_TIMEOUT", "10")),
             search_provider=_resolve_search_provider(),
             supabase_url=_env("SUPABASE_URL", ""),
-            supabase_key=_env("SUPABASE_SERVICE_KEY", "") or _env("SUPABASE_KEY", ""),
+            # Supabase's dashboard calls it "service_role"; its docs and most
+            # examples export SUPABASE_SERVICE_ROLE_KEY. Accept every spelling
+            # rather than silently running unconfigured because of a name.
+            supabase_key=(
+                _env("SUPABASE_SERVICE_KEY", "")
+                or _env("SUPABASE_SERVICE_ROLE_KEY", "")
+                or _env("SUPABASE_KEY", "")
+                or _env("SUPABASE_ANON_KEY", "")
+            ),
             manifest_table=_env("UCXP_MANIFEST_TABLE", "ucxp_manifests"),
             supabase_timeout_s=float(_env("UCXP_SUPABASE_TIMEOUT", "10")),
             log_level=_env("UCXP_LOG_LEVEL", "INFO"),

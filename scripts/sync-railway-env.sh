@@ -41,6 +41,7 @@ KEYS=(
   # It must never reach the app — server env only.
   SUPABASE_URL
   SUPABASE_SERVICE_KEY
+  SUPABASE_SERVICE_ROLE_KEY
   # Web lookup for businesses with no manifest. Set whichever one you have;
   # the provider is inferred from it (PLAN.md §7 #41).
   TAVILY_API_KEY
