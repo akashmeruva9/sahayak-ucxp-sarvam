@@ -1,5 +1,5 @@
 A customer asked about a business that has not published a UCXP manifest, so
-we cannot act on their account — no order lookup, no refund, nothing executed.
+there is nothing we can do on their behalf — no lookup, nothing executed.
 We searched the web for it. Write what we tell them.
 
 ## What the customer said

@@ -180,6 +180,75 @@ async def test_no_capabilities_costs_no_classifier_call(tmp_path):
     assert not any("capability" in p.lower() for p in runtime.engine.reason_calls)
 
 
+async def test_a_published_policy_actually_answers_the_question(tmp_path):
+    """A question must reach the documented policies, not the greeting.
+
+    The composer only calls the model when `_outcome` hands back no template,
+    and small talk always handed back the welcome line — so every general
+    question, including ones the published policy answers outright, was replied
+    to with "Hello! Welcome to ...". Businesses with no connected services are
+    asked nothing else, so for them the assistant could never answer at all.
+    """
+    runtime = build(
+        ["Returns are accepted within 24 hours of delivery."],
+        manifests_dir=_manifest_without_capabilities(tmp_path),
+        compose_with_llm="auto",
+    )
+    final, _ = await runtime.run(
+        "what are your opening hours", force_business_id="quiet-traders"
+    )
+
+    # The composer was given the manifest's knowledge and told to answer from it.
+    respond = [p for p in runtime.engine.reason_calls if "documented policies" in p]
+    assert respond, "the question never reached the composer"
+    assert "Open 10am to 8pm" in respond[0]
+    assert "Welcome to" not in final["reply_text"]
+
+
+async def test_the_fallback_offer_never_invents_a_capability(tmp_path):
+    """When the docs fall short, what's offered comes from the manifest."""
+    from backend.app.runtime.graph import UcxpRuntime
+
+    runtime = build([], manifests_dir=_manifest_without_capabilities(tmp_path))
+    bare = runtime.registry.get("quiet-traders")
+    stocked = runtime.registry.get("ravi-electronics")
+
+    assert "order" not in UcxpRuntime._fallback_offer(bare).lower()
+    assert "nothing you can look up" in UcxpRuntime._fallback_offer(bare)
+    assert "track order" in UcxpRuntime._fallback_offer(stocked)
+
+
+def test_confirmation_follows_the_declared_method_not_the_name():
+    """A destructive capability is one that writes, not one that sounds like it.
+
+    Confirmation used to be decided by matching the capability's name against a
+    list of English verbs, so `void_booking` or `raise_dispute` — both of which
+    change something at the merchant — executed with no confirmation at all.
+    The manifest already says what the call does: GET reads, anything else
+    writes.
+    """
+    from backend.app.runtime.normalize import _needs_confirmation
+
+    assert _needs_confirmation({"method": "POST"}, "void_booking") is True
+    assert _needs_confirmation({"method": "DELETE"}, "raise_dispute") is True
+    assert _needs_confirmation({"method": "GET"}, "check_balance") is False
+    # No method declared: fall back to the old hint rather than guessing "safe".
+    assert _needs_confirmation({}, "cancel_order") is True
+
+
+def test_shipped_manifests_keep_the_confirmation_they_had():
+    """The new rule must not change any live business's behaviour."""
+    from backend.app.runtime.loader import ManifestRegistry
+
+    registry = ManifestRegistry(settings())
+    seen = {}
+    for manifest in registry.all():
+        for capability in manifest.capabilities:
+            seen[capability.id] = seen.get(capability.id, set()) | {capability.confirm}
+    assert seen["track_order"] == {False}, "reads must not ask for confirmation"
+    assert seen["refund"] == {True}, "writes must ask"
+
+
 def test_all_manifests_load_and_are_internally_consistent():
     registry = ManifestRegistry(settings())
     # The three demo businesses must always be present; merchants are additive,

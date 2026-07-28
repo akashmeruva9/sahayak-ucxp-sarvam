@@ -61,6 +61,22 @@ FAREWELL_PHRASES = (
 FAREWELL_WORDS = {"bye", "goodbye", "cheers", "khatam", "bas", "done"}
 
 
+#: Openers that are the whole message. Anything longer is a question, even when
+#: it starts with one ("hi, where is my order").
+GREETING_WORDS = {
+    "hi", "hii", "hiya", "hey", "heya", "hello", "helo", "yo", "hola",
+    "namaste", "namaskar", "namaskaram", "vanakkam", "sat sri akal", "adaab",
+    "good morning", "good afternoon", "good evening", "gm", "ge",
+}
+
+
+def _is_greeting(text: str) -> bool:
+    """True when the message is only an opener, with nothing asked."""
+    cleaned = re.sub(r"[^\w\s']", " ", (text or "").lower()).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned in GREETING_WORDS
+
+
 def _is_farewell(text: str) -> bool:
     """True when the customer is signing off rather than asking for something."""
     cleaned = re.sub(r"[^\w\s']", " ", (text or "").lower()).strip()
@@ -610,6 +626,7 @@ class UcxpRuntime:
                     template=template or "(no template)",
                     knowledge=(manifest.knowledge_text() if manifest else "")
                     or "(no documented policies)",
+                    fallback=self._fallback_offer(manifest),
                 ),
                 step="respond",
                 user_text=state["english_text"],
@@ -648,7 +665,7 @@ class UcxpRuntime:
             listed = ", ".join(names[:-1]) + f" and {names[-1]}" if len(names) > 1 else (names[0] if names else "")
             ask = (
                 f"Which business is this about? I can help with {listed}. "
-                "Tell me the name and I'll pull up your account."
+                "Tell me the name and I'll take it from there."
                 if listed
                 else "Which business is this about?"
             )
@@ -676,34 +693,50 @@ class UcxpRuntime:
             facts = "\n".join(f"- {k}: {v}" for k, v in result.items() if not isinstance(v, (dict, list)))
             return ("The action completed successfully.", facts, rendered, "resolved")
 
-        # No capability matched: a greeting, a thank-you, or a general question
-        # (product, policy, hours). If we know the business, answer in-persona
-        # from its documented knowledge rather than deflecting.
+        # No capability matched. That is a greeting, a thank-you, or a general
+        # question — "what's your return policy", "what are your hours" — and
+        # the last of those is most of what a business without connected APIs
+        # will ever be asked.
         known = manifest.business.name if manifest else "Sahayak"
-        template = self._welcome(manifest)
-
-        # What this business can actually do, read off its manifest. Naming
-        # "order status, refunds" here regardless — as this used to — told the
-        # model to offer a lookup to merchants who have connected nothing, and
-        # put business behaviour in the runtime, which the manifest owns.
         offers = [_friendly_input(c.id) for c in (manifest.capabilities if manifest else [])]
-        if offers:
-            close = f"and point them to what you can do here ({', '.join(offers)})."
-        elif manifest and manifest.knowledge:
+        knowledge = bool(manifest and manifest.knowledge)
+
+        # An opener is answered from the manifest, instantly. Paraphrasing a
+        # greeting through the reasoning model costs ~40s to say hello.
+        if _is_greeting(state["english_text"]):
+            template = self._welcome(manifest)
             close = (
-                "Answer only from the documented policies above. This business has connected no "
-                "services, so do not offer to look anything up or ask for an order number."
+                f"and point them to what you can do here ({', '.join(offers)})."
+                if offers
+                else "and do not offer to look anything up."
             )
-        else:
-            close = (
-                "This business has connected no services and published nothing, so say plainly "
-                "that you can't look anything up for them yet. Do not ask for any details."
+            outcome = (
+                f"The customer greeted {known}. Greet them back warmly as {known} {close}"
             )
-        outcome = (
-            f"The customer sent a greeting or a general question to {known}. Answer it warmly "
-            f"as {known}, using the business's documented policies where relevant, {close}"
+            return (outcome, "", template, "smalltalk")
+
+        # A real question. Leaving the greeting here as the template was the
+        # bug: compose only calls the model when there is no template, so every
+        # question — including ones the published policies answer outright —
+        # was replied to with "Hello! Welcome to ...". Handing back no template
+        # is what lets the composer read the knowledge.
+        if knowledge:
+            outcome = (
+                f"The customer asked {known} a general question. Answer it from the documented "
+                f"policies below, as {known}."
+            )
+            return (outcome, manifest.knowledge_text(), "", "smalltalk")
+
+        # Nothing published and nothing connected: say so rather than inventing
+        # something to offer.
+        template = self._welcome(manifest)
+        return (
+            f"The customer asked {known} a question, but {known} has published nothing and "
+            "connected no services, so there is nothing to answer from.",
+            "",
+            template,
+            "smalltalk",
         )
-        return (outcome, "", template, "smalltalk")
 
     async def _lookup_unknown_business(self, state: TurnState) -> str | None:
         """Search the web for a business with no manifest; None ⇒ fall through.
@@ -743,9 +776,13 @@ class UcxpRuntime:
         the manifest already contains everything to write.
         """
         if manifest is None:
+            # The central line, where no business is resolved yet. Naming
+            # "order status, refunds" here was the third copy of the same
+            # assumption: what any of these businesses can do is in their
+            # manifests, and this greeting does not know which one is meant.
             return (
-                "Hello! I can reach a range of businesses for you — order status, "
-                "refunds and more. Which one can I help with?"
+                "Hello! I can reach the businesses on Sahayak for you. "
+                "Which one can I help with?"
             )
 
         # Capability *ids* read cleanly ("track order", "refund"); published
@@ -783,6 +820,26 @@ class UcxpRuntime:
             else ""
         )
         return f"Hello! Welcome to {manifest.business.name}. I can help with {offer}.{hint}"
+
+    @staticmethod
+    def _fallback_offer(manifest: Manifest | None) -> str:
+        """What to point at when the docs don't cover the question.
+
+        Read off the manifest, because it is the only thing that knows. The
+        prompt used to name "order status and refunds" and ask for an order
+        number regardless — so a merchant who had connected nothing still
+        offered lookups it could not perform.
+        """
+        if manifest is None:
+            return "ask them which business they need, and nothing else"
+        offers = [_friendly_input(c.id) for c in manifest.capabilities]
+        if offers:
+            listed = ", ".join(offers[:-1]) + f" and {offers[-1]}" if len(offers) > 1 else offers[0]
+            return f"you can help with {listed}"
+        return (
+            "there is nothing you can look up for them here, so say that plainly and suggest "
+            "they contact the business directly"
+        )
 
     def _receipt(self, capability: Capability | None, state: TurnState) -> dict[str, Any] | None:
         if not capability or not capability.receipt:

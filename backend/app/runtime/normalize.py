@@ -17,8 +17,33 @@ from __future__ import annotations
 import re
 from typing import Any
 
-# Verbs that mutate state — the runtime confirms these before executing.
+#: HTTP methods that only read. Anything else changes something at the merchant,
+#: so the customer is asked before it runs.
+_READ_ONLY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+#: A last-resort hint for a capability that declares no method. English verbs
+#: are a poor way to decide this — a capability called `void_booking` or
+#: `raise_dispute` mutates state and matches none of them — which is why the
+#: method above is preferred wherever the manifest states one.
 _DESTRUCTIVE = ("refund", "cancel", "delete", "return", "close", "unsubscribe")
+
+
+def _needs_confirmation(cap: dict[str, Any], cap_name: str) -> bool:
+    """Whether to confirm before running a capability.
+
+    Taken from the declared HTTP method, because that is the manifest saying
+    what the call does: GET reads, everything else writes. The verb list this
+    replaces decided a safety behaviour from English spelling, so a destructive
+    capability whose name happened not to contain "refund" or "cancel" executed
+    with no confirmation at all.
+
+    On every published manifest today this is the same answer the verb list
+    gave — track_order is a GET, refund is a POST — so nothing changes for them.
+    """
+    method = str(cap.get("method") or "").strip().upper()
+    if method:
+        return method not in _READ_ONLY_METHODS
+    return any(v in cap_name.lower() for v in _DESTRUCTIVE)
 
 # Substring → glyph/color, matched against the (lowercased) category so a
 # "Food & Beverage" or "Apparel & Textiles" still gets an intentional look.
@@ -212,7 +237,7 @@ def normalize(raw: dict[str, Any]) -> dict[str, Any]:
             "examples": [],
             "required_inputs": required_inputs,
             "rules": [],
-            "confirm": any(v in cap_name.lower() for v in _DESTRUCTIVE),
+            "confirm": _needs_confirmation(cap, cap_name),
             "action": endpoint_id,
             "response": _response_template(cap),
             "receipt": _receipt_for(cap_name),

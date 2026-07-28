@@ -119,15 +119,13 @@ def frame_document(extracted: str, caption: str, source: str) -> str:
         # No caption: infer the most likely job from what the document shows and
         # act on it, rather than asking the customer to restate the obvious.
         intent = (
-            "I'm sending this document — identify the business and what I most likely need "
-            "from it (e.g. tracking an order, paying/checking a bill, an appointment, or a "
-            "complaint) and go ahead with that."
+            "I'm sending this document — identify the business it relates to and what I most "
+            "likely need from it, and go ahead with that."
         )
     return (
         f"{intent}\n\n"
         f"[The customer sent a {source}. Details extracted from it — use these to identify the "
-        f"business and to fill any inputs you need (order number, booking reference, account id, "
-        f"bill number, etc.):]\n"
+        f"business and to fill any inputs the matched capability needs:]\n"
         f"{extracted}"
     )
 

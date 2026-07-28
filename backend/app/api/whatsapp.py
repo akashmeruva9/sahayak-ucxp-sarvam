@@ -118,6 +118,20 @@ _EMPTY_MESSAGES = {
 }
 
 
+def _how_to_reach_us() -> str:
+    """What to send, without claiming what the businesses can do.
+
+    This used to promise "orders, bills, appointments and complaints" to every
+    sender. What any given business handles is in its manifest, and at this
+    point no business has been named — so the message stays about the channel,
+    which is the part this file actually knows.
+    """
+    return (
+        "Tell me which business you need and what you'd like done — you can send a "
+        "message, a voice note, or a PDF or photo."
+    )
+
+
 def _twiml(text: str = "", media_url: str | None = None) -> Response:
     """Build a TwiML reply. Empty text ⇒ an empty <Response>, which tells Twilio
     'no synchronous reply' — we send the real answer out-of-band instead."""
@@ -173,11 +187,7 @@ async def _process(
     logger.info(f"whatsapp.in from={sender} kind={kind} chars={len(text)}")
 
     if not text:
-        _send_whatsapp(to_number, from_number, _EMPTY_MESSAGES.get(
-            kind,
-            "I can help with orders, bills, appointments and complaints — send a message, "
-            "a voice note, or a PDF/photo.",
-        ), None)
+        _send_whatsapp(to_number, from_number, _EMPTY_MESSAGES.get(kind, _how_to_reach_us()), None)
         return
 
     final, _ = await _get_runtime().run(
@@ -238,10 +248,7 @@ async def whatsapp_webhook(
     # Nothing to act on (e.g. a sticker or an empty body): answer synchronously
     # with guidance, no background work.
     if num_media == 0 and not Body.strip():
-        return _twiml(
-            "I can help with orders, bills, appointments and complaints — send a message, "
-            "a voice note, or a PDF/photo."
-        )
+        return _twiml(_how_to_reach_us())
 
     # Resolution is far slower than Twilio's ~10 s webhook timeout, so we hand
     # the work to a background task and reply instantly with an acknowledgement
