@@ -71,6 +71,7 @@ def _create_schema(conn):
             id          TEXT PRIMARY KEY,
             name        TEXT NOT NULL DEFAULT '',
             status      TEXT NOT NULL DEFAULT 'draft',
+            owner_email TEXT NOT NULL DEFAULT '',
             created_at  TEXT NOT NULL,
             updated_at  TEXT NOT NULL
         );
@@ -91,7 +92,25 @@ def _create_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_businesses_status ON businesses(status);
         CREATE INDEX IF NOT EXISTS idx_businesses_created ON businesses(created_at);
     """)
+    _migrate(conn)
     conn.commit()
+
+
+def _migrate(conn):
+    """Bring an older database up to the current schema.
+
+    CREATE TABLE IF NOT EXISTS does nothing to a table that already exists, so
+    a deployment that has been running since before ownership existed would
+    otherwise keep a businesses table with no owner_email and fail every query
+    below. Rows that predate sign-in are left unowned, which reads as
+    admin-only -- see list_businesses.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(businesses)")}
+    if "owner_email" not in columns:
+        conn.execute(
+            "ALTER TABLE businesses ADD COLUMN owner_email TEXT NOT NULL DEFAULT ''")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_businesses_owner ON businesses(owner_email)")
 
 
 def init_db():
@@ -114,14 +133,14 @@ def unique_slug(base):
 
 
 def create_business(name="", business_id=None, sections=None, status="draft",
-                    created_at=None):
+                    created_at=None, owner_email=""):
     conn = connect()
     slug = business_id or unique_slug(manifest_mod.slugify(name))
     stamp = created_at or _now()
     conn.execute(
-        "INSERT INTO businesses (id, name, status, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (slug, name or "", status, stamp, stamp))
+        "INSERT INTO businesses (id, name, status, owner_email, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (slug, name or "", status, (owner_email or "").strip().lower(), stamp, stamp))
     data = sections or manifest_mod.default_sections()
     if name and not (data.get("1") or {}).get("name"):
         data.setdefault("1", {})["name"] = name
@@ -155,6 +174,7 @@ def get_business(business_id):
         "id": row["id"],
         "name": row["name"],
         "status": row["status"],
+        "owner_email": row["owner_email"] if "owner_email" in row.keys() else "",
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         "sections": sections,
@@ -236,11 +256,39 @@ def delete_business(business_id):
     return cur.rowcount > 0
 
 
-def list_businesses():
-    """Every business with derived completion/status, newest first."""
+def owner_of(business_id):
+    """The owning email, '' if unowned, or None if there is no such business."""
+    row = connect().execute(
+        "SELECT owner_email FROM businesses WHERE id = ?", (business_id,)).fetchone()
+    return None if row is None else (row["owner_email"] or "")
+
+
+def set_owner(business_id, owner_email):
     conn = connect()
-    ids = [r["id"] for r in conn.execute(
-        "SELECT id FROM businesses ORDER BY created_at DESC, id ASC")]
+    conn.execute("UPDATE businesses SET owner_email = ? WHERE id = ?",
+                 ((owner_email or "").strip().lower(), business_id))
+    conn.commit()
+
+
+def list_businesses(owner_email=None):
+    """Every business with derived completion/status, newest first.
+
+    `owner_email=None` means no filtering, which is what an admin and an
+    unauthenticated deployment both get. Passing an address narrows it to that
+    merchant's own businesses; businesses with no owner -- those created before
+    sign-in existed -- belong to nobody and so appear only in the unfiltered
+    listing.
+    """
+    conn = connect()
+    if owner_email is None:
+        rows = conn.execute(
+            "SELECT id FROM businesses ORDER BY created_at DESC, id ASC")
+    else:
+        rows = conn.execute(
+            "SELECT id FROM businesses WHERE owner_email = ? "
+            "ORDER BY created_at DESC, id ASC",
+            ((owner_email or "").strip().lower(),))
+    ids = [r["id"] for r in rows]
     out = []
     for bid in ids:
         biz = get_business(bid)
@@ -271,6 +319,7 @@ def summarize(biz):
         "completion": manifest_mod.completion_pct(sections),
         "done_count": manifest_mod.done_count(sections),
         "status": "Active" if biz["status"] == "active" else "Draft",
+        "owner_email": biz.get("owner_email") or "",
         "created_at": biz["created_at"],
         "updated_at": biz["updated_at"],
     }

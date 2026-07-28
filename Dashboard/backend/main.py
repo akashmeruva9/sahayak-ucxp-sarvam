@@ -17,10 +17,18 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from . import constants, manifest as manifest_mod, scraper, shopify_client, store, vault
+# Before anything else in the package: several modules read their configuration
+# at import time, and locally that configuration lives in .env rather than in
+# the environment run.sh hands to uvicorn.
+from . import envfile
+
+envfile.load()
+
+from . import (auth, constants, manifest as manifest_mod, scraper,  # noqa: E402
+               shopify_client, store, vault)
 
 log = logging.getLogger("ucxp")
 
@@ -94,6 +102,11 @@ def _republish(biz):
 @asynccontextmanager
 async def lifespan(_app):
     store.init_db()
+    # Raises when UCXP_REQUIRE_AUTH is set and sign-in cannot actually run, so a
+    # misconfigured host fails visibly at boot instead of serving an open
+    # dashboard that looks perfectly healthy.
+    for warning in auth.check_startup_config():
+        log.warning("%s", warning)
     yield
 
 
@@ -132,6 +145,69 @@ def _catch_all(request: Request, exc: Exception):
 
 
 # --------------------------------------------------------------------------
+# Who is asking
+#
+# Sign-in is enforced here rather than endpoint by endpoint, so a route added
+# later is protected by default -- the failure mode of the opposite arrangement
+# is a new endpoint that quietly serves every merchant's data to the internet.
+# --------------------------------------------------------------------------
+# Reachable signed out: the health probe, and the sign-in dance itself. Anything
+# under /api not listed here needs a session once auth is configured.
+PUBLIC_API_PATHS = {
+    "/api/health",
+    "/api/auth/login",
+    "/api/auth/callback",
+    "/api/auth/logout",
+    "/api/auth/me",
+}
+
+
+@app.middleware("http")
+async def require_session(request: Request, call_next):
+    request.state.user = auth.read_session(request)
+    path = request.url.path.rstrip("/") or "/"
+    if (auth.enabled() and path.startswith("/api")
+            and path not in PUBLIC_API_PATHS and request.state.user is None):
+        return JSONResponse(status_code=401,
+                            content={"error": "Please sign in to continue."})
+    return await call_next(request)
+
+
+def _user(request):
+    return getattr(request.state, "user", None)
+
+
+def _require_admin(request):
+    """Admin console access. A no-op while sign-in is unconfigured."""
+    user = _user(request)
+    if user is None:
+        return
+    if not user["is_admin"]:
+        raise FriendlyError(
+            "The admin console is limited to Sahayak administrators.", status=403)
+
+
+def _require_owner(request, business_id):
+    """Check this account may touch this business.
+
+    Admins may touch anything. A merchant may touch only what they own, which
+    means a business created before sign-in existed -- owner '' -- is reachable
+    by an admin alone until someone adopts it. A business that does not exist is
+    left to the endpoint, so a genuine 404 still reads as one.
+    """
+    user = _user(request)
+    if user is None or user["is_admin"]:
+        return
+    owner = store.owner_of(business_id)
+    if owner is None:
+        return
+    if owner != user["email"]:
+        raise FriendlyError(
+            "That business belongs to a different account. Check which Google "
+            "account you're signed in with.", status=403)
+
+
+# --------------------------------------------------------------------------
 # Request models
 # --------------------------------------------------------------------------
 class CreateBusiness(BaseModel):
@@ -165,6 +241,78 @@ class ScrapeRequest(BaseModel):
 
 
 # --------------------------------------------------------------------------
+# Sign-in
+# --------------------------------------------------------------------------
+@app.get("/api/auth/me")
+def auth_me(request: Request):
+    """Who is signed in, and whether signing in is even a thing here.
+
+    Public, and the only endpoint the frontend can call before it has a
+    session -- it is what tells the app whether to render a login screen or go
+    straight in.
+    """
+    return {"user": _user(request), "auth_enabled": auth.enabled()}
+
+
+@app.get("/api/auth/login")
+def auth_login(request: Request, next: str = "/"):
+    if not auth.enabled():
+        raise FriendlyError(
+            "Google sign-in isn't configured on this server.", status=503)
+    url, nonce = auth.authorize_url(request, next)
+    response = RedirectResponse(url, status_code=302)
+    auth.set_state_cookie(response, request, nonce)
+    return response
+
+
+@app.get("/api/auth/callback")
+def auth_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    """Where Google sends the browser back.
+
+    This is a redirect target, not an API call -- a human is looking at it. So
+    every failure lands back on the login screen with a readable sentence in the
+    query string rather than returning JSON to an empty tab.
+    """
+    if not auth.enabled():
+        raise FriendlyError(
+            "Google sign-in isn't configured on this server.", status=503)
+
+    def back(message):
+        response = RedirectResponse(
+            "/?auth_error=" + urllib.parse.quote(message), status_code=302)
+        auth.clear_state_cookie(response)
+        return response
+
+    if error:
+        return back("Sign-in was cancelled." if error == "access_denied"
+                    else "Google couldn't complete that sign-in.")
+    if not code:
+        return back("That sign-in link is incomplete. Please try again.")
+
+    try:
+        next_path = auth.read_state(state, request.cookies.get(auth.STATE_COOKIE))
+        profile = auth.exchange_code(request, code)
+    except auth.AuthError as exc:
+        return back(str(exc))
+    except Exception:
+        log.exception("Google sign-in failed")
+        return back("We couldn't complete that sign-in. Please try again.")
+
+    log.info("signed in: %s (admin=%s)", profile["email"], auth.is_admin(profile["email"]))
+    response = RedirectResponse(next_path, status_code=302)
+    auth.set_session_cookie(response, request, auth.make_session(profile))
+    auth.clear_state_cookie(response)
+    return response
+
+
+@app.post("/api/auth/logout")
+def auth_logout():
+    response = JSONResponse({"ok": True})
+    auth.clear_session_cookie(response)
+    return response
+
+
+# --------------------------------------------------------------------------
 # Meta
 # --------------------------------------------------------------------------
 @app.get("/api/health")
@@ -192,19 +340,26 @@ def meta():
 # Businesses
 # --------------------------------------------------------------------------
 @app.get("/api/businesses")
-def list_businesses():
-    return {"businesses": store.list_businesses()}
+def list_businesses(request: Request):
+    user = _user(request)
+    # An admin, and an unauthenticated deployment, both see everything.
+    owner = None if (user is None or user["is_admin"]) else user["email"]
+    return {"businesses": store.list_businesses(owner_email=owner)}
 
 
 @app.post("/api/businesses")
-def create_business(payload: CreateBusiness):
-    business_id = store.create_business(name=(payload.name or "").strip())
+def create_business(request: Request, payload: CreateBusiness):
+    user = _user(request)
+    business_id = store.create_business(
+        name=(payload.name or "").strip(),
+        owner_email=(user or {}).get("email", ""))
     biz = store.get_business(business_id)
     return {"business": biz, "summary": store.summarize(biz)}
 
 
 @app.get("/api/business/{business_id}")
-def get_business(business_id: str):
+def get_business(request: Request, business_id: str):
+    _require_owner(request, business_id)
     biz = store.get_business(business_id)
     if not biz:
         raise FriendlyError("We couldn't find that business.", status=404)
@@ -219,7 +374,8 @@ def get_business(business_id: str):
 
 
 @app.delete("/api/business/{business_id}")
-def delete_business(business_id: str):
+def delete_business(request: Request, business_id: str):
+    _require_owner(request, business_id)
     if not store.delete_business(business_id):
         raise FriendlyError("That business has already been removed.", status=404)
     # The published files are the merchant's public artifact. Leaving them on
@@ -239,9 +395,11 @@ def delete_business(business_id: str):
 
 
 @app.put("/api/business/{business_id}/section/{section}")
-def save_section(business_id: str, section: str, payload: SectionPayload):
+def save_section(request: Request, business_id: str, section: str,
+                 payload: SectionPayload):
     if section not in [str(n) for n in range(1, 8)]:
         raise FriendlyError("Unknown section '{}'.".format(section))
+    _require_owner(request, business_id)
     biz = store.save_section(business_id, section, payload.data or {})
     if not biz:
         raise FriendlyError("We couldn't find that business.", status=404)
@@ -274,7 +432,8 @@ def save_section(business_id: str, section: str, payload: SectionPayload):
 
 
 @app.get("/api/business/{business_id}/manifest")
-def get_manifest(business_id: str):
+def get_manifest(request: Request, business_id: str):
+    _require_owner(request, business_id)
     biz = store.get_business(business_id)
     if not biz:
         raise FriendlyError("We couldn't find that business.", status=404)
@@ -285,7 +444,8 @@ def get_manifest(business_id: str):
 
 
 @app.post("/api/business/{business_id}/activate")
-def activate(business_id: str):
+def activate(request: Request, business_id: str):
+    _require_owner(request, business_id)
     biz = store.get_business(business_id)
     if not biz:
         raise FriendlyError("We couldn't find that business.", status=404)
@@ -337,7 +497,7 @@ def activate(business_id: str):
 # Connections
 # --------------------------------------------------------------------------
 @app.post("/api/connect/shopify")
-def connect_shopify(payload: ShopifyConnect):
+def connect_shopify(request: Request, payload: ShopifyConnect):
     """Real Shopify call. Returns 200 with ok:false on failure -- never a 500.
 
     The token is vaulted server-side; the response carries only credential_ref.
@@ -345,6 +505,10 @@ def connect_shopify(payload: ShopifyConnect):
     subdomain = (payload.subdomain or "").strip()
     token = (payload.token or "").strip()
     business_id = (payload.business_id or "").strip()
+    # This writes a credential into a business's vault row, so it is as much a
+    # mutation of that business as saving a section is.
+    if business_id:
+        _require_owner(request, business_id)
 
     # Demo path: a pre-seeded store connects without the merchant pasting a token,
     # which is the point -- merchants never handle raw secrets.
@@ -388,8 +552,10 @@ def connect_shopify(payload: ShopifyConnect):
 
 
 @app.post("/api/connect/custom")
-def connect_custom(payload: CustomConnect):
+def connect_custom(request: Request, payload: CustomConnect):
     """Check that a custom REST base URL is reachable. Never a 500."""
+    if (payload.business_id or "").strip():
+        _require_owner(request, payload.business_id.strip())
     base = (payload.base_url or "").strip()
     if not base.startswith(("http://", "https://")):
         return {"ok": False, "reachable": False,
@@ -469,7 +635,8 @@ async def scrape_faq(payload: ScrapeRequest):
 # Admin
 # --------------------------------------------------------------------------
 @app.get("/api/admin/merchants")
-def admin_merchants():
+def admin_merchants(request: Request):
+    _require_admin(request)
     merchants = store.list_businesses()
     return {
         "merchants": merchants,
@@ -483,8 +650,9 @@ def admin_merchants():
 
 
 @app.get("/api/admin/merchant/{business_id}/manifest")
-def admin_manifest(business_id: str):
+def admin_manifest(request: Request, business_id: str):
     """Read-only manifest for the admin row-detail view."""
+    _require_admin(request)
     biz = store.get_business(business_id)
     if not biz:
         raise FriendlyError("We couldn't find that merchant.", status=404)

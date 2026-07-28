@@ -320,6 +320,10 @@ test('F8 failures render an inline message, not a blank screen', async ({ page }
   await page.getByTestId('source-shopify').click();
   await page.getByTestId('shopify-subdomain').fill('nope');
   await page.getByTestId('connect-shopify').click();
+  // 'nope' is not one of the seeded stores, so the dialog asks for the store's
+  // own Admin API token and keeps Approve disabled until one is there. Without
+  // this the click never lands and the failure under test is never reached.
+  await page.getByTestId('shopify-token').fill('shpat_not_a_real_token');
   await page.getByTestId('oauth-approve').click();
   // The message shows inside the consent dialog and again on the section behind it.
   await expect(page.getByRole('dialog').getByTestId('error-panel'))

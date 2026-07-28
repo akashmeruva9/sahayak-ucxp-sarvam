@@ -17,6 +17,8 @@ async function request(path, options = {}) {
     const response = await fetch(`${BASE}${path}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
+      // The session lives in a cookie, so it has to ride along on every call.
+      credentials: 'same-origin',
       ...rest,
     });
     let body = null;
@@ -29,6 +31,16 @@ async function request(path, options = {}) {
       }
     }
     if (!response.ok) {
+      // The session lapsed or was never there. Say so in a way callers can act
+      // on, rather than as one more inline error the merchant cannot resolve by
+      // retrying -- App watches for this and shows the sign-in screen again.
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent('ucxp:signed-out'));
+        return { error: body?.error || 'Please sign in to continue.', unauthorized: true };
+      }
+      if (response.status === 403) {
+        return { error: body?.error || 'You do not have access to that.', forbidden: true };
+      }
       if (body?.error) return { error: body.error };
       // The API always answers with {"error": ...}, so a 5xx carrying anything
       // else did not come from the API -- it came from whatever sits in front of
@@ -57,6 +69,9 @@ async function request(path, options = {}) {
 export const api = {
   meta: () => request('/meta'),
   health: () => request('/health'),
+
+  me: () => request('/auth/me'),
+  logout: () => request('/auth/logout', { method: 'POST' }),
 
   listBusinesses: () => request('/businesses'),
   createBusiness: (name) =>

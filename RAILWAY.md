@@ -51,6 +51,10 @@ Service → **Variables** → **Raw Editor**, paste, and edit the values:
 ```
 SARVAM_API_KEY=sk_your_key_here
 UCXP_STORES_JSON_CONTENT={"meena-kitchen-store":"shpat_...","lakshmi-fashion-4kmotaah":"shpat_...","ravi-electronics-bmxitv46":"shpat_...","sri-pharma":"shpat_...","anna-groceries":"shpat_..."}
+GOOGLE_CLIENT_ID=000000000000-xxxxxxxxxxxxxxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-your_secret_here
+UCXP_ADMIN_EMAILS=you@gmail.com
+UCXP_REQUIRE_AUTH=1
 ```
 
 **Do not wrap values in quotes.** A quoted key is sent to Sarvam verbatim and
@@ -68,6 +72,32 @@ cat stores.json | tr -d '\n'
 `SHOPIFY_TOKEN_RAVI_ELECTRONICS`-style variables instead — the dashboard reads
 those too. Note Railway variables are **per-service**, so you must either copy
 them onto this service or promote them to shared variables at the project level.
+
+### The four sign-in variables
+
+| Variable | What it is |
+|---|---|
+| `GOOGLE_CLIENT_ID` | From Google Cloud Console → **Clients**. Ends `.apps.googleusercontent.com` |
+| `GOOGLE_CLIENT_SECRET` | Beside it. Starts `GOCSPX-` |
+| `UCXP_ADMIN_EMAILS` | Comma-separated. These addresses see every merchant and the admin console; everyone else sees only what they created |
+| `UCXP_REQUIRE_AUTH` | `1` on any host. Makes a missing variable a **refusal to boot** rather than a dashboard that is quietly open |
+
+`UCXP_REQUIRE_AUTH=1` is the one people skip. Without it, deleting
+`GOOGLE_CLIENT_SECRET` by accident does not break anything visibly — it just
+turns sign-in off and serves every merchant to anyone with the URL.
+
+The OAuth client needs the return address registered, exactly, under
+**Authorized redirect URIs**:
+
+```
+https://<your-domain>.up.railway.app/api/auth/callback
+http://localhost:5173/api/auth/callback
+http://127.0.0.1:5173/api/auth/callback
+```
+
+The server derives that URI from the incoming `Host` and `X-Forwarded-Proto`, so
+it matches without further configuration. A **custom domain** is the exception:
+add it to the Google client too, or set `UCXP_AUTH_BASE_URL` to pin one origin.
 
 ## Step 4 — Deploy and get a URL
 
@@ -120,26 +150,33 @@ mounted at `/data`.
 | Shopify connect fails, dropdown empty | `UCXP_STORES_JSON_CONTENT` missing or not valid JSON on one line |
 | Success screen shows `api.ucxp.in` | `UCXP_PUBLIC_BASE_URL` not set |
 | `/admin` 404s on hard refresh | Old image — the SPA fallback is in this build |
+| Google says **redirect_uri_mismatch** | The URI on the OAuth client is not character-for-character `https://<domain>/api/auth/callback`. A trailing slash or a missing `/api` is enough |
+| Deploy crash-loops, log names a variable | `UCXP_REQUIRE_AUTH=1` with sign-in unconfigured. That is the intended behaviour — set the missing variable |
+| Signed in, but the dashboard is empty | Those merchants predate sign-in, so they are unowned. Add yourself to `UCXP_ADMIN_EMAILS` |
+| *"The admin console is limited to…"* | You are signed in with a Google account not in `UCXP_ADMIN_EMAILS` |
 
 Logs: service → **Deployments** → click the active one → **View Logs**.
 
 ---
 
-## What is NOT protected
+## What is and is not protected
 
-You decided this is an open demo, so stating it plainly: **anyone with the URL
-can read every merchant, edit them, and delete them.** There is no login.
+With the four sign-in variables set, every `/api` route except `/api/health` and
+the sign-in dance itself requires a session. A merchant reaches only businesses
+they created; the admin console is limited to `UCXP_ADMIN_EMAILS`. That closes
+what this section used to warn about — `/api/meta` leaking your store
+subdomains, and an anonymous `POST /api/connect/shopify` with an empty token
+spending your real Shopify credentials.
 
-Two specifics worth knowing while it's public:
+**Without those variables there is still no login at all.** That is deliberate,
+so local development and the test suite run unchanged — and it is exactly why
+`UCXP_REQUIRE_AUTH=1` belongs on every host.
 
-- `GET /api/meta` lists your five real Shopify store subdomains.
-- `POST /api/connect/shopify` with an **empty token** makes the server look up
-  your real Shopify credential and use it. An anonymous caller gets free
-  authenticated reads against your stores and can burn your API rate limit.
+Three things sign-in does *not* fix:
 
-The token itself never leaves the server, and no manifest ever contains one —
-gate B4 enforces that. But if the demo is going to sit up for a while, the
-cheapest fix is a single env-var password checked in middleware.
-
-Also: the vault stores Shopify tokens **in plaintext** on the volume. Fine for a
-demo; needs encryption before real merchants.
+- The vault stores Shopify tokens **in plaintext** on the volume. Fine for a
+  demo; needs encryption before real merchants.
+- Businesses created **before** sign-in existed have no owner, so they are
+  visible to admins only. Sign in as an admin to see them.
+- Published manifests under `manifests/` are public artifacts by design. No
+  token has ever been in one — gate B4 enforces that.
