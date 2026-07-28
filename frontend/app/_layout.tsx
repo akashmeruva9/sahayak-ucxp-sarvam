@@ -1,10 +1,11 @@
 import "../global.css";
 
 import { useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, router, usePathname } from "expo-router";
 import { useColorScheme } from "nativewind";
 import * as SplashScreen from "expo-splash-screen";
 import {
@@ -24,6 +25,68 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
+
+const WEB = Platform.OS === "web";
+
+/** Reachable on the web without an account: the pitch, and the way in. */
+const PUBLIC_WEB_ROUTES = ["/", "/sign-in"];
+
+/**
+ * The web's auth gate.
+ *
+ * Native renders `<SignInScreen />` in place of the whole app, which is right
+ * for an installed app but wrong for a website: a visitor has to be able to
+ * read the landing page before deciding to sign up. So on the web the router
+ * always mounts, and only the app's own routes bounce to sign-in.
+ */
+function WebAuthGate() {
+  const pathname = usePathname();
+  const user = useAuthStore((s) => s.user);
+
+  useEffect(() => {
+    if (!authConfigured || user) return;
+    if (PUBLIC_WEB_ROUTES.includes(pathname)) return;
+    router.replace("/sign-in");
+  }, [pathname, user]);
+
+  return null;
+}
+
+/**
+ * Browser tab titles, one place.
+ *
+ * The landing page and the app ship as a single SPA on a single domain, so the
+ * document title is the only thing telling someone which of the two they are
+ * looking at — in the tab strip, in history, and in a bookmark. Expo Router's
+ * per-screen `title` option doesn't reach the web tab layout (it renders a
+ * `Slot`, not `Tabs`), so the mapping lives here rather than in six files.
+ */
+const PAGE_TITLES: Record<string, string> = {
+  "/": "Sahayak — Customer support that speaks every Indian language",
+  "/sign-in": "Sign in · Sahayak",
+  "/home": "Chat · Sahayak",
+  "/companies": "Businesses · Sahayak",
+  "/history": "History · Sahayak",
+  "/settings": "Settings · Sahayak",
+};
+
+/** Dynamic routes, matched by prefix once the exact table misses. */
+const PAGE_TITLE_PREFIXES: [string, string][] = [
+  ["/conversation/", "Conversation · Sahayak"],
+  ["/call/", "Voice call · Sahayak"],
+];
+
+function WebPageTitle() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const exact = PAGE_TITLES[pathname];
+    const prefixed = PAGE_TITLE_PREFIXES.find(([p]) => pathname.startsWith(p))?.[1];
+    document.title = exact ?? prefixed ?? "Sahayak";
+  }, [pathname]);
+
+  return null;
+}
 
 /** Keeps NativeWind's color scheme in sync with the user's saved preference. */
 function ThemeSync() {
@@ -76,7 +139,9 @@ export default function RootLayout() {
 
   // A build without Supabase config cannot sign anyone in; gating it would
   // brick the app entirely, so the gate only applies when auth is available.
-  const mustSignIn = authConfigured && !user;
+  // On the web the landing page is public, so the gate moves into the router
+  // (see WebAuthGate) instead of replacing the whole tree.
+  const mustSignIn = authConfigured && !user && !WEB;
 
   const ready = fontsReady && (authReady || !authConfigured);
 
@@ -94,6 +159,9 @@ export default function RootLayout() {
           {mustSignIn ? (
             <SignInScreen />
           ) : (
+          <>
+          {WEB ? <WebAuthGate /> : null}
+          {WEB ? <WebPageTitle /> : null}
           <Stack
             screenOptions={{
               headerShown: false,
@@ -109,6 +177,7 @@ export default function RootLayout() {
               options={{ animation: "slide_from_bottom" }}
             />
           </Stack>
+          </>
           )}
         </QueryClientProvider>
       </SafeAreaProvider>

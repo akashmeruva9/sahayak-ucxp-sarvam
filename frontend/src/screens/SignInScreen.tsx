@@ -12,9 +12,10 @@ import {
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import { ScreenContainer } from "@/components";
+import { BrandGradient, ScreenContainer } from "@/components";
 
 /**
  * The entrance, on the phone only.
@@ -23,8 +24,19 @@ import { ScreenContainer } from "@/components";
  * until something forces a repaint, so the first screen of the app renders
  * almost invisible and there is nothing to scroll to fix it.
  */
-const Card = (Platform.OS === "web" ? View : Animated.View) as typeof Animated.View;
-const ENTER = Platform.OS === "web" ? undefined : FadeInDown.duration(360);
+const WEB = Platform.OS === "web";
+const Card = (WEB ? View : Animated.View) as typeof Animated.View;
+const ENTER = WEB ? undefined : FadeInDown.duration(360);
+
+/**
+ * On a phone the form is the screen, so it fills it. In a desktop browser that
+ * same layout stretches a password field across 900px and reads as an unstyled
+ * page — especially arriving from the landing page. On web the form becomes a
+ * bounded, branded card on the canvas instead.
+ */
+const WEB_CARD = WEB
+  ? ({ width: "100%", maxWidth: 430, alignSelf: "center" } as const)
+  : undefined;
 
 /** Google's four-colour "G", drawn rather than shipped as an asset. */
 function GoogleMark({ size = 18 }: { size?: number }) {
@@ -59,6 +71,7 @@ function GoogleMark({ size = 18 }: { size?: number }) {
  */
 export function SignInScreen({ onSkip }: { onSkip?: () => void }) {
   const { colors } = useThemeColors();
+  const router = useRouter();
   const signIn = useAuthStore((s) => s.signIn);
   const signUp = useAuthStore((s) => s.signUp);
   const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
@@ -93,11 +106,38 @@ export function SignInScreen({ onSkip }: { onSkip?: () => void }) {
           contentContainerClassName="flex-grow justify-center px-6 pb-16"
           keyboardShouldPersistTaps="handled"
         >
-          <Card entering={ENTER}>
-            <Text className="text-[34px] font-bold tracking-tight text-ink dark:text-white">
+          <Card entering={ENTER} style={WEB_CARD}>
+            {WEB ? (
+              <View className="mb-8 items-center">
+                <Pressable
+                  onPress={() => router.replace("/")}
+                  accessibilityRole="link"
+                  accessibilityLabel="Back to the Sahayak home page"
+                  className="flex-row items-center"
+                >
+                  <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-2xl">
+                    <BrandGradient />
+                    <Text className="text-[22px]" style={{ lineHeight: 26, color: "#FFFFFF" }}>
+                      ✦
+                    </Text>
+                  </View>
+                  <Text className="ml-3 text-[22px] font-bold tracking-tight text-ink dark:text-white">
+                    Sahayak
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            <Text
+              className="text-[34px] font-bold tracking-tight text-ink dark:text-white"
+              style={WEB ? { textAlign: "center" } : undefined}
+            >
               {mode === "in" ? "Welcome back" : "Create account"}
             </Text>
-            <Text className="mt-2 text-[15px] leading-6 text-ink-muted dark:text-white/50">
+            <Text
+              className="mt-2 text-[15px] leading-6 text-ink-muted dark:text-white/50"
+              style={WEB ? { textAlign: "center" } : undefined}
+            >
               {mode === "in"
                 ? "Sign in to keep your conversations and receipts across devices."
                 : "Your conversations and receipts are saved to your account."}

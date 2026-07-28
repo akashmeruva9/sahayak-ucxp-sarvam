@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npx expo export -p web --output-dir dist",
+  "buildCommand": "npx expo export -p web --output-dir dist && node scripts/finalize-web-head.mjs",
   "outputDirectory": "dist",
   "installCommand": "npm install --legacy-peer-deps",
   "framework": null,
