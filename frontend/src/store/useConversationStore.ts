@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { BusinessId, Conversation, Message } from "@/types";
+import type { BusinessAction, BusinessId, Conversation, Message } from "@/types";
 import { deriveTitle, sendChat } from "@/api/chat";
 import { fileKind, sendDocument as postDocument, type PickedFile } from "@/api/documents";
 import { getBusiness } from "@/constants/businesses";
@@ -28,6 +28,21 @@ interface ConversationState {
     caption?: string,
     businessId?: BusinessId
   ) => Promise<void>;
+  /**
+   * File a completed voice turn into the thread it belongs to.
+   *
+   * A call placed from a conversation carries that conversation's id, so the
+   * spoken turns land in the same history the typed ones do — the customer can
+   * hang up, open the chat and read what was said and what was done. Creates
+   * the thread if the call started from Home, which is why History shows calls
+   * at all.
+   */
+  recordVoiceTurn: (
+    conversationId: string,
+    said: string,
+    replied: string,
+    meta?: { businessId?: BusinessId; receipt?: BusinessAction }
+  ) => void;
 }
 
 type SetState = (partial: (state: ConversationState) => Partial<ConversationState>) => void;
@@ -97,6 +112,53 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   selectedBusinessId: undefined,
 
   getConversation: (id) => get().conversations.find((c) => c.id === id),
+
+  recordVoiceTurn: (conversationId, said, replied, meta) => {
+    const now = Date.now();
+    const spoken: Message[] = [
+      { id: uid("msg"), role: "user", text: said, createdAt: now, status: "sent" },
+      {
+        id: uid("msg"),
+        role: "assistant",
+        text: replied,
+        createdAt: now + 1,
+        status: "sent",
+        businessId: meta?.businessId,
+        action: meta?.receipt,
+      },
+    ];
+
+    set((s) => {
+      const existing = s.conversations.find((c) => c.id === conversationId);
+      if (existing) {
+        return {
+          conversations: s.conversations.map((c) =>
+            c.id === conversationId
+              ? {
+                  ...c,
+                  title: c.messages.length === 0 ? deriveTitle(said) : c.title,
+                  businessId: c.businessId ?? meta?.businessId,
+                  updatedAt: now,
+                  messages: [...c.messages, ...spoken],
+                }
+              : c
+          ),
+        };
+      }
+      // Started from Home: the runtime minted the id, so the thread is created
+      // around it rather than the other way round.
+      const created: Conversation = {
+        id: conversationId,
+        title: deriveTitle(said),
+        businessId: meta?.businessId,
+        scoped: false,
+        createdAt: now,
+        updatedAt: now,
+        messages: spoken,
+      };
+      return { conversations: [created, ...s.conversations] };
+    });
+  },
 
   createConversation: (businessId) => {
     const id = uid("conv");

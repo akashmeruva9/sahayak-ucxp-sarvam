@@ -28,7 +28,7 @@ from .documents import EMPTY_MESSAGES, extract
 from .memory.session_store import get_session_store
 from .memory.context import get_store
 from .mock.router import router as mock_router
-from .voice_phrases import with_follow_up
+from .voice_phrases import hang_up_hint, with_follow_up
 from .runtime.graph import UcxpRuntime
 from .runtime.loader import get_registry
 from .schemas.api import (
@@ -312,11 +312,12 @@ async def voice(
     # On a call the assistant has to hand the turn back audibly, so a finished
     # answer ends by inviting the next question. Applied here rather than in the
     # graph: /chat shows the same reply on screen, where it would just be noise.
-    reply = with_follow_up(
-        reply,
-        language=final.get("language", "en-IN"),
-        resolved=final.get("status") == "resolved",
-    )
+    language = final.get("language", "en-IN")
+    if final.get("farewell"):
+        # Signing off: point at the button rather than asking another question.
+        reply = f"{reply} {hang_up_hint(language)}".strip()
+    else:
+        reply = with_follow_up(reply, language=language, resolved=final.get("status") == "resolved")
 
     if speak and reply:
         spoken = await runtime.engine.speak(reply, language=final.get("language", "en-IN"))

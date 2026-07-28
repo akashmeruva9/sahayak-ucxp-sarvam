@@ -99,7 +99,9 @@ export function ConversationScreen({ id }: { id: string }) {
             general chat opens the central line. */}
         <Pressable
           onPress={() =>
-            router.push(`/call/${conversation?.scoped && conversation.businessId ? conversation.businessId : "general"}`)
+            router.push(
+              `/call/${conversation?.scoped && conversation.businessId ? conversation.businessId : "general"}?conversationId=${id}`
+            )
           }
           hitSlop={8}
           accessibilityRole="button"

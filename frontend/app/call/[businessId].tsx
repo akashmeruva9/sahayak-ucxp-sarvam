@@ -7,7 +7,12 @@ import { CallScreen } from "@/screens/CallScreen";
  * business from what the caller says. Same rule as chat.
  */
 export default function CallRoute() {
-  const { businessId } = useLocalSearchParams<{ businessId: string }>();
+  const { businessId, conversationId } = useLocalSearchParams<{
+    businessId: string;
+    conversationId?: string;
+  }>();
   const scoped = businessId && businessId !== "general" ? businessId : undefined;
-  return <CallScreen businessId={scoped} />;
+  // Present when the call was placed from inside a thread, so the runtime picks
+  // up that conversation's business and facts instead of starting cold.
+  return <CallScreen businessId={scoped} conversationId={conversationId} />;
 }

@@ -38,6 +38,41 @@ from .websearch import SearchUnavailable, as_context, search
 CONFIRM_YES = {"yes", "yeah", "yep", "yup", "sure", "ok", "okay", "confirm", "confirmed", "haan", "ha", "proceed"}
 CONFIRM_NO = {"no", "nope", "dont", "stop", "nahi", "cancel", "nevermind"}
 CONFIRM_YES_PHRASES = ("go ahead", "do it", "please do", "yes please")
+
+#: Said when the customer signals they're finished. Deliberately says nothing
+#: about hanging up: this same reply is read in a chat window, where there is no
+#: call to end. The voice channel adds that instruction itself.
+FAREWELL_REPLY = "Happy to have helped — thanks for talking to us!"
+
+#: Whole phrases only. A word like "bye" inside a sentence about something else
+#: must not end the conversation, and "no" on its own is a decline, not a
+#: goodbye — the pending-confirmation branch above owns that case.
+FAREWELL_PHRASES = (
+    "that's all", "thats all", "that is all", "that's it", "thats it",
+    "nothing else", "nothing more", "no more questions", "no further questions",
+    "i don't have anything else", "i dont have anything else",
+    "i don't need anything else", "i dont need anything else",
+    "i'm done", "im done", "i am done", "we're done", "were done",
+    "end this call", "end the call", "end call", "hang up", "disconnect",
+    "goodbye", "good bye", "bye bye", "thank you bye", "thanks bye",
+)
+
+#: Single words that only ever mean goodbye when they are the whole message.
+FAREWELL_WORDS = {"bye", "goodbye", "cheers", "khatam", "bas", "done"}
+
+
+def _is_farewell(text: str) -> bool:
+    """True when the customer is signing off rather than asking for something."""
+    cleaned = re.sub(r"[^\w\s']", " ", (text or "").lower()).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    if not cleaned:
+        return False
+    if cleaned in FAREWELL_WORDS:
+        return True
+    # "thanks" alone closes; "thanks, where is my order" does not.
+    if cleaned in {"thanks", "thank you", "thank you so much", "thanks a lot"}:
+        return True
+    return any(phrase in cleaned for phrase in FAREWELL_PHRASES)
 CONFIRM_NO_PHRASES = ("don't", "not now", "cancel that", "never mind")
 
 #: A token that could plausibly be an identifier, date or amount.
@@ -256,6 +291,21 @@ class UcxpRuntime:
                     "denied_message": "No problem — I haven't made any changes.",
                     "latency": {"classify_ms": 0.0},
                 }
+
+        # Signing off. Checked after the pending yes/no above, so "no" answering
+        # a confirmation is still a decline rather than a goodbye, and before the
+        # classifier, because there is no capability to find and no reason to
+        # spend a model call establishing that.
+        if _is_farewell(state["english_text"]):
+            logger.info("classify.farewell")
+            return {
+                "capability_id": None,
+                "inputs": {},
+                "confidence": 1.0,
+                "denied_message": FAREWELL_REPLY,
+                "farewell": True,
+                "latency": {"classify_ms": 0.0},
+            }
 
         # The router has already decided the business: pinned to a channel,
         # named in this message, or carried over from earlier in the chat.

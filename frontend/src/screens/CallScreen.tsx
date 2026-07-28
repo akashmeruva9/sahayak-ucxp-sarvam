@@ -10,6 +10,7 @@ import { getBusiness } from "@/constants/businesses";
 import { palette } from "@/constants/theme";
 import { useVoiceRecorder, type RecordingIssue } from "@/hooks/useVoiceRecorder";
 import { sendCallTurn } from "@/api/call";
+import { useConversationStore } from "@/store/useConversationStore";
 import { formatDuration } from "@/utils/time";
 import { ScreenContainer, Waveform } from "@/components";
 import { useThemeColors } from "@/hooks/useThemeColors";
@@ -100,18 +101,31 @@ const PLAYBACK_CEILING_MS = 30000;
  * test handset and the code assumed -50, so every sample counted as speech and
  * turns never ended.
  */
-export function CallScreen({ businessId }: { businessId?: BusinessId }) {
+export function CallScreen({
+  businessId,
+  conversationId: startedFrom,
+}: {
+  businessId?: BusinessId;
+  /**
+   * The chat this call continues. The runtime keys a conversation's sticky
+   * business, collected facts and pending action on this id, so carrying it in
+   * means the caller doesn't have to repeat the order number they just typed —
+   * a call placed from a thread is the same conversation, in a different medium.
+   */
+  conversationId?: string;
+}) {
   const router = useRouter();
   const { colors } = useThemeColors();
   const business = businessId ? getBusiness(businessId) : null;
 
   const { isRecording, durationMs, start, stop, cancel } = useVoiceRecorder();
+  const recordTurn = useConversationStore((s) => s.recordVoiceTurn);
   const [phase, setPhase] = useState<Phase>("connecting");
   const [lines, setLines] = useState<Line[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
 
-  const conversationId = useRef<string | undefined>(undefined);
+  const conversationId = useRef<string | undefined>(startedFrom);
   const player = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
   /** False once the screen is gone; every async step checks it before setState. */
   const live = useRef(true);
@@ -156,13 +170,38 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
     }, ERROR_RECOVERY_MS);
   }, [listen]);
 
+  /**
+   * Stop and release the player.
+   *
+   * `remove()` alone was leaving the reply playing after the screen was gone:
+   * the caller navigates away, the component unmounts, and the voice carries on
+   * over whatever they opened next. Pausing first is what actually silences it.
+   */
+  const silence = useCallback(() => {
+    const p = player.current;
+    player.current = null;
+    if (!p) return;
+    try {
+      p.pause();
+    } catch {
+      /* already stopped */
+    }
+    try {
+      p.remove();
+    } catch {
+      /* already released */
+    }
+  }, []);
+
   /** Play the spoken reply; resolves when it has finished. */
   const play = useCallback(async (base64: string) => {
-    if (!base64) return;
+    // Navigated away while the answer was in flight — do not start talking.
+    if (!base64 || !live.current) return;
     try {
       // Speaker, not earpiece — a call screen that plays quietly reads as broken.
       await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-      player.current?.remove();
+      silence();
+      if (!live.current) return;
       const p = createAudioPlayer({ uri: `data:audio/wav;base64,${base64}` });
       player.current = p;
       p.play();
@@ -170,7 +209,9 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
         const startedAt = Date.now();
         const tick = setInterval(() => {
           const done = !p.playing && Date.now() - startedAt > 400;
-          if (done || Date.now() - startedAt > PLAYBACK_CEILING_MS) {
+          // Leaving the screen ends playback immediately, not when the clip
+          // happens to finish.
+          if (done || !live.current || Date.now() - startedAt > PLAYBACK_CEILING_MS) {
             clearInterval(tick);
             resolve();
           }
@@ -183,10 +224,9 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
       // starts. On Android a live player holds audio focus, and the recorder
       // that opens for the caller's next turn then captures nothing — the call
       // looks alive and goes deaf from the second turn on.
-      player.current?.remove();
-      player.current = null;
+      silence();
     }
-  }, []);
+  }, [silence]);
 
   /** End the caller's turn, resolve it, speak the answer, then listen again. */
   const send = useCallback(async () => {
@@ -219,6 +259,12 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
       if (!live.current) return;
 
       conversationId.current = turn.conversationId;
+      // Write the turn into the thread as well, so the call and the chat are
+      // one history rather than two that can't see each other.
+      recordTurn(turn.conversationId, turn.transcript, turn.reply, {
+        businessId: (turn.businessId as BusinessId | undefined) ?? businessId,
+        receipt: turn.receipt,
+      });
       setLines((prev) => [
         ...prev.filter((l) => !l.hold),
         { who: "you", text: turn.transcript },
@@ -237,7 +283,7 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
     }
     // Outside the guard, so the next turn isn't blocked by this one's flag.
     if (live.current) void listen();
-  }, [stop, listen, failTurn, play, businessId]);
+  }, [stop, listen, failTurn, play, businessId, recordTurn]);
 
   /** The caller pressed the button: stop if recording, otherwise reopen. */
   const onMicPress = useCallback(() => {
@@ -248,11 +294,10 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
   const endCall = useCallback(async () => {
     live.current = false;
     if (recovery.current) clearTimeout(recovery.current);
-    player.current?.remove();
-    player.current = null;
+    silence();
     await cancel();
     router.back();
-  }, [cancel, router]);
+  }, [cancel, router, silence]);
 
   /** Answer as soon as the screen is up — tapping Call was the whole gesture. */
   useEffect(() => {
@@ -261,8 +306,7 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
     return () => {
       live.current = false;
       if (recovery.current) clearTimeout(recovery.current);
-      player.current?.remove();
-      player.current = null;
+      silence();
       void cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,8 +324,7 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
       if (!live.current) return;
       if (next === "background") {
         void cancel();
-        player.current?.remove();
-        player.current = null;
+        silence();
         sending.current = false;
         setPhase("connecting");
       } else if (next === "active" && !sending.current) {
@@ -289,7 +332,7 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
       }
     });
     return () => sub.remove();
-  }, [cancel, listen]);
+  }, [cancel, listen, silence]);
 
   /** Sarvam's 30s ceiling: send the turn before the clip becomes unusable. */
   useEffect(() => {

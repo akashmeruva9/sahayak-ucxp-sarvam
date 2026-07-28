@@ -65,6 +65,8 @@ class TurnState(TypedDict, total=False):
     # -- act ---------------------------------------------------------------- #
     result: dict[str, Any]
     denied_message: str | None
+    #: The customer signed off. Channels that can hang up say how.
+    farewell: bool
     action_error: str | None
 
     # -- compose (LLM 3) ------------------------------------------------------ #

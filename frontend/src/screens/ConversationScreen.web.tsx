@@ -110,7 +110,7 @@ export function ConversationScreen({ id }: { id: string }) {
           {/* Same conversation, by voice. Scoped chats call that business; a
               general chat opens the central line. */}
           <Pressable
-            onPress={() => router.push(`/call/${callTarget}`)}
+            onPress={() => router.push(`/call/${callTarget}?conversationId=${id}`)}
             accessibilityRole="button"
             accessibilityLabel="Call instead"
             className="h-9 flex-row items-center overflow-hidden rounded-full px-4"

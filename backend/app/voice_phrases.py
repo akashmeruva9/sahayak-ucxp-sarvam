@@ -32,6 +32,27 @@ FOLLOW_UP: dict[str, str] = {
 }
 
 
+#: Only voice needs this: the assistant can't hang up, and on a call the caller
+#: is looking at a button rather than a keyboard.
+HANG_UP: dict[str, str] = {
+    "en-IN": "You can tap End call whenever you're ready.",
+    "hi-IN": "जब आप तैयार हों, End call दबा दीजिए।",
+    "te-IN": "మీరు సిద్ధంగా ఉన్నప్పుడు End call నొక్కండి.",
+    "ta-IN": "நீங்கள் தயாராக இருக்கும்போது End call ஐ அழுத்தவும்.",
+    "kn-IN": "ನೀವು ಸಿದ್ಧರಾದಾಗ End call ಒತ್ತಿರಿ.",
+    "ml-IN": "തയ്യാറാകുമ്പോൾ End call അമർത്തുക.",
+    "bn-IN": "প্রস্তুত হলে End call চাপুন।",
+    "mr-IN": "तयार असाल तेव्हा End call दाबा.",
+    "gu-IN": "તૈયાર હો ત્યારે End call દબાવો.",
+    "pa-IN": "ਜਦੋਂ ਤਿਆਰ ਹੋਵੋ, End call ਦਬਾਓ।",
+}
+
+
+def hang_up_hint(language: str) -> str:
+    """How to end the call, in the caller's language."""
+    return HANG_UP.get(language) or HANG_UP["en-IN"]
+
+
 def with_follow_up(reply: str, *, language: str, resolved: bool) -> str:
     """Append the closing question to a spoken reply.
 
