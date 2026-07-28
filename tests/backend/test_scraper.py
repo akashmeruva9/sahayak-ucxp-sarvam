@@ -304,3 +304,14 @@ def test_b7_live_public_store():
     result = asyncio.run(scraper.scrape("https://bombayshavingcompany.com"))
     assert result["ok"] is True
     assert result["faqs"] or any(result["policies"].values())
+
+
+def test_quoted_env_key_is_unwrapped(monkeypatch):
+    """A key copied out of a .env file arrives wrapped in quotes.
+
+    Sent verbatim it is a 403, which surfaces as "not configured" and sends you
+    hunting for a variable that is in fact set.
+    """
+    for raw in ("'sk_abc123'", '"sk_abc123"', "  sk_abc123  ", "sk_abc123"):
+        monkeypatch.setenv("SARVAM_API_KEY", raw)
+        assert scraper._api_key() == "sk_abc123", "did not unwrap {!r}".format(raw)

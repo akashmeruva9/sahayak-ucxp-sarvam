@@ -392,7 +392,12 @@ POLICY_SYSTEM = (
 
 
 def _api_key():
-    key = (os.environ.get("SARVAM_API_KEY") or "").strip()
+    # Strip surrounding quotes: .env files commonly carry them, and a value
+    # copied from one into a hosting provider's UI brings them along. A quoted
+    # key is sent verbatim, rejected with a 403, and surfaces as "not
+    # configured" -- which sends you looking for a missing variable that is
+    # actually right there.
+    key = (os.environ.get("SARVAM_API_KEY") or "").strip().strip("'\"").strip()
     if key:
         return key
     # The dashboard backend does not otherwise read .env; the root file is the

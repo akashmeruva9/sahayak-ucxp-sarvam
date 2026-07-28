@@ -71,9 +71,9 @@ def load_seeded_tokens():
     Returns {subdomain: token}. Missing or unreadable file is not an error --
     the dashboard simply has no pre-seeded stores.
     """
-    # A hosted deployment has no checked-in secrets file, so the same JSON can
-    # arrive as an environment variable instead. The file wins when both exist,
-    # which keeps local development behaving exactly as it always has.
+    # A hosted deployment has no checked-in secrets file, so the same tokens can
+    # arrive by environment instead. The file wins when it exists, which keeps
+    # local development behaving exactly as it always has.
     raw = None
     try:
         with open(os.environ.get("UCXP_STORES_JSON") or STORES_JSON,
@@ -81,11 +81,25 @@ def load_seeded_tokens():
             raw = handle.read()
     except OSError:
         raw = os.environ.get("UCXP_STORES_JSON_CONTENT") or ""
+
     try:
         data = json.loads(raw) if raw else {}
     except ValueError:
-        return {}
-    return {k: v for k, v in data.items() if isinstance(v, str)} if isinstance(data, dict) else {}
+        data = {}
+    tokens = ({k: v for k, v in data.items() if isinstance(v, str)}
+              if isinstance(data, dict) else {})
+    if tokens:
+        return tokens
+
+    # Last resort: the per-business variables the runtime already uses
+    # (SHOPIFY_TOKEN_RAVI_ELECTRONICS and friends). Reading them here means one
+    # set of secrets serves both services instead of two rival conventions.
+    for subdomain, (business_id, _name) in SEEDED_STORES.items():
+        value = os.environ.get(
+            "SHOPIFY_TOKEN_{}".format(business_id.upper().replace("-", "_")))
+        if value:
+            tokens[subdomain] = value.strip()
+    return tokens
 
 
 def token_for_subdomain(subdomain):
