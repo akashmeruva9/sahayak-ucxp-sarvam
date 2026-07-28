@@ -5,20 +5,22 @@
  * server, so the two cannot drift apart silently.
  */
 
+/* `voice` mirrors constants.py: Bulbul v3 speaks 11 of these 13. Assamese and
+ * Urdu are understood and answered in text, never spoken aloud. */
 export const LANGUAGES = [
-  { code: 'te', native: 'తెలుగు', english: 'Telugu' },
-  { code: 'hi', native: 'हिंदी', english: 'Hindi' },
-  { code: 'ta', native: 'தமிழ்', english: 'Tamil' },
-  { code: 'kn', native: 'ಕನ್ನಡ', english: 'Kannada' },
-  { code: 'ml', native: 'മലയാളം', english: 'Malayalam' },
-  { code: 'bn', native: 'বাংলা', english: 'Bengali' },
-  { code: 'mr', native: 'मराठी', english: 'Marathi' },
-  { code: 'gu', native: 'ગુજરાતી', english: 'Gujarati' },
-  { code: 'pa', native: 'ਪੰਜਾਬੀ', english: 'Punjabi' },
-  { code: 'or', native: 'ଓଡ଼ିଆ', english: 'Odia' },
-  { code: 'as', native: 'অসমীয়া', english: 'Assamese' },
-  { code: 'ur', native: 'اردو', english: 'Urdu' },
-  { code: 'en', native: 'English', english: 'English' },
+  { code: 'te', native: 'తెలుగు', english: 'Telugu', voice: true },
+  { code: 'hi', native: 'हिंदी', english: 'Hindi', voice: true },
+  { code: 'ta', native: 'தமிழ்', english: 'Tamil', voice: true },
+  { code: 'kn', native: 'ಕನ್ನಡ', english: 'Kannada', voice: true },
+  { code: 'ml', native: 'മലയാളം', english: 'Malayalam', voice: true },
+  { code: 'bn', native: 'বাংলা', english: 'Bengali', voice: true },
+  { code: 'mr', native: 'मराठी', english: 'Marathi', voice: true },
+  { code: 'gu', native: 'ગુજરાતી', english: 'Gujarati', voice: true },
+  { code: 'pa', native: 'ਪੰਜਾਬੀ', english: 'Punjabi', voice: true },
+  { code: 'or', native: 'ଓଡ଼ିଆ', english: 'Odia', voice: true },
+  { code: 'as', native: 'অসমীয়া', english: 'Assamese', voice: false },
+  { code: 'ur', native: 'اردو', english: 'Urdu', voice: false },
+  { code: 'en', native: 'English', english: 'English', voice: true },
 ];
 
 export const LANGUAGE_BY_CODE = Object.fromEntries(LANGUAGES.map((l) => [l.code, l]));

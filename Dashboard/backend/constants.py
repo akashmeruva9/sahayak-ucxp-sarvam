@@ -7,27 +7,40 @@ the two stay in sync.
 
 # --- Languages -------------------------------------------------------------
 # Order matters: this is the order the chips render in Section 4.
+#
+# `voice` records whether Sarvam can *speak* the language, not whether we
+# support it. Saaras (STT) and Sarvam-Translate both cover 23 languages, but
+# Bulbul v3 speaks 11: bn, en, gu, hi, kn, ml, mr, od, pa, ta, te. Assamese and
+# Urdu are understood and answered in text, and handed off rather than spoken.
+# Section 4 says so on the chip, because a merchant who ticks Urdu expecting a
+# voice reply has promised their customer something the stack cannot deliver.
 LANGUAGES = [
-    {"code": "te", "native": "తెలుగు", "english": "Telugu"},
-    {"code": "hi", "native": "हिंदी", "english": "Hindi"},
-    {"code": "ta", "native": "தமிழ்", "english": "Tamil"},
-    {"code": "kn", "native": "ಕನ್ನಡ", "english": "Kannada"},
-    {"code": "ml", "native": "മലയാളം", "english": "Malayalam"},
-    {"code": "bn", "native": "বাংলা", "english": "Bengali"},
-    {"code": "mr", "native": "मराठी", "english": "Marathi"},
-    {"code": "gu", "native": "ગુજરાતી", "english": "Gujarati"},
-    {"code": "pa", "native": "ਪੰਜਾਬੀ", "english": "Punjabi"},
-    {"code": "or", "native": "ଓଡ଼ିଆ", "english": "Odia"},
-    {"code": "as", "native": "অসমীয়া", "english": "Assamese"},
-    {"code": "ur", "native": "اردو", "english": "Urdu"},
-    {"code": "en", "native": "English", "english": "English"},
+    {"code": "te", "native": "తెలుగు", "english": "Telugu", "voice": True},
+    {"code": "hi", "native": "हिंदी", "english": "Hindi", "voice": True},
+    {"code": "ta", "native": "தமிழ்", "english": "Tamil", "voice": True},
+    {"code": "kn", "native": "ಕನ್ನಡ", "english": "Kannada", "voice": True},
+    {"code": "ml", "native": "മലയാളം", "english": "Malayalam", "voice": True},
+    {"code": "bn", "native": "বাংলা", "english": "Bengali", "voice": True},
+    {"code": "mr", "native": "मराठी", "english": "Marathi", "voice": True},
+    {"code": "gu", "native": "ગુજરાતી", "english": "Gujarati", "voice": True},
+    {"code": "pa", "native": "ਪੰਜਾਬੀ", "english": "Punjabi", "voice": True},
+    {"code": "or", "native": "ଓଡ଼ିଆ", "english": "Odia", "voice": True},
+    {"code": "as", "native": "অসমীয়া", "english": "Assamese", "voice": False},
+    {"code": "ur", "native": "اردو", "english": "Urdu", "voice": False},
+    {"code": "en", "native": "English", "english": "English", "voice": True},
 ]
 LANGUAGE_CODES = [lang["code"] for lang in LANGUAGES]
+VOICE_LANGUAGE_CODES = [lang["code"] for lang in LANGUAGES if lang["voice"]]
+
+# Sarvam spells Odia `od-IN`. ISO 639-1 spells it `or`, which is what we key on
+# internally, so the two have to be reconciled at exactly one point -- here, on
+# the way out to a manifest. Sending `or-IN` to Bulbul or Saaras is a 400.
+BCP47_OVERRIDES = {"or": "od"}
 
 
 def to_bcp47(code):
     """'te' -> 'te-IN'. Every UCXP language is an Indian locale, English included."""
-    return "{}-IN".format(code)
+    return "{}-IN".format(BCP47_OVERRIDES.get(code, code))
 
 
 # --- Categories (Section 1 dropdown) ---------------------------------------

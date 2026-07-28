@@ -40,6 +40,10 @@ export default function S4Languages({ sections, updateSection }) {
     );
   });
 
+  // Selected languages Bulbul cannot speak. Surfaced so a merchant never
+  // promises their customer a voice reply the runtime will have to hand off.
+  const textOnly = LANGUAGES.filter((lang) => selected.includes(lang.code) && !lang.voice);
+
   const toggle = (code) => {
     const next = selected.includes(code)
       ? selected.filter((c) => c !== code)
@@ -120,10 +124,29 @@ export default function S4Languages({ sections, updateSection }) {
                       matras on तेलुगु/ಕನ್ನಡ/ଓଡ଼ିଆ clip against the line box. */}
                   <span className="ucxp-native text-base font-medium leading-[1.9]">{lang.native}</span>
                   <span className="text-xs text-ink-muted">{lang.english}</span>
+                  {!lang.voice && (
+                    <span
+                      data-testid={`lang-textonly-${lang.code}`}
+                      title="Understood and answered in text. Not spoken aloud yet."
+                      className="rounded-full border border-line px-1.5 py-0.5 text-[10px]
+                                 font-medium uppercase tracking-wide text-ink-faint"
+                    >
+                      Text only
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
+
+          {textOnly.length > 0 && (
+            <p className="ucxp-panel mb-5" data-testid="language-text-only-note">
+              {textOnly.map((l) => l.english).join(' and ')}{' '}
+              {textOnly.length === 1 ? 'is' : 'are'} understood and answered in text, but not
+              spoken aloud yet — a call in {textOnly.length === 1 ? 'it' : 'them'} is handed to
+              your team instead of being answered by voice.
+            </p>
+          )}
 
           {visible.length === 0 && (
             <p

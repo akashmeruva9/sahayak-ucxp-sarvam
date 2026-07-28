@@ -371,6 +371,52 @@ def test_frontend_mirrors_backend_vocabulary():
         assert category in source, "frontend is missing category '{}'".format(category)
 
 
+def test_frontend_mirrors_the_voice_tier():
+    """A language spoken on the server must not read 'Text only' in the UI."""
+    mirror = os.path.join(ROOT, "Dashboard", "frontend", "src", "lib", "contract.js")
+    if not os.path.exists(mirror):
+        pytest.skip("frontend not scaffolded yet")
+    source = open(mirror, "r", encoding="utf-8").read()
+
+    from Dashboard.backend import constants
+    for lang in constants.LANGUAGES:
+        needle = "code: '" + lang["code"] + "'"
+        rows = [line for line in source.splitlines() if needle in line]
+        assert rows, "frontend contract.js has no row for '{}'".format(lang["code"])
+        expected = "voice: {}".format("true" if lang["voice"] else "false")
+        assert expected in rows[0], (
+            "'{}' is voice={} on the server but the mirror disagrees".format(
+                lang["code"], lang["voice"]))
+
+
+# --------------------------------------------------------------------------
+# Language codes: Sarvam's spelling, not ISO's
+# --------------------------------------------------------------------------
+def test_odia_is_sent_to_sarvam_as_od_not_or():
+    """Bulbul and Saaras 400 on 'or-IN'. ISO says 'or'; Sarvam says 'od'."""
+    from Dashboard.backend import constants
+    assert constants.to_bcp47("or") == "od-IN"
+    assert "or" in constants.LANGUAGE_CODES, "the internal code stays ISO 639-1"
+
+
+def test_every_other_language_keeps_its_own_code():
+    from Dashboard.backend import constants
+    for code in constants.LANGUAGE_CODES:
+        if code == "or":
+            continue
+        assert constants.to_bcp47(code) == "{}-IN".format(code)
+
+
+def test_only_bulbuls_eleven_languages_are_marked_voice():
+    """Bulbul v3 speaks 11: bn en gu hi kn ml mr od pa ta te."""
+    from Dashboard.backend import constants
+    spoken = {constants.to_bcp47(c) for c in constants.VOICE_LANGUAGE_CODES}
+    assert spoken == {"bn-IN", "en-IN", "gu-IN", "hi-IN", "kn-IN", "ml-IN",
+                      "mr-IN", "od-IN", "pa-IN", "ta-IN", "te-IN"}
+    text_only = set(constants.LANGUAGE_CODES) - set(constants.VOICE_LANGUAGE_CODES)
+    assert text_only == {"as", "ur"}
+
+
 # --------------------------------------------------------------------------
 # Vault: the secret never leaves the server
 # --------------------------------------------------------------------------
