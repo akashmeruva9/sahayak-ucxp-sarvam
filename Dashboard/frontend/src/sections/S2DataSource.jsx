@@ -7,7 +7,7 @@ import {
 import SectionCard from './SectionCard';
 
 const SOURCES = [
-  { value: 'shopify', title: 'Shopify', desc: 'Connect in one click via OAuth. No keys to paste.' },
+  { value: 'shopify', title: 'Shopify', desc: 'Read live orders and products straight from your store.' },
   { value: 'custom', title: 'Custom REST API', desc: 'Describe your endpoints. Secrets go to the vault.' },
   { value: 'none', title: 'No data source', desc: 'Answer from knowledge base and policies only.' },
 ];
@@ -157,7 +157,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
       <SectionCard
         testId="section-2"
         title="Data source"
-        subtitle="How Sahayak reads live order data. You approve access — we never see passwords or ask you to paste raw keys."
+        subtitle="How Sahayak reads live order data. Whatever you connect, the secret goes to the vault and your manifest carries only a reference to it."
       >
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {SOURCES.map((source) => {
@@ -259,7 +259,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
           <div className="flex flex-col gap-3" data-testid="shopify-connected">
             <div className="ucxp-panel-ok flex flex-wrap items-center gap-2.5">
               <span className="text-[13px] font-semibold text-ok" aria-hidden="true">✓</span>
-              <span className="text-[13px] font-medium">Connected via Shopify OAuth</span>
+              <span className="text-[13px] font-medium">Connected to Shopify</span>
               <span className="font-mono text-xs">{d.store}</span>
               <span className="flex-1" />
               <button
