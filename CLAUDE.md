@@ -28,8 +28,13 @@ Python is 3.12 in `./venv`. System python is 3.9 and has no FastAPI — always u
   customer PII, so customers are identified by order number
   (`identify_by: "order_number"`, `pii_available: false`). Gate B3 enforces this.
 - **No capability contract field is ever permanently read-only.** Shopify-seeded
-  contracts start locked but "Customize" unlocks every field; Custom REST and
-  No-data-source contracts start blank and editable. Gates F3/F4 enforce this.
+  contracts start locked but "Customize" unlocks every field; Custom REST
+  contracts start blank and editable. Gates F3/F4 enforce this.
+- **"No data source" removes section 3 entirely.** A capability is the contract
+  for an API call, so with no API there is nothing to describe: the section is
+  hidden, dropped from the completion maths, and its saved contracts never reach
+  the manifest. `manifest.capabilities_apply()` and `contract.sectionsFor()` are
+  the single rule; ask them rather than testing `type === 'none'` inline.
 - **All colour comes from `Dashboard/frontend/tailwind.config.js`.** No component hardcodes
   a hex value.
 

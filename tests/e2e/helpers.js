@@ -48,9 +48,13 @@ export async function gotoSection(page, n) {
   if (wide) {
     await page.getByTestId(`nav-section-${n}`).click();
   } else {
-    // The strip's first child is the percentage pill (a span), so the seven
-    // section buttons are 0-indexed: section n is button n-1.
-    await page.getByTestId('section-tabs').getByRole('button').nth(n - 1).click();
+    // Match on the tab's own label rather than its position. "No data source"
+    // drops section 3 from the strip, and an index would then quietly click the
+    // section next door instead of failing.
+    const short = { 1: 'Profile', 2: 'Data', 3: 'Capabilities', 4: 'Languages',
+      5: 'Knowledge', 6: 'SLA', 7: 'Review' }[n];
+    await page.getByTestId('section-tabs')
+      .getByRole('button', { name: short, exact: true }).click();
   }
   await expect(page.getByTestId(`section-${n}`)).toBeVisible();
 }

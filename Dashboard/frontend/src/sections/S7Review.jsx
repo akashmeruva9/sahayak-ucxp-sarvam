@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LANGUAGE_BY_CODE, SECTIONS, STATUS_GLYPH } from '../lib/contract';
+import { LANGUAGE_BY_CODE, STATUS_GLYPH, sectionsFor } from '../lib/contract';
 import { api, copyText, downloadJson } from '../lib/api';
 import { ErrorPanel, Spinner, useToast } from '../components/Primitives';
 import SectionCard from './SectionCard';
@@ -85,7 +85,7 @@ export default function S7Review({
     >
       {/* checklist */}
       <div className="mb-4 overflow-hidden rounded-input border border-line" data-testid="checklist">
-        {SECTIONS.slice(0, 6).map((s) => {
+        {sectionsFor(sections).filter((s) => s.n < 7).map((s) => {
           const glyph = STATUS_GLYPH[statuses[String(s.n)] || 'empty'];
           return (
             <div

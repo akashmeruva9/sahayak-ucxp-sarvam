@@ -451,3 +451,60 @@ test('F11 layout matches the design reference', async ({ page }) => {
 
   assertNoConsoleErrors(errors);
 });
+
+/* ========================================================================== */
+/* F13 — "No data source" removes API capabilities from the setup entirely    */
+/* ========================================================================== */
+test('F13 no data source hides API capabilities', async ({ page }) => {
+  const errors = watchConsole(page);
+  const id = await createBusiness(page);
+  await fillProfile(page);
+
+  // Start with a real API and a saved contract, so this proves the section is
+  // removed on the switch rather than merely never having appeared.
+  await gotoSection(page, 2);
+  await page.getByTestId('source-custom').click();
+  await page.getByTestId('custom-base').fill('https://api.knowledgeonly.in/v1');
+  await waitForSave(page);
+
+  await gotoSection(page, 3);
+  await page.getByTestId('cap-card-track_order').getByRole('switch').click();
+  await page.getByTestId('endpoint-track_order').fill('/orders/{order_id}');
+  await waitForSave(page);
+
+  const sidebar = page.getByTestId('sidebar');
+  const labels = async () => (await sidebar.getByRole('button').allInnerTexts())
+    .map((t) => t.replace(/^[✓●○]\s*/, '').trim());
+  expect(await labels()).toContain('API capabilities');
+
+  // The switch. Standing in section 3 while it disappears must not blank the page.
+  await gotoSection(page, 2);
+  await page.getByTestId('source-none').click();
+  await waitForSave(page);
+
+  await expect(page.getByTestId('no-source-note')).toBeVisible();
+  expect(await labels()).not.toContain('API capabilities');
+  await expect(page.getByTestId('nav-section-3')).toHaveCount(0);
+  await expect(sidebar).toContainText('of 6 sections done');
+
+  // The saved contract must not ride into the published manifest.
+  await pickLanguages(page);
+  await fillKnowledge(page);
+  await fillEscalation(page);
+  await gotoSection(page, 7);
+  await expect(page.getByTestId('checklist')).not.toContainText('API capabilities');
+
+  const shown = await page.getByTestId('manifest-pane').innerText();
+  expect(shown).not.toContain('track_order');
+  expect(shown).toContain('"type": "none"');
+
+  // And reconnecting an API brings the section -- and the contract -- back.
+  await gotoSection(page, 2);
+  await page.getByTestId('source-custom').click();
+  await waitForSave(page);
+  expect(await labels()).toContain('API capabilities');
+  await gotoSection(page, 3);
+  await expect(page.getByTestId('endpoint-track_order')).toHaveValue('/orders/{order_id}');
+
+  assertNoConsoleErrors(errors);
+});

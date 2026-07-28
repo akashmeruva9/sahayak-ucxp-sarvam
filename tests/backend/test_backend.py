@@ -471,6 +471,53 @@ def test_no_data_source_may_activate_without_capabilities(client, tmp_path, monk
     assert result["ok"] is True, result
 
 
+def test_no_data_source_reaches_a_hundred_percent(client):
+    """Section 3 is not a step a knowledge-only merchant leaves unfinished.
+
+    Counting it left every such business stuck at 83% with an ○ beside "API
+    capabilities" and no way at all to clear it.
+    """
+    business_id = store.create_business(name="Knowledge Only Co")
+    _fill_sections_via_api(client, business_id, source="none", with_capability=False)
+    # The knowledge base is the whole point of this configuration, so a merchant
+    # who has filled everything they can has filled this too.
+    client.put("/api/business/{}/section/5".format(business_id), json={"data": {
+        "faqs": [{"q": "Where is my order?", "a": "Write to care@lifecycle.in."}],
+        "policies": {"return": "30 days.", "refund": "", "shipping": "", "warranty": ""}}})
+
+    state = client.get("/api/business/{}".format(business_id)).json()
+    assert state["completion"] == 100, (state["completion"], state["statuses"])
+
+
+def test_switching_to_no_data_source_unpublishes_its_capabilities():
+    """Contracts survive the switch in the section, but must never reach a manifest.
+
+    A capability advertises a call the runtime can make. With the data source
+    gone there is nothing to call it against, so publishing a leftover Shopify
+    contract would promise an answer that can only ever fail.
+    """
+    sections = manifest_mod.default_sections()
+    sections["2"] = {"type": "custom", "base": "https://api.example.in"}
+    sections["3"] = {"caps": {"track_order": {
+        "name": "track_order", "enabled": True, "source": "custom",
+        "endpoint": "/orders/{order_id}", "method": "GET",
+        "request": {"headers": [], "body": "{}"},
+        "response": {"sample": "{}", "mapping": []},
+        "parameters": {"path": [], "query": []}, "errors": []}}}
+
+    with_api = manifest_mod.assemble("switcher", sections)
+    assert [c["name"] for c in with_api["capabilities"]] == ["track_order"]
+
+    sections["2"] = {"type": "none"}
+    without = manifest_mod.assemble("switcher", sections)
+    assert "capabilities" not in without, without.get("capabilities")
+
+    # And the contract is still there to come back to.
+    sections["2"] = {"type": "custom", "base": "https://api.example.in"}
+    restored = manifest_mod.assemble("switcher", sections)
+    assert [c["name"] for c in restored["capabilities"]] == ["track_order"]
+
+
 def test_pasted_whitespace_is_trimmed_from_the_profile():
     """Copy-pasting into a form routinely brings a leading space along.
 

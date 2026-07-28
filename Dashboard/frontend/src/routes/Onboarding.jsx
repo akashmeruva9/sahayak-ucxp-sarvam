@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { SECTIONS, STATUS_GLYPH, slugify } from '../lib/contract';
+import { STATUS_GLYPH, sectionsFor, slugify } from '../lib/contract';
 import { useBusiness } from '../state/useBusiness';
 import ManifestPane from '../components/ManifestPane';
 import {
@@ -63,8 +63,13 @@ export default function Onboarding() {
   const activation = sections['7'] || {};
   const bizName = profile.name || 'Untitled business';
   const slug = business?.id || slugify(profile.name);
-  const doneCount = SECTIONS.filter((s) => statuses[String(s.n)] === 'done').length;
-  const Section = SECTION_COMPONENTS[section];
+  const visible = sectionsFor(sections);
+  const doneCount = visible.filter((s) => statuses[String(s.n)] === 'done').length;
+  // Picking "No data source" while standing in section 3 takes that section away
+  // underneath you. Fall back to the Data source step -- the one you were just
+  // on -- rather than rendering a section the sidebar no longer lists.
+  const current = visible.some((s) => s.n === section) ? section : 2;
+  const Section = SECTION_COMPONENTS[current];
 
   const sectionProps = {
     sections,
@@ -135,9 +140,9 @@ export default function Onboarding() {
         <span className="flex-none rounded-full bg-surface px-3 py-1.5 text-xs font-semibold text-ink">
           {completion}%
         </span>
-        {SECTIONS.map((s) => {
+        {visible.map((s) => {
           const glyph = STATUS_GLYPH[statuses[String(s.n)] || 'empty'];
-          const active = section === s.n;
+          const active = current === s.n;
           return (
             <button
               key={s.n}
@@ -172,14 +177,16 @@ export default function Onboarding() {
             <CompletionRing pct={completion} />
             <div>
               <div className="text-base font-semibold">{completion}%</div>
-              <div className="text-[11.5px] text-ink-muted">{doneCount} of 7 sections done</div>
+              <div className="text-[11.5px] text-ink-muted">
+                {doneCount} of {visible.length} sections done
+              </div>
             </div>
           </div>
 
           <div className="flex flex-col gap-0.5 rounded-card border border-line bg-canvas p-2">
-            {SECTIONS.map((s) => {
+            {visible.map((s) => {
               const glyph = STATUS_GLYPH[statuses[String(s.n)] || 'empty'];
-              const active = section === s.n;
+              const active = current === s.n;
               return (
                 <button
                   key={s.n}
@@ -215,7 +222,7 @@ export default function Onboarding() {
         {/* main */}
         <main className="flex min-w-0 flex-col gap-4">
           {error && business && <ErrorPanel onRetry={reload}>{error}</ErrorPanel>}
-          <Section key={section} {...sectionProps} />
+          <Section key={current} {...sectionProps} />
         </main>
 
         {/* manifest */}

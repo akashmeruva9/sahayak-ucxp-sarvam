@@ -173,6 +173,18 @@ def _enabled_caps(sections):
     return {k: v for k, v in caps.items() if v and v.get("enabled")}
 
 
+def capabilities_apply(sections):
+    """Does section 3 mean anything for this business?
+
+    A capability is the contract for an API call. With "No data source" there is
+    no API to call -- the assistant answers from the knowledge base and hands off
+    anything order-specific -- so section 3 is not a step the merchant skips past,
+    it is not part of their setup at all. Everything that counts, shows, or
+    publishes section 3 asks this first.
+    """
+    return ((sections or {}).get("2") or {}).get("type") != "none"
+
+
 def section_status(n, sections):
     """Return 'done' | 'part' | 'empty' for section n."""
     s = sections or {}
@@ -247,15 +259,23 @@ def section_status(n, sections):
 _WEIGHT = {"done": 1.0, "part": 0.5, "empty": 0.0}
 
 
+def _steps(sections, stop):
+    """The sections that apply to this business, from 1 to stop-1."""
+    return [n for n in range(1, stop)
+            if n != 3 or capabilities_apply(sections)]
+
+
 def completion_pct(sections):
     """Percent across sections 1-6. Section 7 is the activation itself, not progress."""
-    total = sum(_WEIGHT[section_status(n, sections)] for n in range(1, 7))
-    return int(round(total / 6.0 * 100))
+    steps = _steps(sections, 7)
+    total = sum(_WEIGHT[section_status(n, sections)] for n in steps)
+    return int(round(total / float(len(steps)) * 100))
 
 
 def done_count(sections):
     """How many of all 7 sections are fully done."""
-    return sum(1 for n in range(1, 8) if section_status(n, sections) == "done")
+    return sum(1 for n in _steps(sections, 8)
+               if section_status(n, sections) == "done")
 
 
 def missing_items(sections):
@@ -434,7 +454,11 @@ def assemble(business_id, sections, status=None, created_at=None):
     elif kind == "none":
         data_source.update({"reads": [], "pii_available": False})
 
-    caps_store = (s.get("3") or {}).get("caps") or {}
+    # A merchant who connected Shopify, enabled capabilities, then switched to
+    # "No data source" still has those contracts saved. Publishing them would
+    # advertise calls the runtime has no way to make. They stay in the section so
+    # that reconnecting a source restores the work -- they just never ship.
+    caps_store = {} if kind == "none" else ((s.get("3") or {}).get("caps") or {})
     capabilities = [
         _contract_to_manifest(caps_store[key])
         for key in CAPABILITY_KEYS

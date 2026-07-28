@@ -142,6 +142,18 @@ export const SECTIONS = [
   { n: 7, label: 'Review & activate', short: 'Review' },
 ];
 
+/** The sections that apply to a business, given the data source it picked.
+ *
+ * A capability is the contract for an API call, so with "No data source" there
+ * is nothing for section 3 to describe. Leaving it in the list would show a step
+ * that can never be completed -- an ○ beside "API capabilities" and "6 of 7"
+ * forever. The backend drops it from the completion maths on the same rule.
+ */
+export function sectionsFor(sections) {
+  const kind = (sections['2'] || {}).type || '';
+  return kind === 'none' ? SECTIONS.filter((s) => s.n !== 3) : SECTIONS;
+}
+
 /** ○ empty · ● in progress · ✓ done — the design's status glyph set. */
 export const STATUS_GLYPH = {
   done: { glyph: '✓', className: 'text-ok' },
