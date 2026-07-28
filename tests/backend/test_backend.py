@@ -469,3 +469,28 @@ def test_no_data_source_may_activate_without_capabilities(client, tmp_path, monk
 
     result = client.post("/api/business/{}/activate".format(business_id)).json()
     assert result["ok"] is True, result
+
+
+def test_pasted_whitespace_is_trimmed_from_the_profile():
+    """Copy-pasting into a form routinely brings a leading space along.
+
+    Nobody means to name their shop " Ravi Electronics", and it shows on the
+    merchant's own success screen and in every published manifest.
+    """
+    sections = manifest_mod.default_sections()
+    sections["1"].update({
+        "name": "  Ravi Electronics  ", "category": " Electronics",
+        "city": " Bengaluru ", "email": " care@ravi.in ",
+        "tagline": " Honest prices ", "phone": " +91 98450 12345",
+        "hours": " Mon-Sat 10:00-20:00 IST ", "desc": "  A shop.  ",
+    })
+    built = manifest_mod.assemble("ravi-electronics", sections)
+
+    assert built["business"] == "Ravi Electronics"
+    assert built["category"] == "Electronics"
+    profile = built["profile"]
+    for key in ("tagline", "description", "support_email", "support_phone",
+                "hours", "city"):
+        value = profile.get(key, "")
+        assert value == value.strip(), "{} kept its whitespace: {!r}".format(key, value)
+    assert profile["support_phone"] == "+91 98450 12345"

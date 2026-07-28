@@ -466,19 +466,25 @@ def assemble(business_id, sections, status=None, created_at=None):
     if esc.get("gEmail"):
         ladder[1]["contact"] = esc["gEmail"]
 
+    # Text pasted into a form routinely arrives with a stray leading space, and
+    # nobody ever means to name their shop " Ravi Electronics". The logo is a
+    # base64 data URL, so it is deliberately left alone.
+    def text(key):
+        return (profile.get(key) or "").strip()
+
     manifest = {
         "ucxp_version": UCXP_VERSION,
-        "business": profile.get("name") or "",
+        "business": text("name"),
         "business_id": slug,
-        "category": profile.get("category") or "",
+        "category": text("category"),
         "profile": {
-            "tagline": profile.get("tagline") or "",
-            "description": profile.get("desc") or "",
-            "support_email": profile.get("email") or "",
-            "support_phone": profile.get("phone") or "",
-            "website": profile.get("website") or "",
-            "hours": profile.get("hours") or "",
-            "city": profile.get("city") or "",
+            "tagline": text("tagline"),
+            "description": text("desc"),
+            "support_email": text("email"),
+            "support_phone": text("phone"),
+            "website": text("website"),
+            "hours": text("hours"),
+            "city": text("city"),
             "logo_url": profile.get("logoUrl") or "",
         },
         "primary_language": to_bcp47(primary) if primary else "",
