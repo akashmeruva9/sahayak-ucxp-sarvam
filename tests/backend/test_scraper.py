@@ -353,3 +353,27 @@ def test_a_wholly_unreachable_site_is_still_reported(monkeypatch):
     with pytest.raises(scraper.Blocked) as caught:
         asyncio.run(scraper.scrape("https://shop.example.in/"))
     assert "blocking automated readers" in str(caught.value)
+
+
+def test_password_gate_is_named_even_when_only_later_pages_reveal_it(monkeypatch):
+    """A locked storefront must not be reported as a JavaScript problem.
+
+    The gate is detected on the seed page, but a refused landing page now falls
+    through to the known paths -- so it is those fetches that come back as the
+    password screen, after the original check has already run.
+    """
+    async def fake_fetch(urls):
+        # The landing page is refused outright; every known path redirects to
+        # Shopify's password screen, which carries almost no readable text.
+        return {u: {"html": "<html><body>Opening soon</body></html>",
+                    "final_url": "https://shop.example.in/password", "status": 200}
+                for u in urls if "/policies/" in u or "/pages/" in u}
+
+    monkeypatch.setattr(scraper, "fetch_pages", fake_fetch)
+    monkeypatch.setattr(scraper, "assert_public_host", lambda host: True)
+
+    with pytest.raises(scraper.Blocked) as caught:
+        asyncio.run(scraper.scrape("https://shop.example.in/"))
+    message = str(caught.value)
+    assert "isn't public yet" in message, message
+    assert "JavaScript" not in message, "the password gate was misreported"

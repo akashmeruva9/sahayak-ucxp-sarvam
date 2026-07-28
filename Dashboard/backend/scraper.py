@@ -601,6 +601,16 @@ async def scrape(url, existing_questions=()):
     policy_chunks = policy_first + other + faq_first
 
     if not read:
+        # Re-check here, not just on the seed page: once a refused landing page
+        # falls through to the known paths, it is those later fetches that come
+        # back as the password screen, and this is the first point that sees
+        # them. Telling a merchant their own store "loads with JavaScript" when
+        # it is really still password-locked sends them debugging the wrong thing.
+        if _looks_password_gated(pages):
+            raise Blocked(
+                "That store isn't public yet — remove the storefront password "
+                "in Shopify (Online Store → Preferences), or paste your FAQs below."
+            )
         raise Blocked(
             "We couldn't read any text on that page — it may load its content with "
             "JavaScript. Try your policies page, or type the FAQs below."
