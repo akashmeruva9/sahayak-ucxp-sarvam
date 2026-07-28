@@ -315,3 +315,41 @@ def test_quoted_env_key_is_unwrapped(monkeypatch):
     for raw in ("'sk_abc123'", '"sk_abc123"', "  sk_abc123  ", "sk_abc123"):
         monkeypatch.setenv("SARVAM_API_KEY", raw)
         assert scraper._api_key() == "sk_abc123", "did not unwrap {!r}".format(raw)
+
+
+def test_a_refused_landing_page_does_not_abandon_the_site(monkeypatch):
+    """Storefronts guard / but leave /policies/* open for search engines.
+
+    Giving up on the first miss loses the pages actually worth reading.
+    """
+    fetched = []
+
+    async def fake_fetch(urls):
+        fetched.extend(urls)
+        # The landing page is refused; a policy page answers.
+        return {u: {"html": "<main>" + ("Refunds take 7 days. " * 40) + "</main>",
+                    "final_url": u, "status": 200}
+                for u in urls if "/policies/" in u}
+
+    async def no_llm(*a, **k):
+        return None
+
+    monkeypatch.setattr(scraper, "fetch_pages", fake_fetch)
+    monkeypatch.setattr(scraper, "sarvam_json", no_llm)
+    monkeypatch.setenv("SARVAM_API_KEY", "test-key")
+    monkeypatch.setattr(scraper, "assert_public_host", lambda host: True)
+
+    result = asyncio.run(scraper.scrape("https://shop.example.in/"))
+    assert result["ok"] is True
+    assert result["pages_read"], "policy pages should still have been read"
+    assert any("/policies/" in u for u in fetched)
+
+
+def test_a_wholly_unreachable_site_is_still_reported(monkeypatch):
+    async def nothing(urls):
+        return {}
+    monkeypatch.setattr(scraper, "fetch_pages", nothing)
+    monkeypatch.setattr(scraper, "assert_public_host", lambda host: True)
+    with pytest.raises(scraper.Blocked) as caught:
+        asyncio.run(scraper.scrape("https://shop.example.in/"))
+    assert "blocking automated readers" in str(caught.value)

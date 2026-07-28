@@ -555,25 +555,28 @@ async def scrape(url, existing_questions=()):
         robots = await robots_for(probe, origin)
 
     seed = await fetch_pages([target])
-    if not seed:
-        # Large sites commonly answer a self-identifying reader with a hang or a
-        # bot wall. Saying "check the address" sends the merchant hunting for a
-        # typo they did not make.
-        raise Blocked(
-            "That site didn't respond to us — it may be blocking automated "
-            "readers. Try your policies page directly, or add your FAQs below."
-        )
     if _looks_password_gated(seed):
         raise Blocked(
             "That store isn't public yet — remove the storefront password, "
             "or paste your FAQs below."
         )
 
-    seed_html = seed[target]["html"]
+    # A refused landing page is not a refused site. Storefronts routinely put
+    # bot protection on / while leaving /policies/* open, because search engines
+    # have to reach those -- so the pages actually worth reading are usually
+    # still available even when the merchant's homepage turns us away. Carry on
+    # with the known paths rather than giving up on the first miss.
+    seed_html = seed.get(target, {}).get("html")
     pages = dict(seed)
     rest = [u for u in candidate_urls(target, seed_html, robots) if u not in pages]
     if rest:
         pages.update(await fetch_pages(rest))
+
+    if not pages:
+        raise Blocked(
+            "That site didn't respond to us — it may be blocking automated "
+            "readers. Try your policies page directly, or add your FAQs below."
+        )
 
     policy_first, faq_first, other, structured, read = [], [], [], [], []
     for page_url, page in pages.items():
