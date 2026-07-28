@@ -4,7 +4,7 @@
 > all follow it. If code and this file disagree, one of them is a bug — fix the
 > disagreement, don't ignore it.
 
-**Last updated:** 2026-07-26 · **Status:** AI Engine done · Runtime running (3 businesses, 9 capabilities) · Frontend wired to the runtime
+**Last updated:** 2026-07-28 · **Status:** AI Engine done · Runtime live on Railway · Web live on Vercel · Standalone APK built · WhatsApp live
 
 ---
 
@@ -397,6 +397,11 @@ Deviations from the original brief, with reasons. Append; don't edit.
 | 35 | Railway variables are pushed by **`scripts/sync-railway-env.sh`**, not pasted by hand | `.env` is git-ignored, so Railway can only learn the secrets manually — and a hand copy silently dropped the tail of the file. The Shopify and Twilio keys sit on lines 68–78 of 78, so the paste covered the `SARVAM_*` block and stopped short: `/health` came up green, `/chat` resolved, and **every order lookup quietly returned mock data** (₹3049 instead of the real ₹1299). Nothing failed loudly. The script pushes a fixed key list in one call, prints only a prefix + length, and deliberately omits `PORT`/`UCXP_PORT`/`*_BASE_URL` so #29 cannot come back |
 | 35 | Self-call URLs resolve `$PORT` **over loopback**, not via the public URL | §11.1 said to set `UCXP_MOCK_BASE_URL`/`UCXP_CONNECTOR_BASE_URL` to the public origin. Loopback is better: no public round trip, no dependency on knowing the deploy URL at boot. The actual bug was port resolution — `UCXP_PORT` defaulted to 8000 while the platform binds `$PORT`, so the runtime called a dead port and every capability failed at `act` with `/health` still green. `port` now falls back to `$PORT` |
 | 36 | Web output pinned to `single` (SPA) with a Vercel catch-all rewrite | `app.json` left `web.output` unset, so the mode was implicit. Expo Router deep links 404 on a static host without a rewrite to `/`; pinning the mode makes the Vercel config match the build rather than assuming it |
+| 37 | Manifest **response templates are synthesised** from the published `response.example` fields | Published manifests describe an API *shape* (`{example, mapping}`), not a sentence, so `capability.response` was empty and `compose` fell through to a full reasoning call on **every** turn. Measured: greeting 52 s, order lookup 44 s. Synthesising a sentence from the fields the manifest already declares makes a completed job instant *and* deterministic; the third prompt stays for cases with genuinely nothing to render. Production after: greeting **2.1 s**, lookup **8.6 s** |
+| 38 | Small talk answers from a manifest-built welcome, not the LLM | `compose` forced prompt 3 for `smalltalk` even when a template existed — ~40 s to paraphrase a greeting the manifest already contains everything to write |
+| 39 | Central chat vs business chat are **different routing modes** | Central: naming a business loads that manifest and keeps it for the rest of the chat; naming another switches; naming none asks (**364 ms**, no model call — classifying a five-business catalogue to conclude "I don't know which" cost 38 s and told us nothing the router hadn't). Business chat and WhatsApp are pinned and never route elsewhere. The app marks a chat `scoped` at creation, because a *general* chat also acquires a `businessId` once resolved and must stay switchable |
+| 40 | Confirmation matching is **whole-word**, and a business switch cancels the pending action | `CONFIRM_YES` matched as a substring, so the "ha" inside an ordinary word confirmed a **refund** pending on a *different* business with no yes given — a destructive action executed without consent. Found while testing §7 #39 |
+| 41 | Businesses with no manifest get a **web lookup** (Tavily / Brave / Serper) | Answer usefully rather than flatly, then invite them to onboard — which is the protocol pitch made concrete. Provider inferred from whichever key is set; no key ⇒ feature off and the ordinary "which business?" reply stands. **Untested against a live provider** — no key was available when it was written |
 
 ---
 
