@@ -29,11 +29,10 @@ export const supabase: SupabaseClient | null = authConfigured
         // Keep the user signed in across restarts; refresh silently.
         persistSession: true,
         autoRefreshToken: true,
-        // Google sign-in returns through a redirect. On web that lands back on
-        // this page with the tokens in the URL, so Supabase must read them; on
-        // native the deep link is parsed by hand (see signInWithGoogle), and
-        // leaving this on would make it hunt for a hash fragment that is
-        // never there.
+        // Google sign-in is web-only and returns through a redirect, landing on
+        // /home with the tokens in the URL — so Supabase must read them there.
+        // Off on native, where the app offers no OAuth button and this would
+        // only make it hunt for a hash fragment that is never present.
         detectSessionInUrl: Platform.OS === "web",
       },
     })

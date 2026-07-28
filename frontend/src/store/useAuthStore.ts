@@ -120,6 +120,11 @@ export const useAuthStore = create<AuthState>((set) => ({
    * picks the tokens out of the URL and `onAuthStateChange` does the rest.
    * Nothing to parse by hand, and no native module.
    *
+   * It returns to the app route, not the origin. Signing in is the customer
+   * saying "let me in", so landing them back on the marketing page to press a
+   * second button is a dead end. `detectSessionInUrl` reads the tokens on
+   * whatever route it lands on, so an app route works as the return target.
+   *
    * The native flow was deliberately dropped: it needed `expo-web-browser` and
    * `expo-linking` to run an in-app browser session and hand-parse the returned
    * fragment, which is a lot of surface area for a button the installed app no
@@ -143,7 +148,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ busy: true, error: null });
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: `${window.location.origin}/home` },
     });
     if (error) {
       set({ busy: false, error: friendly(error.message) });
