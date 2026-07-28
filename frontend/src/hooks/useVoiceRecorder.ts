@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import {
   AudioModule,
   RecordingPresets,
@@ -105,6 +105,24 @@ export function useVoiceRecorder() {
   /** Ticks spent above the speech threshold, so a single spike isn't a turn. */
   const loudTicks = useRef(0);
 
+  /**
+   * Stop only if it is actually running.
+   *
+   * Calling stop() on an idle recorder throws, and the throw leaves expo-audio
+   * believing it is still recording. That stale flag is what crashes the app:
+   * when Android backgrounds the activity, expo-audio pauses every "recording"
+   * recorder, and MediaRecorder.pause() on one that isn't recording is a native
+   * IllegalStateException — which takes the whole process down, not just the
+   * call.
+   */
+  const safeStop = useCallback(async () => {
+    try {
+      if (recorder.isRecording) await recorder.stop();
+    } catch (err) {
+      if (__DEV__) console.warn(`[recorder] stop failed: ${String(err)}`);
+    }
+  }, [recorder]);
+
   const flagIssue = useCallback((reason: RecordingIssue) => {
     simulated.current = true;
     issueRef.current = reason;
@@ -120,6 +138,24 @@ export function useVoiceRecorder() {
   }, []);
 
   useEffect(() => () => clearTimer(), [clearTimer]);
+
+  /**
+   * Close the mic when the app leaves the foreground.
+   *
+   * Belt and braces against the same crash: getting the recorder genuinely
+   * stopped means expo-audio's background handler has nothing to pause. A call
+   * doesn't survive being backgrounded anyway — there is no foreground service
+   * behind it — so ending the capture is also the honest behaviour.
+   */
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") return;
+      clearTimer();
+      setState("idle");
+      void safeStop();
+    });
+    return () => sub.remove();
+  }, [clearTimer, safeStop]);
 
   const beginTimer = useCallback(() => {
     startedAt.current = Date.now();
@@ -244,7 +280,7 @@ export function useVoiceRecorder() {
       return { uri: null, durationMs: elapsed, issue: issueRef.current ?? "recorder-error" };
     }
     try {
-      await recorder.stop();
+      await safeStop();
       const uri = recorder.uri ?? null;
       if (__DEV__) console.log(`[recorder] stopped uri=${uri ?? "NULL"} ms=${elapsed}`);
       return {
@@ -256,20 +292,14 @@ export function useVoiceRecorder() {
       if (__DEV__) console.warn(`[recorder] stop failed: ${String(err)}`);
       return { uri: null, durationMs: elapsed, issue: "recorder-error" };
     }
-  }, [clearTimer, recorder]);
+  }, [clearTimer, recorder, safeStop]);
 
   const cancel = useCallback(async () => {
     clearTimer();
     setState("idle");
     setDurationMs(0);
-    if (!simulated.current) {
-      try {
-        await recorder.stop();
-      } catch {
-        /* no-op */
-      }
-    }
-  }, [clearTimer, recorder]);
+    if (!simulated.current) await safeStop();
+  }, [clearTimer, safeStop]);
 
   return {
     isRecording: state === "recording",

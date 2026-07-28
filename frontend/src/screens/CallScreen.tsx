@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { AppState, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -107,6 +107,8 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
   /** True while beginTurn is in flight, so the open-mic rule fires once. */
   const answering = useRef(false);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** False while the app is backgrounded — the mic must not reopen behind it. */
+  const [appActive, setAppActive] = useState(true);
   /** True once this turn is already closing, so the meter can't close it twice. */
   const ending = useRef(false);
   const player = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
@@ -163,6 +165,28 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * Leaving the app ends the turn in progress.
+   *
+   * There is no foreground service behind this call, so Android will stop
+   * feeding us audio anyway; carrying on would only bank silence. Coming back
+   * lands on idle, which the open-mic rule reads as "your turn" — so the call
+   * picks up where it left off.
+   */
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      const active = next === "active";
+      setAppActive(active);
+      if (!active) {
+        void cancel();
+        player.current?.remove();
+        player.current = null;
+        setPhase("idle");
+      }
+    });
+    return () => sub.remove();
+  }, [cancel]);
 
   /** Play the spoken reply; resolves when it finishes (or immediately if muted). */
   const play = useCallback(async (base64: string) => {
@@ -286,13 +310,13 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
    * flight, since start() is async and phase stays idle until it returns.
    */
   useEffect(() => {
-    if (phase !== "idle" || muted || micAllowed !== true || !live.current) return;
+    if (phase !== "idle" || muted || !appActive || micAllowed !== true || !live.current) return;
     if (answering.current) return;
     answering.current = true;
     void beginTurn().finally(() => {
       answering.current = false;
     });
-  }, [phase, muted, micAllowed, beginTurn]);
+  }, [phase, muted, appActive, micAllowed, beginTurn]);
 
   /**
    * Mute, the way a phone does it: the call stays up, the far end just stops
