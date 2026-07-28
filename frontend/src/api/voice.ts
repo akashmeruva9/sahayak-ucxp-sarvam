@@ -1,4 +1,4 @@
-import { ApiError, isMockMode, postForm, reportDiag } from "./client";
+import { ApiError, isMockMode, postForm } from "./client";
 
 export interface VoiceRequest {
   /** Local file URI produced by the recorder; null when capture failed. */
@@ -51,18 +51,6 @@ interface EngineSpeechResponse {
 
 /** POST /voice — uploads audio, returns a transcript. */
 export async function transcribeVoice(req: VoiceRequest): Promise<VoiceResponse> {
-  if (__DEV__) {
-    console.log(
-      `[voice] mock=${isMockMode()} uri=${req.uri ?? "NULL (no recording captured)"} ` +
-        `durationMs=${req.durationMs}`
-    );
-  }
-  reportDiag("voice.attempt", {
-    uri: req.uri ?? "NULL",
-    durationMs: req.durationMs,
-    issue: req.issue ?? "none",
-  });
-
   // No backend: say so. Returning a canned transcript here used to make a
   // broken mic look like a working demo, which cost real debugging time.
   if (isMockMode()) {
@@ -78,7 +66,6 @@ export async function transcribeVoice(req: VoiceRequest): Promise<VoiceResponse>
   // on `Platform.OS === "web"`). Say so loudly — silently returning a canned
   // transcript here makes a broken mic look like a working demo.
   if (!req.uri) {
-    reportDiag("voice.no_audio", { issue: req.issue ?? "unknown" });
     throw new ApiError(
       "No audio was captured — the microphone was denied, or you're running on web, " +
         "where recording is disabled. Try an iOS/Android device or simulator.",
@@ -100,7 +87,6 @@ export async function transcribeVoice(req: VoiceRequest): Promise<VoiceResponse>
   // React Native's FormData + XHR streams this natively; the DOM lib types the
   // value as Blob, hence the cast. postForm() deliberately uses XHR, not fetch.
   form.append("file", part as unknown as Blob);
-  reportDiag("voice.uploading", { name: part.name, type: part.type });
 
   const data = await postForm<EngineSpeechResponse>("/transcribe", form);
   return { transcript: data.transcript };

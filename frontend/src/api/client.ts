@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-import { Platform } from "react-native";
 
 /**
  * Transport for the API layer. Every endpoint routes through here so that
@@ -149,8 +148,6 @@ if (__DEV__) {
       ? "[api] MOCK mode — canned replies. Set EXPO_PUBLIC_API_URL in .env.local and restart expo to go live."
       : `[api] LIVE mode → ${getApiBaseUrl()}`
   );
-  // Announce ourselves to the engine log so the session is identifiable there.
-  setTimeout(() => reportDiag("app.boot", { platform: Platform.OS, base: getApiBaseUrl() }), 0);
 }
 
 /** A failure from the backend, carrying the engine's structured error code. */
@@ -287,21 +284,6 @@ export function postJson<T extends EngineEnvelope>(
   );
 }
 
-/**
- * Fire-and-forget diagnostic ping so device-side events land in the engine's
- * log, which is far easier to read than a phone's console. Dev + live only,
- * and it can never break a real flow: failures are swallowed deliberately.
- */
-export function reportDiag(event: string, data: Record<string, unknown> = {}): void {
-  if (!__DEV__ || isMockMode()) return;
-  fetch(`${getApiBaseUrl()}/v1/_diag`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ event, ...data }),
-  }).catch(() => {
-    /* diagnostics must never surface as an app error */
-  });
-}
 
 /**
  * Multipart upload over XMLHttpRequest rather than fetch — deliberately.

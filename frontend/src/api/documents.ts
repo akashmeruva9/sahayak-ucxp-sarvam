@@ -2,7 +2,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { Platform } from "react-native";
 import type { BusinessAction, BusinessId, Message } from "@/types";
 import { uid } from "@/utils/id";
-import { ApiError, isMockMode, postForm, reportDiag } from "./client";
+import { ApiError, isMockMode, postForm } from "./client";
 
 /**
  * Document attachments — a customer photographs an order confirmation or sends
@@ -155,7 +155,6 @@ export async function sendDocument(req: DocumentRequest): Promise<{ message: Mes
     form.append("business_id", req.businessId);
   }
 
-  reportDiag("document.uploading", { name: req.file.name, type: req.file.type, size: req.file.size });
 
   let data: RuntimeDocumentResponse;
   try {

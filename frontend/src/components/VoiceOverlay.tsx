@@ -5,7 +5,7 @@ import * as Haptics from "expo-haptics";
 import { Check, X } from "lucide-react-native";
 import { useVoiceRecorder, type RecordingIssue } from "@/hooks/useVoiceRecorder";
 import { transcribeVoice } from "@/api/voice";
-import { isMockMode, reportDiag } from "@/api/client";
+import { isMockMode } from "@/api/client";
 import { formatDuration } from "@/utils/time";
 import { palette } from "@/constants/theme";
 import { Waveform } from "./Waveform";
@@ -51,9 +51,7 @@ export function VoiceOverlay({ visible, onClose, onResult }: VoiceOverlayProps) 
     void (async () => {
       const result = await start();
       if (result.ok || isMockMode()) return;
-      const issue = result.issue ?? "recorder-error";
-      reportDiag("recorder.unavailable", { issue });
-      setError(ISSUE_MESSAGE[issue]);
+      setError(ISSUE_MESSAGE[result.issue ?? "recorder-error"]);
     })();
     // Recorder cleanup is handled by the hook on unmount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,17 +76,6 @@ export function VoiceOverlay({ visible, onClose, onResult }: VoiceOverlayProps) 
       // didn't hear anything, which is what sent us debugging last time.
       setProcessing(false);
       const message = err instanceof Error ? err.message : "Transcription failed.";
-      if (__DEV__) {
-        console.error(
-          `[voice] transcribe failed :: ${message} :: recordedUri=${result.uri ?? "NULL"} ` +
-            `durationMs=${result.durationMs}`
-        );
-      }
-      reportDiag("voice.failed", {
-        message,
-        uri: result.uri ?? "NULL",
-        durationMs: result.durationMs,
-      });
       setError(message);
     }
   };

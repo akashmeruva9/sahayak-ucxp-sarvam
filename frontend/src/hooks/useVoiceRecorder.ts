@@ -63,8 +63,8 @@ export function useVoiceRecorder() {
   const settle = useCallback(async () => {
     try {
       if (recorder.isRecording) await recorder.stop();
-    } catch (err) {
-      if (__DEV__) console.warn(`[recorder] stop failed: ${String(err)}`);
+    } catch {
+      /* Already stopped, or never started. Nothing to do either way. */
     }
   }, [recorder]);
 
@@ -93,8 +93,7 @@ export function useVoiceRecorder() {
         setDurationMs(Date.now() - startedAt.current);
       }, 100);
       return { ok: true };
-    } catch (err) {
-      if (__DEV__) console.warn(`[recorder] start failed: ${String(err)}`);
+    } catch {
       await settle();
       setIsRecording(false);
       clearTimer();
