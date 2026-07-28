@@ -384,3 +384,88 @@ def test_vault_never_returns_secret_over_the_api(client):
                  "/api/business/{}".format(business_id),
                  "/api/business/{}/manifest".format(business_id)):
         assert "shpat_" not in client.get(path).text, "a secret leaked via {}".format(path)
+
+
+# --------------------------------------------------------------------------
+# Lifecycle: activation and deletion leave the manifests/ directory consistent
+# --------------------------------------------------------------------------
+def _fill_sections_via_api(client, business_id, *, source="custom", with_capability=True):
+    """Fill every section activation checks, so tests can vary one thing at a time."""
+    put = lambda n, data: client.put(
+        "/api/business/{}/section/{}".format(business_id, n), json={"data": data})
+    put(1, {"name": "Lifecycle Co", "category": "Electronics",
+            "city": "Bengaluru", "email": "care@lifecycle.in"})
+    if source == "custom":
+        put(2, {"type": "custom", "base": "https://api.lifecycle.in",
+                "auth": "api_key_header", "header": "X-API-Key",
+                "credentialRef": "vault://{}".format(business_id)})
+    else:
+        put(2, {"type": "none"})
+    if with_capability:
+        put(3, {"caps": {"track_order": {
+            "name": "track_order", "enabled": True, "source": "custom",
+            "endpoint": "/orders/{order_id}", "method": "GET",
+            "request": {"headers": [], "body": '{"a":1}'},
+            "response": {"sample": '{"status":"shipped"}', "mapping": []},
+            "parameters": {"path": [], "query": []}, "errors": []}}})
+    put(4, {"selected": ["en", "te"], "primary": "en"})
+    put(6, {"fr": "48", "res": "30", "auto": True})
+
+
+def test_delete_removes_the_published_manifest_files(client, tmp_path, monkeypatch):
+    """A deleted business must not stay published on disk."""
+    from Dashboard.backend import main as main_mod
+    monkeypatch.setattr(main_mod, "MANIFEST_DIR", str(tmp_path))
+
+    business_id = store.create_business(name="Lifecycle Co")
+    _fill_sections_via_api(client, business_id)
+    activated = client.post("/api/business/{}/activate".format(business_id)).json()
+    assert activated["ok"] is True, activated
+
+    flat = tmp_path / "{}.json".format(business_id)
+    protocol = tmp_path / "{}.protocol.json".format(business_id)
+    assert flat.exists() and protocol.exists(), "activation should write both files"
+
+    assert client.delete("/api/business/{}".format(business_id)).status_code == 200
+    assert not flat.exists(), "the flat manifest outlived its business"
+    assert not protocol.exists(), "the protocol manifest outlived its business"
+
+
+def test_delete_is_still_clean_when_nothing_was_published(client, tmp_path, monkeypatch):
+    from Dashboard.backend import main as main_mod
+    monkeypatch.setattr(main_mod, "MANIFEST_DIR", str(tmp_path))
+    business_id = store.create_business(name="Never Activated")
+    response = client.delete("/api/business/{}".format(business_id))
+    assert response.status_code == 200
+    assert response.json()["files_removed"] == []
+
+
+def test_data_source_without_a_capability_cannot_activate(client, tmp_path, monkeypatch):
+    from Dashboard.backend import main as main_mod
+    monkeypatch.setattr(main_mod, "MANIFEST_DIR", str(tmp_path))
+    """An 'active' merchant that can do nothing is worse than an unfinished one."""
+    business_id = store.create_business(name="No Caps Co")
+    _fill_sections_via_api(client, business_id, source="custom", with_capability=False)
+
+    state = client.get("/api/business/{}".format(business_id)).json()
+    blocking = [item for item in state["missing"] if item["section"] == 3]
+    assert blocking, "a custom data source with no capabilities should block activation"
+
+    result = client.post("/api/business/{}/activate".format(business_id)).json()
+    assert result["ok"] is False
+    assert store.get_business(business_id)["status"] == "draft"
+
+
+def test_no_data_source_may_activate_without_capabilities(client, tmp_path, monkeypatch):
+    from Dashboard.backend import main as main_mod
+    monkeypatch.setattr(main_mod, "MANIFEST_DIR", str(tmp_path))
+    """Answering only from the knowledge base is a supported configuration."""
+    business_id = store.create_business(name="Knowledge Only Co")
+    _fill_sections_via_api(client, business_id, source="none", with_capability=False)
+
+    state = client.get("/api/business/{}".format(business_id)).json()
+    assert not [item for item in state["missing"] if item["section"] == 3], (
+        "a no-data-source business must not be forced to declare capabilities")
+
+    result = client.post("/api/business/{}/activate".format(business_id)).json()
+    assert result["ok"] is True, result

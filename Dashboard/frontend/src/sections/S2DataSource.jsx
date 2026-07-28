@@ -69,9 +69,15 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
     toast('Shopify connected — 2 capabilities auto-configured');
   };
 
-  const disconnect = () => {
-    set({ type: 'shopify', connected: false, store: '', productCount: 0, orderCount: 0,
-          currency: '', credentialRef: '' });
+  /** Hand the Shopify-seeded contracts back to the merchant.
+   *
+   * They were written by the connector and locked. Once the connector is no
+   * longer the data source they cannot stay locked -- and they must not stay
+   * labelled shopify_default either, or the manifest claims a Shopify contract
+   * under a data source that is no longer Shopify. Unlocking keeps the
+   * merchant's work and makes it editable; clearing it would throw it away.
+   */
+  const releaseShopifyContracts = () => {
     updateSection(3, (current) => {
       const caps = { ...(current.caps || {}) };
       SHOPIFY_AUTO_CAPABILITIES.forEach((key) => {
@@ -79,7 +85,27 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
       });
       return { ...current, caps };
     });
+  };
+
+  const disconnect = () => {
+    set({ type: 'shopify', connected: false, store: '', productCount: 0, orderCount: 0,
+          currency: '', credentialRef: '' });
+    releaseShopifyContracts();
     toast('Shopify disconnected — credentials removed from vault');
+  };
+
+  /** Switching the data source is a disconnect too, as far as the contracts go. */
+  const chooseSource = (value) => {
+    if (value === d.type) return;
+    const leavingConnectedShopify = d.type === 'shopify' && d.connected;
+    if (leavingConnectedShopify) {
+      set({ type: value, connected: false, store: '', productCount: 0, orderCount: 0,
+            currency: '', credentialRef: '' });
+      releaseShopifyContracts();
+      toast('Shopify contracts unlocked — edit them for your new data source');
+      return;
+    }
+    set({ type: value });
   };
 
   /* ---- Custom REST ------------------------------------------------------ */
@@ -130,7 +156,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
                 type="button"
                 data-testid={`source-${source.value}`}
                 aria-pressed={selected}
-                onClick={() => set({ type: source.value })}
+                onClick={() => chooseSource(source.value)}
                 className={`flex items-start gap-2.5 rounded-input border p-3.5 text-left
                             transition-colors hover:border-ink
                             ${selected ? 'border-ink bg-surface' : 'border-line bg-canvas'}`}

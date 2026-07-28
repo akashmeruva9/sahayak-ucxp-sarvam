@@ -25,6 +25,11 @@ export function useBusiness(businessId, onRename) {
 
   const timers = useRef({});
   const pending = useRef({});
+  // Every edit to a section cancels that section's pending timer, so an intent
+  // carried on the timer's closure is lost the moment the next keystroke lands.
+  // Slug adoption is exactly that kind of intent -- it is raised once, on the
+  // name field's blur, and must survive until a save actually carries it.
+  const slugCommit = useRef({});
   const alive = useRef(true);
 
   useEffect(() => {
@@ -81,12 +86,15 @@ export function useBusiness(businessId, onRename) {
         };
       });
 
+      if (commitSlug) slugCommit.current[key] = true;
+
       clearTimeout(timers.current[key]);
       const flush = async () => {
         const data = pending.current[key];
         if (data === undefined) return;
+        const wantsSlug = slugCommit.current[key] === true;
         setSaveState('saving');
-        const result = await api.saveSection(businessId, key, data, commitSlug);
+        const result = await api.saveSection(businessId, key, data, wantsSlug);
         if (!alive.current) return;
         if (result.error) {
           setSaveState('error');
@@ -98,7 +106,10 @@ export function useBusiness(businessId, onRename) {
         setCompletion(result.completion || 0);
         setMissing(result.missing || []);
         setSaveState('saved');
-        delete pending.current[key];
+        if (wantsSlug) delete slugCommit.current[key];
+        // Only retire the payload we actually sent; an edit queued while the
+        // request was in flight is still outstanding and must not be dropped.
+        if (pending.current[key] === data) delete pending.current[key];
         if (Object.keys(pending.current).length === 0) setDirty(false);
         // Naming a draft adopts the real slug, which re-keys the business.
         if (result.business_id && result.business_id !== businessId) {

@@ -27,5 +27,7 @@ playwright-report/
 
 # E2E runs generate numbered duplicates (ravi-electronics-2.json, ...).
 # Only hand-onboarded manifests belong in git.
-manifests/*-[0-9].json
-manifests/*-[0-9].protocol.json
+# The trailing * matters: without it the pattern stops at a single digit and
+# every run past the ninth leaks back into the repo.
+manifests/*-[0-9]*.json
+manifests/*-[0-9]*.protocol.json

@@ -15,6 +15,7 @@ appear anywhere in either document. The manifest carries only a credential_ref.
 """
 
 import json
+import os
 import re
 from datetime import datetime, timezone
 
@@ -34,6 +35,10 @@ from .constants import (
 )
 
 UCXP_VERSION = "0.1"
+
+# Where a published manifest is fetchable. Set UCXP_PUBLIC_BASE_URL to whatever
+# actually serves this deployment; the default is the design's placeholder.
+PUBLIC_BASE_URL = (os.environ.get("UCXP_PUBLIC_BASE_URL") or "https://api.ucxp.in").rstrip("/")
 PROTOCOL_VERSION = "0.1.0"
 CREDENTIAL_REF_RE = re.compile(r"^vault://[a-z0-9-]{2,64}$")
 EMAIL_RE = re.compile(r"^\S+@\S+\.\S+$")
@@ -281,6 +286,16 @@ def missing_items(sections):
         out.append({"section": 2,
                     "text": 'Data source — choose Shopify, a custom API, or "No data source"'})
 
+    # A business with a data source but no capabilities activates into a manifest
+    # with no "capabilities" key at all -- live, and unable to do anything. With
+    # no data source it is a legitimate configuration: the assistant answers from
+    # the knowledge base and hands off anything order-specific, so do not block it.
+    if kind in ("shopify", "custom"):
+        caps = (s.get("3") or {}).get("caps") or {}
+        if not any((cap or {}).get("enabled") for cap in caps.values()):
+            out.append({"section": 3,
+                        "text": "API capabilities — enable at least one capability"})
+
     lang = s.get("4") or {}
     if not (lang.get("selected") and lang.get("primary")):
         out.append({"section": 4, "text": "Languages — select at least one and set a primary"})
@@ -486,7 +501,7 @@ def assemble(business_id, sections, status=None, created_at=None):
         manifest["published"] = {
             "version": act.get("version") or 1,
             "at": act.get("activatedAt") or "",
-            "url": "https://api.ucxp.in/manifests/{}.json".format(slug),
+            "url": "{}/manifests/{}.json".format(PUBLIC_BASE_URL, slug),
         }
     return _prune(manifest)
 
@@ -588,8 +603,8 @@ def to_protocol(flat):
     subdomain = (ds.get("store_subdomain") or "").removesuffix(".myshopify.com")
     base_url = ds.get("base_url") or (
         "https://{}.myshopify.com/admin/api/2026-01".format(subdomain)
-        if subdomain else "https://api.ucxp.in/{}".format(
-            flat.get("business_id", "business")))
+        if subdomain else "{}/{}".format(
+            PUBLIC_BASE_URL, flat.get("business_id", "business")))
 
     api_mappings = {}
     capabilities = []
