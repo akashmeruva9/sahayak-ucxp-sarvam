@@ -66,6 +66,9 @@ class BusinessOut(BaseModel):
 
 class HealthOut(BaseModel):
     status: str = "ok"
+    #: Booleans only — never echo a key. Distinguishes "not wired up" from
+    #: "wired up but the table is empty", which otherwise look identical.
+    manifest_store: dict[str, Any] = Field(default_factory=dict)
     runtime: str = "ucxp"
     version: str = "0.1.0"
     manifests: list[str] = Field(default_factory=list)

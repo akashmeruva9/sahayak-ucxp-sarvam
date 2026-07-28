@@ -265,6 +265,12 @@ async def health() -> HealthOut:
     engine_health = runtime.engine.health()
     return HealthOut(
         manifests=runtime.registry.ids(),
+        manifest_store={
+            "configured": settings.supabase_configured,
+            "url_set": bool(settings.supabase_url),
+            "key_set": bool(settings.supabase_key),
+            "table": settings.manifest_table,
+        },
         ai_engine={
             "status": engine_health.status,
             "configured": engine_health.configured,
