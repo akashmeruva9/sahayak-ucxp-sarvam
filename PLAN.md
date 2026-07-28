@@ -421,6 +421,7 @@ Deviations from the original brief, with reasons. Append; don't edit.
 | 44 | For the **live-call path**, `POST /agent/execute` (per-capability) sits alongside `/agent/resolve`. Samvaad's fast LLM picks business + capability and collects inputs; `/agent/execute` only runs the manifest action and renders the receipt — **no Sarvam reasoning in the loop** | Measured: `/agent/resolve` spends ~20 s in a single `sarvam-105b` classify pass — unusable on a live call. `/agent/execute` returns in ~10 ms local / ~0.7 s through a tunnel because the slow classify moves to Samvaad's sub-500 ms LLM. Cost: UCXP no longer *resolves* which capability on the call path, so the consistency-harness claim covers `/chat`, not the call. It reuses the runtime's executor/renderer/rules unchanged, needs no Sarvam key, and adds no business code |
 | 45 | A **Call** option in the app and web, scoped by the same rule as chat | A business screen calls that merchant (`/call/<id>`, `business_id` pinned through `POST /voice` → `force_business_id`); Home calls the central line (`/call/general`) where the runtime routes from what's said. One turn = one `/voice`: speech in → the same manifest-driven resolution → the answer spoken back, so a call returns the identical receipt the chat does. Web shows the mic limitation plainly rather than faking a recording (§7 #27) |
 | 46 | Deploy-blocking bug: `main.py` imported `backend/app/documents.py` and a `DocumentResponse` schema that were **never committed** | Railway builds from git, not the working tree, so the container died at import with `ModuleNotFoundError` while everything ran locally — `/health` unreachable, no logs, and the CLI kept showing the *last successful* deployment, which hid the real cause for ~20 minutes. Same shape as #28 (undeclared deps). **Before any deploy, verify the committed tree, not the working tree:** `git archive HEAD \| tar -x -C /tmp/x && (cd /tmp/x && python -c 'import backend.app.main')` |
+| 47 | **Auth was built** (Supabase email + Sign in with Google), moving it out of §9's "not building" | Sessions are what let a customer's orders and conversations be *theirs* across the app, web and a phone number, so it stopped being scope creep and became the thing memory hangs off. Supabase because `@supabase/supabase-js` is pure JS — no native module, so no `expo prebuild` to wipe the hand-patched `android/` (§7 #14). Google uses the **OAuth redirect** flow via `expo-web-browser`, not `@react-native-google-signin`, for the same reason; one code path then serves Android and web. The client secret lives only in the Supabase dashboard — the app never sees it. **Trap:** Supabase falls back to its Site URL when a `redirect_to` is not allow-listed, so a working sign-in silently landed on `localhost:3000` until `onesupport://` was added to Redirect URLs |
 
 ---
 
@@ -447,7 +448,7 @@ a typing indicator. Never a frozen screen. Pre-warm the engine before presenting
 
 ## 9. Not building
 
-Auth · login · payments · real business integrations · admin dashboard · analytics ·
+Payments · real business integrations · admin dashboard · analytics ·
 push notifications · multi-user · production security · OAuth · database tuning ·
 landing page · 22 languages · offline mode.
 
