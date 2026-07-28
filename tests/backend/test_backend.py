@@ -494,3 +494,40 @@ def test_pasted_whitespace_is_trimmed_from_the_profile():
         value = profile.get(key, "")
         assert value == value.strip(), "{} kept its whitespace: {!r}".format(key, value)
     assert profile["support_phone"] == "+91 98450 12345"
+
+
+def test_editing_a_live_business_republishes_its_manifest(client, tmp_path, monkeypatch):
+    """The success screen promises edits republish automatically.
+
+    Until this existed only activation wrote anything, so an edit refreshed the
+    database and the live preview while the file a runtime reads stayed stale.
+    """
+    from Dashboard.backend import main as main_mod
+    monkeypatch.setattr(main_mod, "MANIFEST_DIR", str(tmp_path))
+
+    business_id = store.create_business(name="Republish Co")
+    _fill_sections_via_api(client, business_id)
+    assert client.post("/api/business/{}/activate".format(business_id)).json()["ok"]
+
+    published = tmp_path / "{}.json".format(business_id)
+    assert json.loads(published.read_text())["profile"]["city"] == "Bengaluru"
+
+    client.put("/api/business/{}/section/1".format(business_id), json={"data": {
+        "name": "Republish Co", "category": "Electronics",
+        "city": "Hyderabad", "email": "care@lifecycle.in"}})
+
+    assert json.loads(published.read_text())["profile"]["city"] == "Hyderabad", (
+        "the published file did not follow the edit")
+
+
+def test_editing_a_draft_publishes_nothing(client, tmp_path, monkeypatch):
+    """A draft has never been published, so an edit must not create a file."""
+    from Dashboard.backend import main as main_mod
+    monkeypatch.setattr(main_mod, "MANIFEST_DIR", str(tmp_path))
+
+    business_id = store.create_business(name="Draft Co")
+    client.put("/api/business/{}/section/1".format(business_id), json={"data": {
+        "name": "Draft Co", "category": "Electronics",
+        "city": "Bengaluru", "email": "care@draft.in"}})
+
+    assert not list(tmp_path.glob("*.json")), "a draft should publish nothing"

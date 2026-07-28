@@ -55,6 +55,42 @@ def _display_path(path):
     return os.path.basename(path) if relative.startswith("..") else relative
 
 
+def _write_manifest_files(business_id, built):
+    """Write both published artifacts. Returns their paths."""
+    os.makedirs(MANIFEST_DIR, exist_ok=True)
+    flat_path = os.path.join(MANIFEST_DIR, "{}.json".format(business_id))
+    protocol_path = os.path.join(MANIFEST_DIR, "{}.protocol.json".format(business_id))
+    with open(flat_path, "w", encoding="utf-8") as handle:
+        json.dump(built, handle, indent=2, ensure_ascii=False)
+    with open(protocol_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest_mod.to_protocol(built), handle, indent=2, ensure_ascii=False)
+    return flat_path, protocol_path
+
+
+def _republish(biz):
+    """Refresh a live business's published files after an edit.
+
+    The success screen promises "changes republish automatically", and until
+    now only activation wrote anything -- so an edit updated the database and
+    the live preview while the file a runtime actually reads stayed stale. A
+    business still in draft has nothing published yet, so it is left alone, and
+    an edit that breaks validation keeps the last good file rather than
+    replacing it with something invalid.
+    """
+    if biz.get("status") != "active":
+        return
+    built = manifest_mod.assemble(biz["id"], biz["sections"],
+                                  created_at=biz["created_at"])
+    ok, _errors = manifest_mod.validate(built)
+    if not ok:
+        log.info("republish skipped for %s -- manifest no longer valid", biz["id"])
+        return
+    try:
+        _write_manifest_files(biz["id"], built)
+    except OSError:
+        log.warning("could not republish manifest for %s", biz["id"])
+
+
 @asynccontextmanager
 async def lifespan(_app):
     store.init_db()
@@ -223,6 +259,8 @@ def save_section(business_id: str, section: str, payload: SectionPayload):
                 business_id = new_id
                 biz = store.get_business(business_id)
 
+    _republish(biz)
+
     return {
         "ok": True,
         "business_id": business_id,
@@ -281,13 +319,7 @@ def activate(business_id: str):
                 "error": "The manifest didn't pass validation, so nothing was published.",
                 "errors": errors}
 
-    os.makedirs(MANIFEST_DIR, exist_ok=True)
-    flat_path = os.path.join(MANIFEST_DIR, "{}.json".format(business_id))
-    protocol_path = os.path.join(MANIFEST_DIR, "{}.protocol.json".format(business_id))
-    with open(flat_path, "w", encoding="utf-8") as handle:
-        json.dump(built, handle, indent=2, ensure_ascii=False)
-    with open(protocol_path, "w", encoding="utf-8") as handle:
-        json.dump(manifest_mod.to_protocol(built), handle, indent=2, ensure_ascii=False)
+    flat_path, protocol_path = _write_manifest_files(business_id, built)
 
     return {
         "ok": True,
