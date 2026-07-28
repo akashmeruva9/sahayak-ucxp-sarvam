@@ -7,7 +7,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Phone } from "lucide-react-native";
@@ -23,16 +22,18 @@ import {
   ScreenContainer,
   VoiceButton,
   VoiceOverlay,
+  useNavbarClearance,
 } from "@/components";
 
 export function HomeScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState("");
   const [voiceOpen, setVoiceOpen] = useState(false);
 
   // Height reserved at the bottom so content clears the floating tab bar.
-  const tabBarClearance = Math.max(insets.bottom, 12) + 68;
+  // Derived from the bar's own dimensions rather than restated here, so a
+  // change to its padding cannot leave this number silently wrong.
+  const tabBarClearance = useNavbarClearance();
 
   const conversations = useConversationStore((s) => s.conversations);
   const createConversation = useConversationStore((s) => s.createConversation);

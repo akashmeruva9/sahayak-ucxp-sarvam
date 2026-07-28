@@ -46,6 +46,29 @@ const LABELS: Record<string, string> = {
   settings: "Settings",
 };
 
+/**
+ * Height of the pill itself: py-2 (8+8) around items with py-2.5 (10+10)
+ * wrapping a 20px icon.
+ */
+export const NAVBAR_PILL_HEIGHT = 56;
+
+/** Breathing room between the bar and whatever sits above it. */
+const NAVBAR_GAP = 12;
+
+/**
+ * Bottom space a screen must leave so the tab bar does not cover its content.
+ *
+ * The bar is absolutely positioned and floats *over* the screen. A scrolling
+ * tab screen gets away with that through its own content padding, but anything
+ * pinned to the bottom — a chat composer — ends up underneath it. Screens that
+ * pin to the bottom ask for this instead of guessing a number, so the two
+ * cannot drift apart when the bar's padding changes.
+ */
+export function useNavbarClearance(): number {
+  const insets = useSafeAreaInsets();
+  return NAVBAR_PILL_HEIGHT + NAVBAR_GAP + Math.max(insets.bottom, 12);
+}
+
 /** Floating, pill-style tab bar wired to Expo Router's Tabs. */
 export function Navbar({ state, navigation }: NavbarProps) {
   const insets = useSafeAreaInsets();

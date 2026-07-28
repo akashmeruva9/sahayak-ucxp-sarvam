@@ -18,12 +18,17 @@ import {
   ChatComposer,
   ScreenContainer,
   VoiceOverlay,
+  useNavbarClearance,
 } from "@/components";
 import { useThemeColors } from "@/hooks/useThemeColors";
 
 export function ConversationScreen({ id }: { id: string }) {
   const router = useRouter();
   const { colors } = useThemeColors();
+  // A conversation lives inside the tab shell, and the tab bar floats over the
+  // screen rather than sitting below it — so the composer has to reserve the
+  // space itself or the bar lands on top of the input.
+  const navClearance = useNavbarClearance();
   const listRef = useRef<FlatList<Message>>(null);
   const [draft, setDraft] = useState("");
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -136,7 +141,10 @@ export function ConversationScreen({ id }: { id: string }) {
           }
         />
 
-        <View className="border-t border-hairline/60 px-4 pb-2 pt-2 dark:border-hairline-dark/60">
+        <View
+          style={{ paddingBottom: navClearance }}
+          className="border-t border-hairline/60 px-4 pt-2 dark:border-hairline-dark/60"
+        >
           <ChatComposer
             value={draft}
             onChangeText={setDraft}
