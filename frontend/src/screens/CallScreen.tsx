@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { AudioModule, createAudioPlayer, setAudioModeAsync } from "expo-audio";
-import { Check, Mic, PhoneOff } from "lucide-react-native";
+import { Check, Mic, MicOff, PhoneOff } from "lucide-react-native";
 import type { BusinessAction, BusinessId } from "@/types";
 import { getBusiness } from "@/constants/businesses";
 import { palette } from "@/constants/theme";
@@ -29,15 +29,37 @@ interface Line {
   who: "you" | "agent";
   text: string;
   receipt?: BusinessAction;
+  /** A placeholder shown while the runtime works; dropped when the answer lands. */
+  hold?: boolean;
 }
 
 const PHASE_LABEL: Record<Phase, string> = {
   idle: "Tap to speak",
   listening: "Listening…",
   thinking: "Working on it…",
-  speaking: "Speaking",
+  speaking: "Speaking…",
   error: "Something went wrong",
 };
+
+/**
+ * Silence that ends a turn. Long enough to survive the pause in the middle of
+ * "my order is… 1001", short enough that the reply doesn't feel late.
+ */
+const END_OF_TURN_MS = 1400;
+
+/** An open mic that never hears anything closes rather than recording the room. */
+const NO_SPEECH_TIMEOUT_MS = 9000;
+
+/**
+ * What the assistant says while it works.
+ *
+ * A call cannot go quiet. The runtime takes a few seconds on a real lookup, and
+ * dead air on a phone line reads as a dropped call — so the hold line goes up
+ * the moment the caller stops talking, and is replaced by the real answer.
+ * Shown, not spoken: synthesising it would cost another round trip and delay
+ * the very thing it is covering for.
+ */
+const HOLD_LINE = "One moment — I'm working on that. Please hold.";
 
 /**
  * A hands-free voice call over the UCXP runtime.
@@ -53,11 +75,13 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
   const { colors } = useThemeColors();
   const business = businessId ? getBusiness(businessId) : null;
 
-  const { isRecording, durationMs, start, finish, cancel } = useVoiceRecorder();
+  const { durationMs, loudness, issue, start, finish, cancel } = useVoiceRecorder();
   const [phase, setPhase] = useState<Phase>("idle");
   const [lines, setLines] = useState<Line[]>([]);
   const [error, setError] = useState<string | null>(null);
   const conversationId = useRef<string | undefined>(undefined);
+  /** Set when a reply finishes playing, so the next turn opens the mic itself. */
+  const resume = useRef(false);
   const player = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
   const live = useRef(true);
   /** Null until asked. False ⇒ the mic is blocked and speaking is pointless. */
@@ -165,6 +189,7 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
     }
 
     setPhase("thinking");
+    setLines((prev) => [...prev, { who: "agent", text: HOLD_LINE, hold: true }]);
     try {
       const turn = await sendCallTurn({
         uri: clip.uri,
@@ -174,16 +199,19 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
       if (!live.current) return;
       conversationId.current = turn.conversationId;
       setLines((prev) => [
-        ...prev,
+        ...prev.filter((l) => !l.hold),
         { who: "you", text: turn.transcript },
         { who: "agent", text: turn.reply, receipt: turn.receipt },
       ]);
       setPhase("speaking");
       await play(turn.audioBase64);
       if (!live.current) return;
+      // A real call doesn't ask you to press anything between sentences.
+      resume.current = true;
       setPhase("idle");
     } catch (err) {
       if (!live.current) return;
+      setLines((prev) => prev.filter((l) => !l.hold));
       setPhase("error");
       setError(err instanceof Error ? err.message : "That didn't go through.");
     }
@@ -194,6 +222,44 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
     setPhase("listening");
     await start();
   }, [start]);
+
+  /**
+   * Hand the turn back to the caller once the reply has been spoken.
+   *
+   * Kept in an effect rather than called straight from completeTurn: that
+   * function is still on the stack inside `play()` when the audio ends, and
+   * starting a recording from there races the player's own teardown.
+   */
+  useEffect(() => {
+    if (phase !== "idle" || !resume.current) return;
+    resume.current = false;
+    if (!live.current || micAllowed !== true) return;
+    void beginTurn();
+  }, [phase, micAllowed, beginTurn]);
+
+  /**
+   * End the caller's turn when they stop talking, the way a person would.
+   *
+   * Two guards keep it from firing on its own: the meter has to have heard
+   * actual speech first, so an open mic in a quiet room waits instead of
+   * sending an empty clip; and a turn that hears nothing at all eventually
+   * gives up rather than recording until the 30s ceiling.
+   */
+  useEffect(() => {
+    // No real capture (web, or a blocked mic): the meter reads nothing, so
+    // ending the turn on silence would just hide the actual problem. Let the
+    // caller tap ✓ and get the explicit reason instead.
+    if (phase !== "listening" || issue) return;
+
+    if (loudness.heardSpeech && loudness.silentMs >= END_OF_TURN_MS) {
+      void completeTurn();
+      return;
+    }
+    if (!loudness.heardSpeech && durationMs >= NO_SPEECH_TIMEOUT_MS) {
+      void cancel();
+      setPhase("idle");
+    }
+  }, [phase, issue, loudness, durationMs, completeTurn, cancel]);
 
   // Waiting on the permission answer, or denied — speaking would only produce
   // a simulated clip that fails at the end of the turn.
@@ -242,11 +308,17 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
           </Text>
         ) : null}
 
+        {/* Spacing carries the turn-taking. The chat screen has timestamps under
+            every bubble to separate them; a call transcript has nothing, so an
+            even gap makes four alternating lines read as one block. A change of
+            speaker gets room, a continuation stays tucked under its own bubble. */}
         {lines.map((line, i) => (
           <Animated.View
             key={i}
             entering={WEB ? undefined : FadeInUp.duration(220)}
-            className={`mb-3 ${line.who === "you" ? "items-end" : "items-start"}`}
+            className={`${
+              i === 0 ? "" : lines[i - 1].who === line.who ? "mt-1.5" : "mt-5"
+            } ${line.who === "you" ? "items-end" : "items-start"}`}
           >
             <View
               className={`max-w-[88%] rounded-card px-4 py-3 ${
@@ -254,6 +326,7 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
                   ? "rounded-br-md bg-accent"
                   : "rounded-bl-md border border-hairline/70 bg-elevated dark:border-hairline-dark/70 dark:bg-elevated-dark"
               }`}
+              style={line.hold ? { opacity: 0.6 } : undefined}
             >
               <Text
                 className={`text-[15px] leading-[21px] ${
@@ -275,7 +348,7 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
         ))}
 
         {error ? (
-          <Animated.View entering={WEB ? undefined : FadeIn} className="mt-2 items-center">
+          <Animated.View entering={WEB ? undefined : FadeIn} className="mt-5 items-center">
             <Text className="text-center text-[14px] leading-5 text-rose-500">{error}</Text>
             {micAllowed === false && Platform.OS !== "web" ? (
               <Pressable
@@ -327,7 +400,13 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
             onPress={phase === "listening" ? completeTurn : beginTurn}
             disabled={busy}
             accessibilityRole="button"
-            accessibilityLabel={phase === "listening" ? "Send" : "Speak"}
+            accessibilityLabel={
+              phase === "listening"
+                ? "Send now"
+                : phase === "thinking" || phase === "speaking"
+                  ? "Microphone off while the assistant replies"
+                  : "Speak"
+            }
             className="h-20 w-20 items-center justify-center rounded-full"
             style={{
               backgroundColor: busy ? colors.hairline : palette.accent,
@@ -336,6 +415,8 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
           >
             {phase === "listening" ? (
               <Check size={32} color="#FFFFFF" strokeWidth={2.5} />
+            ) : phase === "thinking" || phase === "speaking" ? (
+              <MicOff size={30} color={colors.textMuted} strokeWidth={2.2} />
             ) : (
               <Mic size={30} color={busy ? colors.textMuted : "#FFFFFF"} strokeWidth={2.2} />
             )}
@@ -344,14 +425,18 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
 
         <Text className="mt-4 text-center text-[12px] text-ink-faint dark:text-white/30">
           {phase === "listening"
-            ? "Tap ✓ when you've finished speaking"
+            ? loudness.heardSpeech
+              ? "Just stop talking when you're done"
+              : "Go ahead — I'm listening"
             : micAllowed === null
               ? "Waiting for microphone access…"
               : micAllowed === false
                 ? "Microphone access is needed to call"
-                : busy
-                  ? "One moment…"
-                  : "Tap the mic, speak, then tap ✓"}
+                : phase === "thinking"
+                  ? "Working on it — the mic is off for a moment"
+                  : phase === "speaking"
+                    ? "Speaking — the mic comes back on straight after"
+                    : "Tap the mic to start. It stays on between replies."}
         </Text>
       </View>
 

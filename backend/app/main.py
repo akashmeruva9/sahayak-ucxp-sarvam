@@ -28,6 +28,7 @@ from .documents import EMPTY_MESSAGES, extract
 from .memory.session_store import get_session_store
 from .memory.context import get_store
 from .mock.router import router as mock_router
+from .voice_phrases import with_follow_up
 from .runtime.graph import UcxpRuntime
 from .runtime.loader import get_registry
 from .schemas.api import (
@@ -307,6 +308,16 @@ async def voice(
     audio_b64 = ""
     degraded = list(final.get("degraded") or [])
     reply = final.get("reply_text") or final.get("reply_en") or ""
+
+    # On a call the assistant has to hand the turn back audibly, so a finished
+    # answer ends by inviting the next question. Applied here rather than in the
+    # graph: /chat shows the same reply on screen, where it would just be noise.
+    reply = with_follow_up(
+        reply,
+        language=final.get("language", "en-IN"),
+        resolved=final.get("status") == "resolved",
+    )
+
     if speak and reply:
         spoken = await runtime.engine.speak(reply, language=final.get("language", "en-IN"))
         if spoken.success:
@@ -316,6 +327,7 @@ async def voice(
 
     elapsed = (time.perf_counter() - started) * 1000
     base = _to_response(final, conversation.id, elapsed)
+    base.reply_text = reply
     logger.info(
         f"voice.done conversation={conversation.id} language={speech.detected_language.value} "
         f"capability={final.get('capability_id')} audio={'yes' if audio_b64 else 'no'} total_ms={elapsed:.0f}"

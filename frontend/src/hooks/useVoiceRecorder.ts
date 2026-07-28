@@ -7,6 +7,16 @@ import {
   useAudioRecorder,
 } from "expo-audio";
 
+/** Speech vs. silence, sampled from the recorder's meter. */
+export interface Loudness {
+  /** 0-1, for the waveform. */
+  level: number;
+  /** True once this turn has heard actual speech — silence alone never ends it. */
+  heardSpeech: boolean;
+  /** Milliseconds of continuous silence since the last speech. */
+  silentMs: number;
+}
+
 export interface VoiceResult {
   uri: string | null;
   durationMs: number;
@@ -19,13 +29,27 @@ export type RecordingIssue = "permission-denied" | "web-unsupported" | "recorder
 
 type RecorderState = "idle" | "requesting" | "recording";
 
+/** How often the meter is sampled. Fast enough to feel instant, cheap enough to ignore. */
+const TICK_MS = 120;
+
+/**
+ * Above this (dBFS) counts as speech.
+ *
+ * Room tone on a phone sits near -50dB and a voice at arm's length lands around
+ * -25dB, so -40 separates them with room to spare. Too high and a soft speaker
+ * gets cut off mid-sentence; too low and a fan keeps the turn open forever.
+ */
+const SPEECH_DB = -40;
+
 /**
  * Wraps expo-audio recording with a live timer and graceful fallbacks so the
  * voice flow always works in a demo — even on web or when a device denies the
  * mic. The waveform visualization is handled separately by <Waveform />.
  */
 export function useVoiceRecorder() {
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  // Metering is what makes a hands-free call possible: without a level to read,
+  // the only way to know the caller has stopped talking is to ask them to tap.
+  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
   const [state, setState] = useState<RecorderState>("idle");
   const [durationMs, setDurationMs] = useState(0);
   const [issue, setIssue] = useState<RecordingIssue | null>(null);
@@ -33,6 +57,9 @@ export function useVoiceRecorder() {
   const startedAt = useRef(0);
   const simulated = useRef(false);
   const issueRef = useRef<RecordingIssue | null>(null);
+  const [loudness, setLoudness] = useState<Loudness>({ level: 0, heardSpeech: false, silentMs: 0 });
+  const heard = useRef(false);
+  const quietSince = useRef<number | null>(null);
 
   const flagIssue = useCallback((reason: RecordingIssue) => {
     simulated.current = true;
@@ -53,11 +80,37 @@ export function useVoiceRecorder() {
   const beginTimer = useCallback(() => {
     startedAt.current = Date.now();
     setDurationMs(0);
+    heard.current = false;
+    quietSince.current = null;
+    setLoudness({ level: 0, heardSpeech: false, silentMs: 0 });
     clearTimer();
     timer.current = setInterval(() => {
-      setDurationMs(Date.now() - startedAt.current);
-    }, 100);
-  }, [clearTimer]);
+      const now = Date.now();
+      setDurationMs(now - startedAt.current);
+
+      // A simulated capture has no meter; leave the loudness at rest so the
+      // caller's silence detector never fires on a mic that isn't recording.
+      if (simulated.current) return;
+
+      // expo-audio reports dBFS: roughly -160 (silent) to 0 (clipping).
+      const db = recorder.getStatus?.().metering;
+      if (typeof db !== "number") return;
+      const level = Math.max(0, Math.min(1, (db + 60) / 60));
+
+      if (db > SPEECH_DB) {
+        heard.current = true;
+        quietSince.current = null;
+      } else if (quietSince.current === null) {
+        quietSince.current = now;
+      }
+
+      setLoudness({
+        level,
+        heardSpeech: heard.current,
+        silentMs: quietSince.current === null ? 0 : now - quietSince.current,
+      });
+    }, TICK_MS);
+  }, [clearTimer, recorder]);
 
   const start = useCallback(async () => {
     setState("requesting");
@@ -134,6 +187,8 @@ export function useVoiceRecorder() {
     isRecording: state === "recording",
     isPreparing: state === "requesting",
     durationMs,
+    /** Live mic level + silence run, for the waveform and the end-of-turn call. */
+    loudness,
     /** Non-null when the mic isn't actually capturing — surface it, don't fake it. */
     issue,
     start,
