@@ -98,12 +98,14 @@ STT → reasoning → TTS as one experience, never presented as four API calls.
 |---|---|---|---|
 | AI Engine | `ai_engine/` | ✅ **DONE** — live-verified against Sarvam 2026-07-26, 41 offline tests | Builder 3 |
 | Frontend | `frontend/` | ✅ **DONE (mocked)** — all screens built, every call mocked | Builder 1 |
-| UCXP Runtime | `backend/` | 🟡 **RUNNING** — LangGraph graph (route → classify → act → compose → localize). Now also accepts **published (Shopify) manifests** via `runtime/normalize.py`; live-verified end-to-end 2026-07-26 (pinned → track_order → Shopify mock → receipt). ⚠️ `tests/test_runtime.py` red — targets the retired flipkart/airtel/apollo set, needs rewrite for the merchants (§7 #20) | Builder 2 |
+| UCXP Runtime | `backend/` | 🟢 **HOSTED** — `https://sahayak-ucxp-sarvam-production.up.railway.app` (Railway, Docker, volume at `/data`). Verified in prod 2026-07-28: 5 manifests, engine configured, `/chat` → `track_order` → **real Shopify** (order 1001 = ₹1299 delivered) → receipt, and a two-turn slot-fill proving volume-backed memory. Loopback self-call confirmed working (§7 #29 clear). ⚠️ `tests/test_runtime.py` still red — targets the retired flipkart/airtel/apollo set (§7 #20) | Builder 2 |
 | Manifests | `manifests/` | 🟡 **MIGRATING** — retired flipkart/airtel/apollo; now the **published Shopify merchants** (ravi-electronics loaded; 4 more being added). Normalized to the internal shape at load | Builder 2 |
 | Mock business APIs | `backend/app/mock/` | ✅ **DONE** — legacy flipkart/airtel/apollo + one **generic Shopify connector** (`/mock/connectors/shopify/...`) serving every merchant, deterministic | Builder 2 |
 | WhatsApp | `backend/app/api/whatsapp.py` | 🟢 **LIVE over Twilio sandbox** — `POST /whatsapp/webhook` reuses `runtime.run`, keyed on the sender's number for memory. Text · voice-note (transcribe) · PDF (pypdf) · image (Tesseract OCR) in; async reply out via Twilio REST (see §7 #19). Verified end-to-end 2026-07-26: real inbound text + voice note, outbound reply delivered+read. Cloudflare tunnel for the webhook | Builder 3 |
 | Consistency harness | `backend/app/harness/` | ⬜ Not started | Builder 3 |
 | Frontend ↔ Runtime wiring | `frontend/src/api/` | 🟡 **Wired to the runtime** — `/chat` + `/transcribe`, receipts render as action cards, conversation id carries memory. Voice transcription proven on-device; the chat path is not yet | Builder 1 |
+| Android APK | `frontend/android/…/release/` | 🟡 **Built & verified standalone** 2026-07-28 — release build, bundle compiled in, launches with Metro stopped and no crash. Universal (4 ABIs, 111 MB). Ships a **placeholder** backend URL; set the real one in Settings → Backend (§7 #33) | Builder 1 |
+| Web (Vercel) | `frontend/dist` | 🟡 **Exports clean** — `expo export -p web` produces a 10 MB SPA, backend URL inlined, `vercel.json` written. **Not yet deployed** (needs the hosted backend + a Vercel project) | Builder 1 |
 
 ### 3.1 AI Engine — done, treat the interface as frozen
 
@@ -392,6 +394,7 @@ Deviations from the original brief, with reasons. Append; don't edit.
 | 32 | `EXPO_PUBLIC_API_URL` accepts a **bare port**, resolved against the Metro host | A laptop's LAN IP changes with the network, and a stale IP is indistinguishable from a broken backend — it cost a debugging cycle. Metro's host is reachable by definition |
 | 33 | Backend URL is **editable at runtime** (Settings → Backend), overriding the compiled value | `EXPO_PUBLIC_*` is inlined at bundle time, so a shipped APK could otherwise never be repointed — every backend change meant a full Gradle rebuild. The override is stored with AsyncStorage, read once at startup before any request, and includes a **Test** button that pings `/health`. This is what makes shipping with a placeholder viable while hosting is still being set up |
 | 34 | `scripts/android-patches.sh` saves/restores the hand-patched `node_modules` files | §7 #25 ordered the APK before the web install because an install wipes those patches. A backup makes it recoverable instead of merely avoidable, so one install can serve both AsyncStorage and the web deps. **The patch lives in `.gradle`, `.gradle.kts` and `.kt` files — 15 in total**; an earlier `--include="*.gradle"` matched only 5 and would have silently under-restored |
+| 35 | Railway variables are pushed by **`scripts/sync-railway-env.sh`**, not pasted by hand | `.env` is git-ignored, so Railway can only learn the secrets manually — and a hand copy silently dropped the tail of the file. The Shopify and Twilio keys sit on lines 68–78 of 78, so the paste covered the `SARVAM_*` block and stopped short: `/health` came up green, `/chat` resolved, and **every order lookup quietly returned mock data** (₹3049 instead of the real ₹1299). Nothing failed loudly. The script pushes a fixed key list in one call, prints only a prefix + length, and deliberately omits `PORT`/`UCXP_PORT`/`*_BASE_URL` so #29 cannot come back |
 | 35 | Self-call URLs resolve `$PORT` **over loopback**, not via the public URL | §11.1 said to set `UCXP_MOCK_BASE_URL`/`UCXP_CONNECTOR_BASE_URL` to the public origin. Loopback is better: no public round trip, no dependency on knowing the deploy URL at boot. The actual bug was port resolution — `UCXP_PORT` defaulted to 8000 while the platform binds `$PORT`, so the runtime called a dead port and every capability failed at `act` with `/health` still green. `port` now falls back to `$PORT` |
 | 36 | Web output pinned to `single` (SPA) with a Vercel catch-all rewrite | `app.json` left `web.output` unset, so the mode was implicit. Expo Router deep links 404 on a static host without a rewrite to `/`; pinning the mode makes the Vercel config match the build rather than assuming it |
 
@@ -490,6 +493,11 @@ the URL can be corrected in Settings → Backend without a rebuild. Once hosting
 is live, either set it there or rebuild with the real value for a clean artifact.
 
 ### 11.1 Prerequisite — backend on Railway
+
+> ✅ **DONE 2026-07-28 — live at `https://sahayak-ucxp-sarvam-production.up.railway.app`**
+> (Railway project `harmonious-tenderness`, service `sahayak-ucxp-sarvam`, volume at
+> `/data`). Use this URL for `EXPO_PUBLIC_API_URL` in 11.2/11.3 and for the Twilio
+> webhook. Variables are pushed with `./scripts/sync-railway-env.sh` — see below.
 
 Both clients need one HTTPS origin. Nothing below works until this is live.
 **Runtime and AI Engine deploy together in one image** (§6: the runtime imports
@@ -644,9 +652,23 @@ a config flag, so treat it as post-demo work.
 
 ### 11.5 Demo checklist
 
-- [ ] `curl /health` on Railway returns green
-- [ ] APK launches with the phone **off** the laptop, after a force-quit
-- [ ] Vercel URL loads and text chat returns a real receipt
-- [ ] WhatsApp round trip works against the Railway webhook
-- [ ] **Pre-warm the backend** — first request pays cold start on top of ~5 s reasoning
-- [ ] `GET /manifests/<merchant>` opens in a browser tab, ready to show
+Status as of 2026-07-28:
+
+- [x] `Dockerfile`, `.dockerignore`, `railway.json`, `frontend/vercel.json` written
+- [x] Backend honours `$PORT`; loopback self-calls follow it (§7 #35)
+- [x] Release APK builds and **runs standalone** — installed, launched with Metro
+      stopped, process alive, no `Unable to load script`
+- [x] Web exports clean (10 MB SPA, backend URL inlined)
+- [x] Backend URL changeable at runtime (Settings → Backend, with a Test button)
+- [ ] **Backend deployed** — the blocker; everything below waits on it
+- [ ] Replace the placeholder URL (Settings, or rebuild) and re-verify
+- [ ] Vercel project created and `EXPO_PUBLIC_API_URL` set there
+- [ ] Twilio sandbox webhook repointed off the Cloudflare tunnel
+- [ ] APK uploaded to GitHub Releases for a permanent link + QR
+- [ ] Pre-warm the backend before presenting — first request pays cold start
+      on top of ~5 s reasoning
+- [ ] `GET /manifests/<merchant>` open in a browser tab, ready to show
+
+**Not verified:** the APK's UI was not seen rendering — the phone was locked
+(`mWakefulness=Dozing`), so the screenshot was a dark display, not a dark app.
+Unlock and open it to confirm visually.
