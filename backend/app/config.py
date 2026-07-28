@@ -76,7 +76,11 @@ class RuntimeSettings(BaseModel):
 
     @classmethod
     def from_env(cls) -> "RuntimeSettings":
-        port = _env_int("UCXP_PORT", 8000)
+        # Hosting platforms (Railway, Render, Fly, Cloud Run) inject $PORT and
+        # expect the server to bind it. The runtime also calls its own mock and
+        # connector routes over loopback, so if this resolves to the wrong port
+        # every capability fails at `act` while /health still looks green.
+        port = _env_int("UCXP_PORT", _env_int("PORT", 8000))
         return cls(
             manifests_dir=Path(_env("UCXP_MANIFESTS_DIR", str(REPO_ROOT / "manifests"))),
             mock_base_url=_env("UCXP_MOCK_BASE_URL", f"http://127.0.0.1:{port}/mock"),

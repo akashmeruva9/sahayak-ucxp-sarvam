@@ -273,6 +273,8 @@ async def health() -> HealthOut:
 def main() -> None:  # pragma: no cover
     import uvicorn
 
+    # settings.port already honours $PORT, so `python -m backend.app.main`
+    # works unchanged locally and on a host that injects one.
     uvicorn.run("backend.app.main:app", host=settings.host, port=settings.port, reload=False)
 
 

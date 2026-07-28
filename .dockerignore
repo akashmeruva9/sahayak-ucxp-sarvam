@@ -1,0 +1,31 @@
+# The image needs ai_engine/, backend/, manifests/ and requirements.txt only.
+# Everything below is either huge, secret, or irrelevant to the server.
+
+frontend/
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+tests/
+tools/
+
+# Secrets never go in the image — set them as platform env vars.
+.env
+.env.local
+.env.*.local
+
+.git/
+.github/
+.claude/
+.cursor/
+*.md
+!requirements.txt
+
+.ucxp_state.json
+logs/
+*.log
+*.wav
+*.apk
+.DS_Store

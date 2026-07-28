@@ -381,9 +381,19 @@ Deviations from the original brief, with reasons. Append; don't edit.
 | 21 | One **generic Shopify connector** (`/connectors/shopify/{business_id}/...`) serves every merchant, **real or mock** | All published merchants are `shopify_default`. Normalised endpoints route to this one connector with the business id embedded; it resolves that store's `data_source` + token and calls the **real Shopify Admin API** (`GET /orders.json?name=…`, mapped to flat fields), falling back to deterministic mock when no token is set. `credential_ref: vault://ravi-electronics` → env `SHOPIFY_TOKEN_RAVI_ELECTRONICS` (or a single `SHOPIFY_TOKEN`). Refunds are *initiated*, never auto-committed (a real refund is destructive + write-scoped). The runtime still only knows "call the connector" |
 | 22 | WhatsApp is **pinnable to one business** via `UCXP_WHATSAPP_BUSINESS` | A business's WhatsApp number is its own support line, so every turn resolves against that business with no cross-business routing (`route source=pinned`). Added `force_business_id` to `runtime.run()`; empty config ⇒ WhatsApp routes like the app. Also hardened `classify`: a capability id with no resolved business is dropped (smalltalk) instead of crashing `gather` on a `None` manifest |
 | 23 | Conversation memory is **persisted to disk** (`.ucxp_state.json`), not just in-process | A restart mid-flow (e.g. between a refund confirmation and the customer's "Yes") lost the pending state, so the follow-up landed with nothing pending and fell back to smalltalk. The store now snapshots after every turn and reloads on startup, so multi-step flows survive restarts and process recycling. Single JSON file, atomic write, failures never break a reply — path overridable via `UCXP_STATE_FILE`. Aligns with §9's "SQLite is fine"; a file is enough at demo scale |
-| 17 | `SARVAM_REQUEST_TIMEOUT` raised 30 s → 90 s | sarvam-105b legitimately reasons past 30 s on open-ended writing. The old timeout killed a good call and retried it, doubling latency instead of saving it |
-| 18 | Runtime exposes `POST /transcribe` (STT only) alongside `POST /voice` | The app transcribes first so it can show the customer their own words immediately, then sends text to `/chat`. Pointing it at `/voice` would execute the capability twice |
-| 19 | `EXPO_PUBLIC_API_URL` accepts a **bare port**, resolved against the Metro host | A laptop's LAN IP changes with the network, and a stale IP is indistinguishable from a broken backend — it cost a debugging cycle. Metro's host is reachable by definition |
+| 24 | **Android ships as a `--variant release` APK**, not a debug build; web ships via `expo export -p web` from the *same* Expo codebase | The APK only worked tethered because a debug build carries no JS bundle — it pulls from Metro over `adb reverse`. Release compiles the bundle in. `build.gradle` already signs release with the debug keystore, so no keystore work. Exporting the existing app to web also avoids a React+Vite rewrite: one codebase, two hosted surfaces |
+| 25 | **APK is built BEFORE the web dependencies are installed** | Web export needs `react-dom` + `react-native-web`, and `npx expo install` runs npm install — which can disturb the hand-patched `node_modules` the Android build depends on (§7 #14's "don't re-run prebuild" constraint, same root cause). Building the APK first means a broken install costs the web build, never the APK already on disk |
+| 26 | **`EXPO_PUBLIC_API_URL` must be a full `https://` URL for both shipped surfaces**, not the bare-port form of §7 #19 | The bare port resolves against Metro's host, which does not exist in a standalone APK or a Vercel build — it falls back to `http://localhost:8000`, i.e. the phone/browser itself, and silently drops to mocks. #19's convenience form stays correct for LAN dev only. Android 9+ additionally refuses cleartext, so HTTPS is required, not preferred |
+| 27 | **Web ships with simulated voice**; Android and WhatsApp carry the voice story | `useVoiceRecorder.ts` flags `web-unsupported` — `expo-audio` has no web mic capture, so it falls back to a simulated clip. Rather than block the web launch on a `MediaRecorder` rewrite, web is positioned as the clickable proof that the runtime has more than one client (text chat, real receipts, real multilingual). Do not demo voice from a browser |
+| 28 | `requirements.txt` **declared only the AI Engine's dependencies**; added `langgraph`, `twilio`, `pypdf`, `pytesseract`, `pillow` | They were installed in `.venv` and imported by `backend/`, so everything worked locally and nothing flagged it. A clean container built from `requirements.txt` would have died on `import langgraph` before serving one request — the first Railway deploy would have failed with a stack trace pointing at the runtime rather than at the manifest. Re-run an AST import cross-check against `requirements.txt` whenever a new import lands |
+| 29 | Docker `CMD` exports **`UCXP_PORT=$PORT`**, not just `--port $PORT` | `config.py:from_env()` derives `mock_base_url` and `connector_base_url` from `UCXP_PORT`, and the runtime reaches its own mock and Shopify connector over loopback. Binding uvicorn to Railway's `$PORT` while `UCXP_PORT` stayed 8000 would leave `/health` green and every capability failing at `act` on a refused connection — the worst failure shape, because the manifest and the graph both look innocent. Keeping them equal also keeps the self-call in-container rather than routing out to the public URL and back |
+| 30 | `SARVAM_REQUEST_TIMEOUT` raised 30 s → 90 s | sarvam-105b legitimately reasons past 30 s on open-ended writing. The old timeout killed a good call and retried it, doubling latency instead of saving it |
+| 31 | Runtime exposes `POST /transcribe` (STT only) alongside `POST /voice` | The app transcribes first so it can show the customer their own words immediately, then sends text to `/chat`. Pointing it at `/voice` would execute the capability twice |
+| 32 | `EXPO_PUBLIC_API_URL` accepts a **bare port**, resolved against the Metro host | A laptop's LAN IP changes with the network, and a stale IP is indistinguishable from a broken backend — it cost a debugging cycle. Metro's host is reachable by definition |
+| 33 | Backend URL is **editable at runtime** (Settings → Backend), overriding the compiled value | `EXPO_PUBLIC_*` is inlined at bundle time, so a shipped APK could otherwise never be repointed — every backend change meant a full Gradle rebuild. The override is stored with AsyncStorage, read once at startup before any request, and includes a **Test** button that pings `/health`. This is what makes shipping with a placeholder viable while hosting is still being set up |
+| 34 | `scripts/android-patches.sh` saves/restores the hand-patched `node_modules` files | §7 #25 ordered the APK before the web install because an install wipes those patches. A backup makes it recoverable instead of merely avoidable, so one install can serve both AsyncStorage and the web deps. **The patch lives in `.gradle`, `.gradle.kts` and `.kt` files — 15 in total**; an earlier `--include="*.gradle"` matched only 5 and would have silently under-restored |
+| 35 | Self-call URLs resolve `$PORT` **over loopback**, not via the public URL | §11.1 said to set `UCXP_MOCK_BASE_URL`/`UCXP_CONNECTOR_BASE_URL` to the public origin. Loopback is better: no public round trip, no dependency on knowing the deploy URL at boot. The actual bug was port resolution — `UCXP_PORT` defaulted to 8000 while the platform binds `$PORT`, so the runtime called a dead port and every capability failed at `act` with `/health` still green. `port` now falls back to `$PORT` |
+| 36 | Web output pinned to `single` (SPA) with a Vercel catch-all rewrite | `app.json` left `web.output` unset, so the mode was implicit. Expo Router deep links 404 on a static host without a rewrite to `/`; pinning the mode makes the Vercel config match the build rather than assuming it |
 
 ---
 
@@ -440,3 +450,203 @@ and endpoints. No runtime change. Show them `manifests/airtel.json`.
 **How do you know it's consistent?** We don't claim it — we measure it. The harness runs
 identical intents across languages and asserts the same capability and same action fire
 every time. That's the dashboard.
+
+---
+
+## 11. Shipping — Vercel web + standalone Android
+
+Goal: a **clickable web URL** and an **APK that works with the phone off the
+laptop**, both talking to a hosted backend. Written to be executed top to bottom.
+
+### 11.0 What is already in place
+
+Created 2026-07-28, so the steps below are configuration + running builds, not authoring:
+
+| Artifact | Purpose |
+|---|---|
+| `Dockerfile` + `.dockerignore` | Runtime + engine image, with `tesseract-ocr` and `ffmpeg` |
+| `railway.json` | Dockerfile builder, `/health` healthcheck |
+| `frontend/vercel.json` | Build command, output dir, SPA rewrites, asset caching |
+| `frontend/scripts/android-patches.sh` | save/restore the 15 patched `node_modules` files |
+| Settings → Backend | Change the server URL on a running app, with a Test button |
+
+Two constraints still govern the order:
+
+1. **`npm install` overwrites the hand-patched `node_modules` files** the Android
+   build needs (the `NODE_EXECUTABLE` patch, 15 files across `.gradle`,
+   `.gradle.kts` and `.kt`). Mitigated rather than merely avoided now:
+   `./scripts/android-patches.sh save` before, `restore` + `check` after. The
+   AsyncStorage and web dependencies were installed together in **one** install
+   for this reason.
+2. **`EXPO_PUBLIC_API_URL` must be a full `https://` URL at build time.** The
+   bare-port form of §7 #32 resolves against Metro's host, which does not exist
+   in a standalone APK or a Vercel build — it falls back to
+   `http://localhost:8000`, i.e. the device itself, and silently drops to mocks.
+   Android 9+ also refuses cleartext, so HTTPS is required, not preferred.
+
+**Currently shipping with a placeholder** (`https://sahayak-backend.up.railway.app`)
+because hosting is still being set up. That is only viable because of §7 #33 —
+the URL can be corrected in Settings → Backend without a rebuild. Once hosting
+is live, either set it there or rebuild with the real value for a clean artifact.
+
+### 11.1 Prerequisite — backend on Railway
+
+Both clients need one HTTPS origin. Nothing below works until this is live.
+**Runtime and AI Engine deploy together in one image** (§6: the runtime imports
+`SarvamOrchestrator` in-process — do not split them into two services).
+
+#### Files — already in the repo, nothing to write
+
+| File | Purpose |
+|---|---|
+| `Dockerfile` | `python:3.12-slim` + `tesseract-ocr` + `ffmpeg`; copies `ai_engine/`, `backend/`, `manifests/` |
+| `railway.json` | Builder `DOCKERFILE`, healthcheck `/health` (120 s), restart on failure ×3 |
+| `.dockerignore` | Keeps `frontend/`, `.venv/`, `.git/`, `.env` out of the image |
+| `requirements.txt` | **Fixed 2026-07-28** — was missing every runtime dep (§7 #28) |
+
+#### Two traps, both already handled — don't undo them
+
+1. **`requirements.txt` used to declare only the AI Engine's deps.** `langgraph`,
+   `twilio`, `pypdf`, `pytesseract` and `pillow` were installed in `.venv` but
+   never declared, so a clean container died on `import langgraph` before serving
+   a single request. Verify with an import cross-check after adding any import.
+2. **`UCXP_PORT` must equal the port uvicorn binds.** `config.py:from_env()`
+   derives `mock_base_url` and `connector_base_url` from `UCXP_PORT`, and the
+   runtime calls its own mock and Shopify connector over loopback. Bind uvicorn
+   to `$PORT` while `UCXP_PORT` still defaults to 8000 and **every capability
+   fails at `act` with a connection refused, while the manifest looks blameless.**
+   The `CMD` sets both from `$PORT` — leave it alone.
+
+   Keep the self-call on loopback. Pointing `UCXP_CONNECTOR_BASE_URL` at the
+   public URL also works but sends each action out to the internet and back.
+
+#### Deploy
+
+1. New Railway project → **Deploy from GitHub repo** → this repo, root directory.
+   `railway.json` is picked up automatically; no build command to configure.
+2. **Attach a volume** mounted at **`/data`**. The Dockerfile already sets
+   `UCXP_STATE_FILE=/data/.ucxp_state.json`. Without the volume, conversation
+   memory (§7 #23) resets on every redeploy and mid-flow refund confirmations die.
+3. Set variables:
+
+| Variable | Value | Needed for |
+|---|---|---|
+| `SARVAM_API_KEY` | your key | everything |
+| `TWILIO_ACCOUNT_SID` | | WhatsApp — async replies (§7 #19) |
+| `TWILIO_AUTH_TOKEN` | | WhatsApp |
+| `UCXP_WHATSAPP_BUSINESS` | e.g. `ravi-electronics` | pins the number to one merchant (§7 #22) |
+| `SHOPIFY_TOKEN_<STORE>` | per store | real Admin API; omit ⇒ deterministic mock |
+| `UCXP_LOG_LEVEL` | `INFO` | |
+
+Do **not** set `PORT`, `UCXP_PORT`, `UCXP_MOCK_BASE_URL` or
+`UCXP_CONNECTOR_BASE_URL` — Railway injects `PORT` and the `CMD` derives the rest.
+Setting them by hand is how trap 2 comes back.
+
+4. Generate a public domain (Settings → Networking). HTTPS is automatic, which
+   Android 9+ requires anyway (§7 #26).
+
+#### Verify before moving on
+
+```bash
+BASE=https://<app>.up.railway.app
+
+curl -s $BASE/health                       # engine + manifests loaded
+curl -s $BASE/businesses                   # 5 merchants, read from manifests/
+curl -s $BASE/manifests/ravi-electronics   # the file judges will ask to see
+
+# The real test — exercises route → classify → gather → act → compose.
+# A reply with a receipt proves the loopback self-call works (trap 2).
+curl -s -X POST $BASE/chat -H 'content-type: application/json' \
+     -d '{"text":"where is my order 1001"}'
+```
+
+If `/health` is green but `/chat` returns an action failure, it is trap 2 —
+check the deploy logs for a refused connection to `127.0.0.1`.
+
+#### Then repoint WhatsApp
+
+Twilio console → sandbox webhook → `https://<app>.up.railway.app/whatsapp/webhook`.
+Retire the Cloudflare tunnel from the demo checklist; it dies whenever the laptop
+sleeps, which is the single most likely way the demo breaks on stage.
+
+### 11.2 Android — a standalone APK (do this BEFORE 11.3)
+
+**Why the current build only works over USB:** it is a *debug* build. Debug APKs
+contain no JS bundle — they fetch it from Metro over `adb reverse`. Unplug and
+there is nothing to load. A **release** build compiles the bundle into the APK.
+
+`android/app/build.gradle` already has `release { signingConfig signingConfigs.debug }`,
+so release signs itself with the debug keystore. **No keystore to generate.**
+
+```bash
+cd frontend
+
+# 1. bake in the real backend — full https URL, NOT the bare port
+echo 'EXPO_PUBLIC_API_URL=https://<app>.up.railway.app' > .env.local
+
+# 2. node must be on PATH — the release build runs it to make the bundle.
+#    (Debug builds don't, which is why this has never failed yet.)
+#    Use a terminal where `node -v` works. NOT Android Studio's GUI.
+node -v
+
+# 3. build standalone
+npx expo run:android --variant release
+```
+
+APK: `frontend/android/app/build/outputs/apk/release/app-release.apk`
+
+Test it properly: **unplug the phone, kill the app, relaunch.** Then upload the
+APK to GitHub Releases for a permanent link + QR.
+
+Keep HTTPS. Android 9+ blocks cleartext by default, so an `http://<LAN-IP>` URL
+is refused silently — Railway's HTTPS avoids this.
+
+### 11.3 Web — Vercel (only after the APK exists)
+
+```bash
+cd frontend
+npx expo install react-dom react-native-web     # ⚠️ npm install — APK must already be built
+npx expo export -p web --output-dir dist
+```
+
+Deploy `frontend/dist` as a **static** site. Vercel project settings:
+
+| Field | Value |
+|---|---|
+| Root directory | `frontend` |
+| Build command | `npx expo export -p web --output-dir dist` |
+| Output directory | `dist` |
+| Env var | `EXPO_PUBLIC_API_URL=https://<app>.up.railway.app` |
+
+Set the env var in Vercel too — it is inlined at build time there as well.
+
+After this, re-verify the Android build still compiles. If the install disturbed
+the patches, the already-built APK is unaffected — that is the whole point of the
+ordering.
+
+### 11.4 Known limitation — voice does not work on web
+
+`useVoiceRecorder.ts:68` flags `web-unsupported` on `Platform.OS === "web"` and
+falls back to a **simulated** recording. `expo-audio` does not capture mic on web.
+
+So the two surfaces demo different things:
+
+| Surface | Voice | Text chat | Receipts |
+|---|---|---|---|
+| **Android APK** | ✅ real Sarvam STT/TTS | ✅ | ✅ |
+| **Web (Vercel)** | ⚠️ simulated | ✅ real, multilingual | ✅ |
+| **WhatsApp** | ✅ real voice notes | ✅ | ✅ |
+
+Don't demo voice from the browser. Web is the *clickable proof the protocol has
+more than one client*; **Android and WhatsApp carry the voice story.** Making web
+voice real means replacing the hook with `MediaRecorder` — a genuine change, not
+a config flag, so treat it as post-demo work.
+
+### 11.5 Demo checklist
+
+- [ ] `curl /health` on Railway returns green
+- [ ] APK launches with the phone **off** the laptop, after a force-quit
+- [ ] Vercel URL loads and text chat returns a real receipt
+- [ ] WhatsApp round trip works against the Railway webhook
+- [ ] **Pre-warm the backend** — first request pays cold start on top of ~5 s reasoning
+- [ ] `GET /manifests/<merchant>` opens in a browser tab, ready to show

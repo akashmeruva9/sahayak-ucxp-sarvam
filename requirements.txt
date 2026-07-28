@@ -7,6 +7,21 @@ python-dotenv>=1.0.1
 loguru>=0.7.2
 python-multipart>=0.0.9      # multipart uploads for the /v1/voice endpoint
 
+# --- UCXP Runtime ----------------------------------------------------------
+# The turn is a LangGraph state machine (PLAN.md §7 #15). LangChain never sees
+# a Sarvam credential — every LLM call still goes through SarvamOrchestrator.
+langgraph>=1.2.0
+
+# --- WhatsApp adapter (PLAN.md §7 #17, #19) --------------------------------
+# Outbound replies are async via the Twilio REST API; inbound accepts PDFs and
+# photos. pytesseract needs the `tesseract-ocr` system binary, and a spoken
+# reply needs `ffmpeg` — both installed in the Dockerfile, both optional at
+# runtime (the adapter degrades to "type it instead" when either is missing).
+twilio>=9.0.0
+pypdf>=5.0.0
+pytesseract>=0.3.13
+pillow>=11.0.0
+
 # --- Local testing ---------------------------------------------------------
 pytest>=8.2.0
 pytest-asyncio>=0.23.0
