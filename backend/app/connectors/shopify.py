@@ -51,11 +51,52 @@ def _resolve_token(credential_ref: str | None) -> str | None:
     return (os.getenv("SHOPIFY_TOKEN") or "").strip() or None
 
 
-def _store_domain(source: dict[str, Any]) -> str | None:
+def _store_domain(source: dict[str, Any], business_id: str = "") -> str | None:
+    """The merchant's store, from the manifest or the environment.
+
+    The environment fallback exists because a published manifest can arrive
+    without `store_subdomain` — one did, and because a published row replaces
+    the committed file wholesale, a working integration silently became
+    fabricated data. `SHOPIFY_STORE_RAVI_ELECTRONICS` restores it without
+    waiting on a republish.
+    """
     domain = (source.get("store_subdomain") or "").strip()
+    if not domain and business_id:
+        key = "SHOPIFY_STORE_" + business_id.upper().replace("-", "_")
+        domain = (os.getenv(key) or os.getenv("SHOPIFY_STORE") or "").strip()
     if not domain:
         return None
     return domain if domain.endswith("myshopify.com") else f"{domain}.myshopify.com"
+
+
+def _declares_a_real_store(source: dict[str, Any]) -> bool:
+    """True when the manifest says this business has a live Shopify store."""
+    return str(source.get("type") or "").strip().lower() == "shopify"
+
+
+def _unreachable(business_id: str, source: dict[str, Any], what: str) -> HTTPException:
+    """Refuse to answer rather than inventing one.
+
+    A merchant whose manifest declares a Shopify store has real orders with real
+    statuses, and a customer asking about one is entitled to either the truth or
+    an honest failure. Serving the deterministic sample here told a customer
+    their delivered order was "out for delivery, arriving Thursday" — stated as
+    fact, in the store's own voice. The sample is for businesses that never
+    claimed a store; anything else escalates.
+    """
+    missing = []
+    if not _store_domain(source, business_id):
+        missing.append("store_subdomain")
+    if not _resolve_token(source.get("credential_ref")):
+        missing.append("token")
+    logger.error(
+        f"shopify.unconfigured business={business_id} {what} missing={','.join(missing) or 'unknown'}"
+    )
+    return HTTPException(
+        status_code=502,
+        detail="I can't reach the store's system right now, so I'd rather not guess. "
+        "Let me get a colleague to check this for you.",
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -140,8 +181,11 @@ async def track_order(business_id: str, order_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Sorry, we couldn't find that order number.")
 
     source = _data_source(business_id)
-    domain = _store_domain(source)
+    domain = _store_domain(source, business_id)
     token = _resolve_token(source.get("credential_ref"))
+
+    if not (domain and token) and _declares_a_real_store(source):
+        raise _unreachable(business_id, source, f"track order={order_id}")
 
     if domain and token:
         try:
@@ -166,8 +210,11 @@ async def refund_order(business_id: str, order_id: str, payload: dict[str, Any] 
     destructive, write-scoped operation, so we register the request against the
     real order amount and hand it to the team, rather than silently moving money."""
     source = _data_source(business_id)
-    domain = _store_domain(source)
+    domain = _store_domain(source, business_id)
     token = _resolve_token(source.get("credential_ref"))
+
+    if not (domain and token) and _declares_a_real_store(source):
+        raise _unreachable(business_id, source, f"refund order={order_id}")
 
     amount, currency = None, "INR"
     if domain and token:

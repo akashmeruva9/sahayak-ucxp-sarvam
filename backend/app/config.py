@@ -94,6 +94,15 @@ class RuntimeSettings(BaseModel):
     supabase_jwt_secret: str = ""
     #: Persist conversations + messages. Off ⇒ history stays in-process only.
     persist_sessions: bool = True
+
+    #: How often to re-read published manifests from Supabase, in seconds.
+    #:
+    #: A merchant who publishes from the dashboard expects to appear in the app.
+    #: Without this the runtime only read the table at startup, so a new business
+    #: stayed invisible until someone redeployed — which is exactly what happened
+    #: to the first merchant onboarded after launch. 0 disables polling and
+    #: leaves POST /manifests/reload as the only trigger.
+    manifest_refresh_seconds: int = 60
     conversations_table: str = "conversations"
     messages_table: str = "messages"
 
@@ -159,6 +168,7 @@ class RuntimeSettings(BaseModel):
             supabase_timeout_s=float(_env("UCXP_SUPABASE_TIMEOUT", "10")),
             supabase_jwt_secret=_env("SUPABASE_JWT_SECRET", ""),
             persist_sessions=_env("UCXP_PERSIST_SESSIONS", "1").lower() in ("1", "true", "yes"),
+            manifest_refresh_seconds=int(_env("UCXP_MANIFEST_REFRESH_SECONDS", "60") or 0),
             conversations_table=_env("UCXP_CONVERSATIONS_TABLE", "conversations"),
             messages_table=_env("UCXP_MESSAGES_TABLE", "messages"),
             log_level=_env("UCXP_LOG_LEVEL", "INFO"),

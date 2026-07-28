@@ -249,6 +249,52 @@ def test_shipped_manifests_keep_the_confirmation_they_had():
     assert seen["refund"] == {True}, "writes must ask"
 
 
+async def test_a_declared_store_never_answers_from_the_sample(monkeypatch):
+    """A business with a real store gets the truth or an honest failure.
+
+    A published manifest arrived without `store_subdomain`, and because a
+    published row replaces the committed file wholesale, the connector quietly
+    fell through to its deterministic sample — telling a customer their
+    delivered order was "out for delivery, arriving Thursday", in the store's
+    own voice. Inventing an order status is worse than admitting the lookup
+    failed.
+    """
+    from fastapi import HTTPException
+    from backend.app.connectors import shopify
+
+    monkeypatch.setattr(shopify, "_data_source", lambda _bid: {
+        "type": "shopify", "credential_ref": "vault://nowhere"
+    })
+    monkeypatch.delenv("SHOPIFY_TOKEN", raising=False)
+    monkeypatch.delenv("SHOPIFY_STORE", raising=False)
+
+    with pytest.raises(HTTPException) as caught:
+        await shopify.track_order("nowhere", "1005")
+    assert caught.value.status_code == 502
+    assert "rather not guess" in caught.value.detail
+
+
+async def test_a_business_with_no_store_still_gets_the_sample(monkeypatch):
+    """The sample is for businesses that never claimed a store."""
+    from backend.app.connectors import shopify
+
+    monkeypatch.setattr(shopify, "_data_source", lambda _bid: {"type": "none"})
+    result = await shopify.track_order("demo-shop", "1005")
+    assert result["mock"] is True
+
+
+def test_the_store_domain_can_come_from_the_environment(monkeypatch):
+    """So a manifest published without it can be recovered without a republish."""
+    from backend.app.connectors.shopify import _store_domain
+
+    monkeypatch.setenv("SHOPIFY_STORE_RAVI_ELECTRONICS", "ravi-electronics-bmxitv46")
+    assert (
+        _store_domain({}, "ravi-electronics") == "ravi-electronics-bmxitv46.myshopify.com"
+    )
+    # The manifest still wins when it states one.
+    assert _store_domain({"store_subdomain": "a.myshopify.com"}, "ravi-electronics") == "a.myshopify.com"
+
+
 def test_all_manifests_load_and_are_internally_consistent():
     registry = ManifestRegistry(settings())
     # The three demo businesses must always be present; merchants are additive,

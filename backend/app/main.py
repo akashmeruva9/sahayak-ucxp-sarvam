@@ -8,8 +8,9 @@ through their manifests.
 
 from __future__ import annotations
 
+import asyncio
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Annotated, Any, AsyncIterator
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -56,6 +57,34 @@ def get_runtime() -> UcxpRuntime:
     return _runtime
 
 
+async def _watch_manifests(runtime: UcxpRuntime, every: int) -> None:
+    """Keep the directory in step with what merchants have published.
+
+    The dashboard writes to Supabase and knows nothing about this process, so
+    something has to look. Polling rather than a webhook because the runtime is
+    the only party that has to be right, and a missed webhook fails silently
+    where a missed poll just corrects itself a minute later.
+
+    Never raises: a database blip must not end the task and leave the directory
+    frozen for the life of the process.
+    """
+    while True:
+        await asyncio.sleep(every)
+        try:
+            before = set(runtime.registry.ids())
+            await runtime.registry.refresh_from_store()
+            after = set(runtime.registry.ids())
+            if before != after:
+                logger.info(
+                    f"manifests.changed added={sorted(after - before)} "
+                    f"removed={sorted(before - after)} total={len(after)}"
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - a poll must never kill the loop
+            logger.warning(f"manifests.refresh_failed error={exc}")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     runtime = get_runtime()
@@ -65,9 +94,20 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     logger.info(
         f"runtime.startup manifests={runtime.registry.ids()} mock_base={settings.mock_base_url}"
     )
+    watcher: asyncio.Task[None] | None = None
+    if settings.manifest_refresh_seconds > 0:
+        watcher = asyncio.create_task(
+            _watch_manifests(runtime, settings.manifest_refresh_seconds)
+        )
+        logger.info(f"manifests.watching every={settings.manifest_refresh_seconds}s")
+
     try:
         yield
     finally:
+        if watcher is not None:
+            watcher.cancel()
+            with suppress(asyncio.CancelledError):
+                await watcher
         await runtime.executor.aclose()
         await aclose_executor()
         if _engine is not None:
