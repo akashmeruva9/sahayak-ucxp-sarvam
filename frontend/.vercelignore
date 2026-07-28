@@ -1,0 +1,22 @@
+# What NOT to upload when deploying from this directory.
+#
+# Vercel builds the web bundle from source (see vercel.json buildCommand), so
+# it needs the Expo app source and nothing else. Without this file the CLI
+# tries to upload android/ (3.9 GB of Gradle output) and node_modules (6.4 GB)
+# and the upload aborts before a build ever starts.
+#
+# android/ in particular must never be uploaded: it is a native build tree,
+# irrelevant to the web target, and it carries the hand-patched Gradle files
+# (PLAN.md §7 #14) that have nothing to do with this deploy.
+
+node_modules
+android
+ios
+dist
+.expo
+.gradle
+.android-patches
+*.apk
+*.aab
+*.keystore
+.idea
