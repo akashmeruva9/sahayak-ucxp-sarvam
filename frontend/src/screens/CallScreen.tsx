@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import { AudioModule, createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { Check, Mic, PhoneOff } from "lucide-react-native";
 import type { BusinessAction, BusinessId } from "@/types";
 import { getBusiness } from "@/constants/businesses";
@@ -52,6 +52,8 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
   const conversationId = useRef<string | undefined>(undefined);
   const player = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
   const live = useRef(true);
+  /** Null until asked. False ⇒ the mic is blocked and speaking is pointless. */
+  const [micAllowed, setMicAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
     live.current = true;
@@ -61,6 +63,43 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
       cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * Ask for the microphone as the call opens, not when the caller has already
+   * started talking. The recorder falls back to a *simulated* capture when
+   * permission is missing, so without this a blocked mic looks like a call that
+   * simply heard nothing — which is what it did before.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (Platform.OS === "web") {
+        if (!cancelled) {
+          setMicAllowed(false);
+          setError("Calling needs a microphone, which this browser build can't use yet. Use the Android app to call.");
+        }
+        return;
+      }
+      try {
+        const granted = await AudioModule.requestRecordingPermissionsAsync();
+        if (cancelled) return;
+        setMicAllowed(granted.granted);
+        if (!granted.granted) {
+          setError(
+            "Sahayak needs microphone access to take a call. Enable it in Settings → Apps → Sahayak → Permissions."
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setMicAllowed(false);
+          setError("The microphone couldn't be opened. Close any other app using it and reopen this screen.");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /** Play the spoken reply; resolves when it finishes (or immediately if muted). */
@@ -101,12 +140,17 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     const clip = await finish();
     if (!clip.uri) {
+      // The recorder says *why* it produced nothing — pass that on rather than
+      // a vague "nothing captured", which hid a denied permission.
       setPhase("error");
       setError(
-        Platform.OS === "web"
-          ? "Recording isn't supported in this browser yet — use the app for calls."
-          : "The microphone didn't capture anything. Check its permission and try again."
+        clip.issue === "permission-denied"
+          ? "Microphone access is blocked. Enable it in Settings → Apps → Sahayak → Permissions, then try again."
+          : clip.issue === "web-unsupported"
+            ? "Calling needs a microphone, which this browser build can't use yet. Use the Android app to call."
+            : "The microphone couldn't start. Close any other app using it and try again."
       );
+      if (clip.issue === "permission-denied") setMicAllowed(false);
       return;
     }
 
@@ -141,7 +185,9 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
     await start();
   }, [start]);
 
-  const busy = phase === "thinking" || phase === "speaking";
+  // Waiting on the permission answer, or denied — speaking would only produce
+  // a simulated clip that fails at the end of the turn.
+  const busy = phase === "thinking" || phase === "speaking" || micAllowed !== true;
 
   return (
     <ScreenContainer edges={["top", "bottom"]}>
@@ -219,12 +265,17 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
         ))}
 
         {error ? (
-          <Animated.Text
-            entering={FadeIn}
-            className="mt-2 text-center text-[14px] leading-5 text-rose-500"
-          >
-            {error}
-          </Animated.Text>
+          <Animated.View entering={FadeIn} className="mt-2 items-center">
+            <Text className="text-center text-[14px] leading-5 text-rose-500">{error}</Text>
+            {micAllowed === false && Platform.OS !== "web" ? (
+              <Pressable
+                onPress={() => Linking.openSettings()}
+                className="mt-3 rounded-full border border-hairline px-4 py-2 dark:border-hairline-dark"
+              >
+                <Text className="text-[13px] font-semibold text-accent">Open settings</Text>
+              </Pressable>
+            ) : null}
+          </Animated.View>
         ) : null}
       </ScrollView>
 
@@ -284,9 +335,13 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
         <Text className="mt-4 text-center text-[12px] text-ink-faint dark:text-white/30">
           {phase === "listening"
             ? "Tap ✓ when you've finished speaking"
-            : busy
-              ? "One moment…"
-              : "Tap the mic, speak, then tap ✓"}
+            : micAllowed === null
+              ? "Waiting for microphone access…"
+              : micAllowed === false
+                ? "Microphone access is needed to call"
+                : busy
+                  ? "One moment…"
+                  : "Tap the mic, speak, then tap ✓"}
         </Text>
       </View>
 
