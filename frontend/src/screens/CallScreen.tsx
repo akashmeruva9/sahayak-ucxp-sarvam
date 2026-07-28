@@ -42,13 +42,37 @@ const PHASE_LABEL: Record<Phase, string> = {
 };
 
 /**
- * Silence that ends a turn. Long enough to survive the pause in the middle of
- * "my order is… 1001", short enough that the reply doesn't feel late.
+ * Silence that ends a turn.
+ *
+ * Short, because the caller is waiting through it: this pause sits in front of
+ * every single reply. Sarvam's transcription tolerates a clipped tail far
+ * better than a caller tolerates a hanging line, and the meter is sampled every
+ * 120ms, so this is about as tight as it can be read.
  */
-const END_OF_TURN_MS = 1400;
+const END_OF_TURN_MS = 600;
 
-/** An open mic that never hears anything closes rather than recording the room. */
-const NO_SPEECH_TIMEOUT_MS = 9000;
+/**
+ * How long an unspoken-to mic records before the clip is thrown away and
+ * started again. Sarvam rejects anything over 30s, so silence has to be
+ * recycled rather than accumulated — the caller sees an open mic throughout.
+ */
+const SILENT_RECYCLE_MS = 20000;
+
+/**
+ * How long a turn runs on a device that reports no microphone level. Without a
+ * meter there is no silence to detect, so the turn is simply timed — short
+ * enough to stay conversational, long enough for a sentence.
+ */
+const UNMETERED_TURN_MS = 6000;
+
+/** Absolute ceiling. Sarvam rejects clips over 30s; nothing should get close. */
+const MAX_TURN_MS = 20000;
+
+/** Longest a spoken reply is allowed to hold the line before the mic returns. */
+const PLAYBACK_CEILING_MS = 30000;
+
+/** How long the error stays on screen before the caller gets another go. */
+const ERROR_RECOVERY_MS = 2500;
 
 /**
  * What the assistant says while it works.
@@ -80,17 +104,23 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [error, setError] = useState<string | null>(null);
   const conversationId = useRef<string | undefined>(undefined);
-  /** Set when a reply finishes playing, so the next turn opens the mic itself. */
-  const resume = useRef(false);
+  /** True while beginTurn is in flight, so the open-mic rule fires once. */
+  const answering = useRef(false);
+  const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** True once this turn is already closing, so the meter can't close it twice. */
+  const ending = useRef(false);
   const player = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
   const live = useRef(true);
   /** Null until asked. False ⇒ the mic is blocked and speaking is pointless. */
   const [micAllowed, setMicAllowed] = useState<boolean | null>(null);
+  /** Muted, exactly like the button on a phone call: the line stays open. */
+  const [muted, setMuted] = useState(false);
 
   useEffect(() => {
     live.current = true;
     return () => {
       live.current = false;
+      if (retry.current) clearTimeout(retry.current);
       player.current?.remove();
       cancel();
     };
@@ -149,14 +179,28 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
         const started = Date.now();
         const tick = setInterval(() => {
           const done = !p.playing && Date.now() - started > 400;
-          if (done || Date.now() - started > 60_000) {
+          // A reply that somehow never reports finishing must not strand the
+          // call in "speaking" — the caller would be left with a dead mic.
+          if (done || Date.now() - started > PLAYBACK_CEILING_MS) {
             clearInterval(tick);
             resolve();
           }
-        }, 250);
+        }, 200);
       });
     } catch {
       // Text is already on screen; a playback failure must not end the call.
+    } finally {
+      // Release the player the moment it is done rather than at the start of
+      // the next reply. On Android a live player keeps audio focus, and the
+      // recorder that opens for the caller's next turn then captures nothing —
+      // the call looks alive and hears nothing from the second turn on.
+      player.current?.remove();
+      player.current = null;
+      try {
+        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      } catch {
+        // start() sets the mode too; this is only to hand the mic back sooner.
+      }
     }
   }, []);
 
@@ -206,60 +250,126 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
       setPhase("speaking");
       await play(turn.audioBase64);
       if (!live.current) return;
-      // A real call doesn't ask you to press anything between sentences.
-      resume.current = true;
+      // Back to idle, which the open-mic rule reads as "your turn".
       setPhase("idle");
     } catch (err) {
       if (!live.current) return;
       setLines((prev) => prev.filter((l) => !l.hold));
-      setPhase("error");
       setError(err instanceof Error ? err.message : "That didn't go through.");
+      // A turn that fails must not end the call. Say what went wrong, then hand
+      // the mic back — on a phone line you get to repeat yourself, and a dead
+      // mic after one bad turn is indistinguishable from the app having hung.
+      setPhase("error");
+      retry.current = setTimeout(() => {
+        if (live.current) setPhase("idle");
+      }, ERROR_RECOVERY_MS);
     }
   }, [businessId, finish, play]);
 
   const beginTurn = useCallback(async () => {
     setError(null);
+    ending.current = false;
     setPhase("listening");
     await start();
   }, [start]);
 
   /**
-   * Hand the turn back to the caller once the reply has been spoken.
+   * The line is open whenever nobody else is using it.
    *
-   * Kept in an effect rather than called straight from completeTurn: that
-   * function is still on the stack inside `play()` when the audio ends, and
-   * starting a recording from there races the player's own teardown.
+   * Stated as a rule rather than a handoff: idle and unmuted means the mic is
+   * on, full stop. The previous version set a "resume" flag when a reply
+   * finished and cleared it on the way back, which meant any path that reached
+   * idle without setting it — a mute toggle, a cancelled turn — left the call
+   * up with a dead mic and no way back short of hanging up.
+   *
+   * `answering` keeps the effect from firing again while beginTurn is still in
+   * flight, since start() is async and phase stays idle until it returns.
    */
   useEffect(() => {
-    if (phase !== "idle" || !resume.current) return;
-    resume.current = false;
-    if (!live.current || micAllowed !== true) return;
-    void beginTurn();
-  }, [phase, micAllowed, beginTurn]);
+    if (phase !== "idle" || muted || micAllowed !== true || !live.current) return;
+    if (answering.current) return;
+    answering.current = true;
+    void beginTurn().finally(() => {
+      answering.current = false;
+    });
+  }, [phase, muted, micAllowed, beginTurn]);
+
+  /**
+   * Mute, the way a phone does it: the call stays up, the far end just stops
+   * hearing you. Unmuting picks the turn straight back up.
+   */
+  /** End the turn now, rather than waiting for the pause to be long enough. */
+  const sendNow = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    if (ending.current) return;
+    ending.current = true;
+    void completeTurn();
+  }, [completeTurn]);
+
+  const toggleMute = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    // Decide from the current value and act outside the updater. A setState
+    // updater must be pure — React is free to run it more than once, and side
+    // effects in there fire twice for one press.
+    const next = !muted;
+    setMuted(next);
+    if (next) {
+      void cancel();
+      setPhase("idle");
+    } else if (phase === "idle") {
+      void beginTurn();
+    }
+  }, [muted, cancel, phase, beginTurn]);
 
   /**
    * End the caller's turn when they stop talking, the way a person would.
    *
-   * Two guards keep it from firing on its own: the meter has to have heard
-   * actual speech first, so an open mic in a quiet room waits instead of
-   * sending an empty clip; and a turn that hears nothing at all eventually
-   * gives up rather than recording until the 30s ceiling.
+   * Three ways a turn can close, in order of preference:
+   *
+   *  1. Silence after speech — the real one. The meter has to have heard actual
+   *     speech first, so an open mic in a quiet room waits rather than posting
+   *     an empty clip.
+   *  2. A fixed length, when the device gives us no meter at all. Waiting for
+   *     silence we cannot observe is how a turn hangs open forever.
+   *  3. A hard ceiling, always. Whatever else goes wrong, the mic closes.
+   *
+   * `ending` makes this idempotent: the meter ticks every 120ms and setPhase is
+   * async, so without it a single pause fires completeTurn several times over.
    */
   useEffect(() => {
-    // No real capture (web, or a blocked mic): the meter reads nothing, so
-    // ending the turn on silence would just hide the actual problem. Let the
-    // caller tap ✓ and get the explicit reason instead.
-    if (phase !== "listening" || issue) return;
+    if (phase !== "listening" || muted) return;
 
-    if (loudness.heardSpeech && loudness.silentMs >= END_OF_TURN_MS) {
+    const stop = () => {
+      if (ending.current) return;
+      ending.current = true;
       void completeTurn();
-      return;
+    };
+
+    // No real capture (web, blocked mic). There is no ✓ to press any more, so
+    // close the turn immediately: completeTurn reads the recorder's reason and
+    // says what to do about it, which beats an open mic that never responds.
+    if (issue) return stop();
+
+    if (loudness.metered) {
+      if (loudness.heardSpeech && loudness.silentMs >= END_OF_TURN_MS) return stop();
+      // Nothing said yet: keep waiting, the way a call does. The clip is
+      // recycled before it can reach Sarvam's 30s ceiling, so the mic can stay
+      // open indefinitely without ever posting a recording of an empty room.
+      if (!loudness.heardSpeech) {
+        if (durationMs >= SILENT_RECYCLE_MS) {
+          ending.current = true;
+          void cancel().then(() => {
+            if (live.current) setPhase("idle");
+          });
+        }
+        return;
+      }
+    } else if (durationMs >= UNMETERED_TURN_MS) {
+      return stop();
     }
-    if (!loudness.heardSpeech && durationMs >= NO_SPEECH_TIMEOUT_MS) {
-      void cancel();
-      setPhase("idle");
-    }
-  }, [phase, issue, loudness, durationMs, completeTurn, cancel]);
+
+    if (durationMs >= MAX_TURN_MS) stop();
+  }, [phase, muted, issue, loudness, durationMs, completeTurn, cancel]);
 
   // Waiting on the permission answer, or denied — speaking would only produce
   // a simulated clip that fails at the end of the turn.
@@ -365,7 +475,11 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
       {/* Call controls */}
       <View className="items-center px-6 pb-6">
         <View className="h-14 w-full items-center justify-center">
-          {phase === "listening" ? (
+          {muted ? (
+            <Text className="text-[13px] font-semibold uppercase tracking-widest text-ink-faint dark:text-white/40">
+              Muted
+            </Text>
+          ) : phase === "listening" ? (
             <Waveform active color={palette.accent} height={44} barCount={24} />
           ) : (
             <Text
@@ -397,46 +511,52 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
           </Pressable>
 
           <Pressable
-            onPress={phase === "listening" ? completeTurn : beginTurn}
-            disabled={busy}
+            onPress={phase === "listening" ? sendNow : toggleMute}
+            disabled={micAllowed !== true || busy}
             accessibilityRole="button"
             accessibilityLabel={
-              phase === "listening"
-                ? "Send now"
-                : phase === "thinking" || phase === "speaking"
-                  ? "Microphone off while the assistant replies"
-                  : "Speak"
+              phase === "listening" ? "Stop and send" : muted ? "Turn the microphone on" : "Mute"
             }
             className="h-20 w-20 items-center justify-center rounded-full"
             style={{
-              backgroundColor: busy ? colors.hairline : palette.accent,
-              opacity: busy ? 0.7 : 1,
+              // Recording is the state that has to read across a room, so it's
+              // the filled one — and it's the one you can press to end. Idle is
+              // an outline, and while the assistant is talking it's dimmed,
+              // because the mic really is closed and there's nothing to press.
+              backgroundColor:
+                phase === "listening" ? palette.accent : busy ? colors.hairline : "transparent",
+              borderWidth: phase === "listening" ? 0 : 2,
+              borderColor: busy ? colors.hairline : palette.accent,
+              opacity: micAllowed === true ? 1 : 0.5,
             }}
           >
             {phase === "listening" ? (
-              <Check size={32} color="#FFFFFF" strokeWidth={2.5} />
-            ) : phase === "thinking" || phase === "speaking" ? (
-              <MicOff size={30} color={colors.textMuted} strokeWidth={2.2} />
+              // The universal stop square, over a live level ring.
+              <View className="h-6 w-6 rounded-[5px] bg-white" />
+            ) : muted ? (
+              <MicOff size={30} color={busy ? colors.textMuted : palette.accent} strokeWidth={2.2} />
             ) : (
-              <Mic size={30} color={busy ? colors.textMuted : "#FFFFFF"} strokeWidth={2.2} />
+              <Mic size={30} color={busy ? colors.textMuted : palette.accent} strokeWidth={2.2} />
             )}
           </Pressable>
         </View>
 
         <Text className="mt-4 text-center text-[12px] text-ink-faint dark:text-white/30">
-          {phase === "listening"
-            ? loudness.heardSpeech
-              ? "Just stop talking when you're done"
-              : "Go ahead — I'm listening"
-            : micAllowed === null
-              ? "Waiting for microphone access…"
-              : micAllowed === false
-                ? "Microphone access is needed to call"
-                : phase === "thinking"
-                  ? "Working on it — the mic is off for a moment"
-                  : phase === "speaking"
-                    ? "Speaking — the mic comes back on straight after"
-                    : "Tap the mic to start. It stays on between replies."}
+          {micAllowed === null
+            ? "Connecting…"
+            : micAllowed === false
+              ? "Microphone access is needed to call"
+              : muted
+                ? "Muted — tap the mic to speak again"
+                : phase === "listening"
+                  ? loudness.heardSpeech
+                    ? "Just stop talking when you're done"
+                    : "Go ahead — I'm listening"
+                  : phase === "thinking"
+                    ? "Working on it…"
+                    : phase === "speaking"
+                      ? "Speaking — you'll be back on straight after"
+                      : "One moment…"}
         </Text>
       </View>
 
