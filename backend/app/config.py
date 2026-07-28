@@ -89,6 +89,13 @@ class RuntimeSettings(BaseModel):
     supabase_key: str = ""
     manifest_table: str = "ucxp_manifests"
     supabase_timeout_s: float = 10.0
+    #: Settings → API → JWT Settings. Present ⇒ tokens are verified locally
+    #: (no network); absent ⇒ verified against Supabase's /auth/v1/user.
+    supabase_jwt_secret: str = ""
+    #: Persist conversations + messages. Off ⇒ history stays in-process only.
+    persist_sessions: bool = True
+    conversations_table: str = "conversations"
+    messages_table: str = "messages"
 
     @property
     def supabase_configured(self) -> bool:
@@ -150,6 +157,10 @@ class RuntimeSettings(BaseModel):
             ),
             manifest_table=_env("UCXP_MANIFEST_TABLE", "ucxp_manifests"),
             supabase_timeout_s=float(_env("UCXP_SUPABASE_TIMEOUT", "10")),
+            supabase_jwt_secret=_env("SUPABASE_JWT_SECRET", ""),
+            persist_sessions=_env("UCXP_PERSIST_SESSIONS", "1").lower() in ("1", "true", "yes"),
+            conversations_table=_env("UCXP_CONVERSATIONS_TABLE", "conversations"),
+            messages_table=_env("UCXP_MESSAGES_TABLE", "messages"),
             log_level=_env("UCXP_LOG_LEVEL", "INFO"),
             twilio_account_sid=_env("TWILIO_ACCOUNT_SID", ""),
             twilio_auth_token=_env("TWILIO_AUTH_TOKEN", ""),

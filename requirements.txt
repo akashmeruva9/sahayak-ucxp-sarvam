@@ -25,3 +25,8 @@ pillow>=11.0.0
 # --- Local testing ---------------------------------------------------------
 pytest>=8.2.0
 pytest-asyncio>=0.23.0
+
+# --- Auth (PLAN.md §7) -----------------------------------------------------
+# Verify Supabase access tokens locally when SUPABASE_JWT_SECRET is set;
+# without it backend/app/auth.py falls back to Supabase's /auth/v1/user.
+pyjwt>=2.9.0

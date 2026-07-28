@@ -19,6 +19,8 @@ import {
 import type { ThemePreference } from "@/types";
 import { SUPPORTED_LANGUAGES } from "@/constants/theme";
 import { useSettingsStore } from "@/store/useSettingsStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { authConfigured } from "@/lib/supabase";
 import { COMPILED_BASE_URL, pingBackend } from "@/api/client";
 import { ScreenContainer } from "@/components";
 import { useThemeColors } from "@/hooks/useThemeColors";
@@ -37,6 +39,9 @@ export function SettingsScreen() {
   const setTheme = useSettingsStore((s) => s.setTheme);
   const languageCode = useSettingsStore((s) => s.languageCode);
   const setLanguage = useSettingsStore((s) => s.setLanguage);
+
+  const authUser = useAuthStore((s) => s.user);
+  const signOut = useAuthStore((s) => s.signOut);
 
   const [langOpen, setLangOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -135,6 +140,34 @@ export function SettingsScreen() {
             onPress={() => setLangOpen(true)}
           />
         </Animated.View>
+
+        {/* Account */}
+        {authConfigured ? (
+          <Animated.View entering={FadeInDown.delay(100).duration(360)} className="mt-8">
+            <SectionLabel>Account</SectionLabel>
+            <View className="rounded-2xl border border-hairline/70 bg-elevated p-4 dark:border-hairline-dark/70 dark:bg-elevated-dark">
+              <Text className="text-[15px] text-ink dark:text-white">
+                {authUser ? authUser.email : "Not signed in"}
+              </Text>
+              <Text className="mt-1 text-[12px] text-ink-faint dark:text-white/40">
+                {authUser
+                  ? "Your conversations are saved to this account."
+                  : "Sign in to keep conversations across devices."}
+              </Text>
+              {authUser ? (
+                <Pressable
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    void signOut();
+                  }}
+                  className="mt-3 items-center rounded-xl border border-hairline/70 py-3 dark:border-hairline-dark/70"
+                >
+                  <Text className="text-[14px] font-semibold text-rose-500">Sign out</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </Animated.View>
+        ) : null}
 
         {/* Backend — editable at runtime so a shipped build can be repointed */}
         <Animated.View entering={FadeInDown.delay(120).duration(360)} className="mt-8">

@@ -15,6 +15,7 @@ import {
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
 import { useSettingsStore } from "@/store/useSettingsStore";
+import { useAuthStore } from "@/store/useAuthStore";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -38,6 +39,9 @@ export default function RootLayout() {
   // backend without a rebuild.
   useEffect(() => {
     void useSettingsStore.getState().hydrateApi();
+    // Restore any stored Supabase session before the first request, so a
+    // signed-in customer's turns are attributed to them from turn one.
+    void useAuthStore.getState().hydrate();
   }, []);
 
   // `error` matters: if a font asset fails to load, `loaded` never flips true.

@@ -117,6 +117,22 @@ export async function pingBackend(url?: string): Promise<{ ok: boolean; detail: 
   }
 }
 
+/**
+ * Access token for the signed-in user, set by the auth store.
+ *
+ * Kept here rather than imported from the auth store so the transport has no
+ * dependency on Supabase — the same reason the base URL is injectable.
+ */
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+function authHeaders(): Record<string, string> {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+
 /** Simulate realistic, slightly variable network latency. */
 export function networkDelay(min = 550, max = 1200): Promise<void> {
   const ms = min + Math.random() * (max - min);
@@ -264,7 +280,7 @@ export function postJson<T extends EngineEnvelope>(
     path,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
     },
     timeoutMs
@@ -319,6 +335,9 @@ export function postForm<T extends EngineEnvelope>(
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
     xhr.timeout = timeoutMs;
+    for (const [key, value] of Object.entries(authHeaders())) {
+      xhr.setRequestHeader(key, value);
+    }
     // Content-Type is intentionally unset: RN fills in the multipart boundary.
 
     xhr.onload = () => {

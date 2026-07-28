@@ -12,7 +12,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import Annotated, Any, AsyncIterator
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
@@ -20,7 +20,9 @@ from ai_engine import SarvamOrchestrator
 
 from .api.whatsapp import router as whatsapp_router
 from .connectors.shopify import router as shopify_router
+from .auth import resolve_user
 from .config import get_settings
+from .memory.session_store import get_session_store
 from .memory.context import get_store
 from .mock.router import router as mock_router
 from .runtime.graph import UcxpRuntime
@@ -113,13 +115,20 @@ def _to_response(final: dict[str, Any], conversation_id: str, latency_ms: float)
 # Conversation
 # --------------------------------------------------------------------------- #
 @app.post("/chat", response_model=ChatResponse, tags=["conversation"])
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    authorization: Annotated[str | None, Header()] = None,
+) -> ChatResponse:
     started = time.perf_counter()
+    # Optional: an anonymous caller is still served, they just get no history.
+    caller = await resolve_user(authorization)
+    user_id = caller.id if caller else request.user_id
+
     final, conversation = await get_runtime().run(
         request.text,
         conversation_id=request.conversation_id,
         language=request.language,
-        user_id=request.user_id,
+        user_id=user_id,
         force_business_id=request.business_id,
     )
     elapsed = (time.perf_counter() - started) * 1000
@@ -128,7 +137,22 @@ async def chat(request: ChatRequest) -> ChatResponse:
         f"capability={final.get('capability_id')} state={final.get('status')} "
         f"total_ms={elapsed:.0f} steps={final.get('latency')}"
     )
-    return _to_response(final, conversation.id, elapsed)
+    response = _to_response(final, conversation.id, elapsed)
+    # Durable record, fire-and-forget — the customer never waits on the DB.
+    get_session_store().record_turn_later(
+        conversation_id=conversation.id,
+        user_id=caller.id if caller else None,
+        channel="app",
+        external_id=None,
+        business_id=final.get("business_id"),
+        language=final.get("language", "en-IN"),
+        user_text=request.text,
+        reply_text=response.reply_text,
+        capability=final.get("capability_id"),
+        receipt=response.receipt.model_dump() if response.receipt else None,
+        latency_ms=elapsed,
+    )
+    return response
 
 
 @app.post("/transcribe", tags=["conversation"])
@@ -243,7 +267,35 @@ async def reload_manifests() -> dict[str, Any]:
 
 
 @app.get("/history", tags=["conversation"])
-async def history(user_id: str | None = None) -> dict[str, Any]:
+async def history(
+    user_id: str | None = None,
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
+    """Past conversations.
+
+    A signed-in caller gets their durable history from the database. Without a
+    token we fall back to this process's in-memory store, so the endpoint keeps
+    working signed-out and before Supabase is configured.
+    """
+    caller = await resolve_user(authorization)
+    if caller:
+        rows = await get_session_store().history(caller.id)
+        if rows:
+            return {
+                "conversations": [
+                    {
+                        "id": r.get("id"),
+                        "business_id": r.get("business_id"),
+                        "language": r.get("language"),
+                        "channel": r.get("channel"),
+                        "updated_at": r.get("updated_at"),
+                    }
+                    for r in rows
+                ],
+                "source": "database",
+            }
+
+    wanted = caller.id if caller else user_id
     conversations = [
         {
             "id": c.id,
@@ -254,9 +306,9 @@ async def history(user_id: str | None = None) -> dict[str, Any]:
             "updated_at": c.updated_at,
         }
         for c in get_store().all()
-        if user_id is None or c.user_id == user_id
+        if wanted is None or c.user_id == wanted
     ]
-    return {"conversations": conversations}
+    return {"conversations": conversations, "source": "memory"}
 
 
 @app.get("/health", response_model=HealthOut, tags=["meta"])
@@ -267,6 +319,8 @@ async def health() -> HealthOut:
         manifests=runtime.registry.ids(),
         manifest_store={
             "configured": settings.supabase_configured,
+            "persist_sessions": settings.persist_sessions,
+            "jwt_local_verify": bool(settings.supabase_jwt_secret),
             "url_set": bool(settings.supabase_url),
             "key_set": bool(settings.supabase_key),
             "table": settings.manifest_table,
