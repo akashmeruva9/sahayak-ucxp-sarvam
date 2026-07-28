@@ -84,6 +84,7 @@ export default function RootLayout() {
               animation: "slide_from_right",
             }}
           >
+            <Stack.Screen name="sign-in" options={{ presentation: "modal", headerShown: false }} />
             <Stack.Screen name="index" options={{ animation: "fade" }} />
             <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
             <Stack.Screen

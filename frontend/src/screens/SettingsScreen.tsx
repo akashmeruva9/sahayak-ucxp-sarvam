@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { router } from "expo-router";
 import { useColorScheme } from "nativewind";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -154,17 +155,26 @@ export function SettingsScreen() {
                   ? "Your conversations are saved to this account."
                   : "Sign in to keep conversations across devices."}
               </Text>
-              {authUser ? (
-                <Pressable
-                  onPress={() => {
-                    Haptics.selectionAsync().catch(() => {});
-                    void signOut();
-                  }}
-                  className="mt-3 items-center rounded-xl border border-hairline/70 py-3 dark:border-hairline-dark/70"
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  if (authUser) void signOut();
+                  else router.push("/sign-in");
+                }}
+                className={`mt-3 items-center rounded-xl py-3 ${
+                  authUser
+                    ? "border border-hairline/70 dark:border-hairline-dark/70"
+                    : "bg-accent"
+                }`}
+              >
+                <Text
+                  className={`text-[14px] font-semibold ${
+                    authUser ? "text-rose-500" : "text-white"
+                  }`}
                 >
-                  <Text className="text-[14px] font-semibold text-rose-500">Sign out</Text>
-                </Pressable>
-              ) : null}
+                  {authUser ? "Sign out" : "Sign in"}
+                </Text>
+              </Pressable>
             </View>
           </Animated.View>
         ) : null}
