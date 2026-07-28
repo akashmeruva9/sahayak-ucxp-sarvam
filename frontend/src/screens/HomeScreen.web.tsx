@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Phone } from "lucide-react-native";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useSendMessage } from "@/hooks/useChat";
-import { ChatComposer, LanguageMarquee } from "@/components";
-import { palette } from "@/constants/theme";
+import { ChatComposer, LanguageMarquee, VoiceButton } from "@/components";
 
 /**
  * Home, desktop edition. Web only — Metro resolves this instead of
@@ -65,21 +64,25 @@ export function HomeScreen() {
       {/* Docked composer — fixed at the bottom, like every assistant. */}
       <View className="w-full items-center border-t border-hairline/60 px-10 pb-8 pt-5 dark:border-hairline-dark/60">
         <View className="w-full" style={{ maxWidth: MEASURE }}>
+          {/* The same signature button the app uses — gradient, halo, phone
+              glyph — so the voice line looks identical on both surfaces. */}
+          <View className="mb-4 items-center">
+            <VoiceButton
+              onPress={() => router.push("/call/general")}
+              size={56}
+              icon={Phone}
+              accessibilityLabel="Start a voice call"
+            />
+            <Text className="-mt-0.5 text-[13px] font-medium text-ink-muted dark:text-white/50">
+              Tap to call
+            </Text>
+          </View>
           <ChatComposer
             value={draft}
             onChangeText={setDraft}
             onSend={start}
             onMic={() => router.push("/call/general")}
           />
-          <Pressable
-            onPress={() => router.push("/call/general")}
-            className="mt-3 flex-row items-center justify-center self-center rounded-full border border-hairline/80 px-4 py-2 dark:border-hairline-dark/80"
-          >
-            <Phone size={15} color={palette.accent} strokeWidth={2.2} />
-            <Text className="ml-2 text-[13.5px] font-semibold text-ink-soft dark:text-white/70">
-              Or start a voice call
-            </Text>
-          </Pressable>
         </View>
       </View>
     </View>
