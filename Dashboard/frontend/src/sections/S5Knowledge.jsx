@@ -26,14 +26,43 @@ export default function S5Knowledge({ sections, updateSection }) {
   const importFromUrl = async () => {
     setImportError('');
     setBusy(true);
-    const result = await api.scrapeFaq(url);
+    const result = await api.scrapeFaq(url, faqs.map((f) => f.q || ''));
     setBusy(false);
     if (result.error || result.ok === false) {
       setImportError(result.error || 'We could not read that page.');
       return;
     }
-    setFaqs([...faqs, ...result.faqs]);
-    toast(`${result.faqs.length} draft FAQs imported — review and edit below`);
+
+    const drafted = result.faqs || [];
+    // Only ever fill a policy the merchant has left blank -- an import must not
+    // overwrite something they took the trouble to write.
+    const nextPolicies = { ...policies };
+    let filled = 0;
+    for (const { key } of POLICIES) {
+      if (!(policies[key] || '').trim() && (result.policies?.[key] || '').trim()) {
+        nextPolicies[key] = result.policies[key];
+        filled += 1;
+      }
+    }
+
+    set({ faqs: [...faqs, ...drafted], policies: nextPolicies });
+
+    if (!drafted.length && !filled) {
+      // Nothing new is not the same as nothing found. Re-importing a site you
+      // have already imported is a success, and must not read as a failure.
+      if (result.duplicates_skipped) {
+        toast('Already up to date — nothing new to import');
+        return;
+      }
+      setImportError(
+        result.notes || 'We read that site but could not find FAQs. Add them below.',
+      );
+      return;
+    }
+    const parts = [];
+    if (drafted.length) parts.push(`${drafted.length} draft FAQ${drafted.length > 1 ? 's' : ''}`);
+    if (filled) parts.push(`${filled} polic${filled > 1 ? 'ies' : 'y'}`);
+    toast(`${parts.join(' and ')} imported — review and edit below`);
   };
 
   const move = (index, delta) => {

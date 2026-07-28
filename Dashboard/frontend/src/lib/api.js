@@ -8,10 +8,16 @@
 const BASE = '/api';
 
 async function request(path, options = {}) {
+  // Reading a merchant's whole site takes tens of seconds; everything else
+  // should give up long before that rather than spin forever.
+  const { timeoutMs = 15000, ...rest } = options;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${BASE}${path}`, {
       headers: { 'Content-Type': 'application/json' },
-      ...options,
+      signal: controller.signal,
+      ...rest,
     });
     let body = null;
     const text = await response.text();
@@ -26,10 +32,17 @@ async function request(path, options = {}) {
       return { error: body?.error || 'Something went wrong. Please try again.' };
     }
     return body ?? {};
-  } catch {
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      return {
+        error: 'That is taking longer than expected. Try again, or fill this in by hand.',
+      };
+    }
     return {
       error: 'Could not reach the UCXP server. Check it is running on port 8000.',
     };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -56,8 +69,12 @@ export const api = {
     request('/connect/shopify', { method: 'POST', body: JSON.stringify(payload) }),
   connectCustom: (payload) =>
     request('/connect/custom', { method: 'POST', body: JSON.stringify(payload) }),
-  scrapeFaq: (url) =>
-    request('/scrape-faq', { method: 'POST', body: JSON.stringify({ url }) }),
+  scrapeFaq: (url, existingQuestions = []) =>
+    request('/scrape-faq', {
+      method: 'POST',
+      timeoutMs: 120000, // must exceed the server's own 100s budget
+      body: JSON.stringify({ url, existing_questions: existingQuestions }),
+    }),
 
   adminMerchants: () => request('/admin/merchants'),
   adminManifest: (id) => request(`/admin/merchant/${id}/manifest`),
