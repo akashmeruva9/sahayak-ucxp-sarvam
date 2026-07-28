@@ -115,7 +115,7 @@ test('F12 with sign-in switched off nothing about the app changes', async ({ pag
 });
 
 /* ==========================================================================
- * F13 — the Users tab in the admin console
+ * F13 — the Teams tab in the admin console
  *
  * The record of who has signed in. The backend half is gate B9; these check
  * that an admin can actually read it, and that it stays unread until asked.
@@ -138,7 +138,7 @@ const USERS = {
   database: { configured: true },
 };
 
-test('F13 the Users tab lists who has signed in', async ({ page }) => {
+test('F13 the Teams tab lists who has signed in', async ({ page }) => {
   const errors = watchConsole(page);
   await page.route('**/api/admin/users', (route) => route.fulfill({
     status: 200,
@@ -149,7 +149,7 @@ test('F13 the Users tab lists who has signed in', async ({ page }) => {
   await page.goto('/admin');
   await page.getByTestId('admin-tab-users').click();
 
-  await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Teams' })).toBeVisible();
   await expect(page.getByTestId('admin-user-stats')).toContainText('Admins');
 
   const admin = page.getByTestId('admin-user-boss@example.com');

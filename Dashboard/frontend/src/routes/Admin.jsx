@@ -36,7 +36,7 @@ function Chip({ selected, children, onClick }) {
 function TabBar({ tab, onChange }) {
   return (
     <div className="mb-5 flex gap-1 border-b border-line" role="tablist">
-      {[['merchants', 'Merchants'], ['users', 'Users']].map(([value, label]) => (
+      {[['merchants', 'Merchants'], ['users', 'Teams']].map(([value, label]) => (
         <button
           key={value}
           type="button"
@@ -282,7 +282,7 @@ export default function Admin() {
         <main className="mx-auto max-w-[1360px] px-6 pb-16 pt-7">
           <TabBar tab={tab} onChange={setTab} />
 
-          <h1 className="mb-1 text-xl font-semibold tracking-tight">Users</h1>
+          <h1 className="mb-1 text-xl font-semibold tracking-tight">Teams</h1>
           <p className="mb-5 text-[13px] text-ink-muted">
             Everyone who has signed into the dashboard.{' '}
             {mirrored
@@ -331,7 +331,7 @@ export default function Admin() {
 
               {usersLoading ? (
                 <div className="flex items-center gap-3 px-3.5 py-12 text-ink-muted">
-                  <Spinner /> Loading users…
+                  <Spinner /> Loading the team…
                 </div>
               ) : users.length === 0 ? (
                 <div className="px-6 py-12 text-center" data-testid="admin-users-empty">
