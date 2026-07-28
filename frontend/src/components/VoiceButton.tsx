@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { Mic } from "lucide-react-native";
+import { Mic, type LucideIcon } from "lucide-react-native";
 import { GRADIENT } from "@/constants/theme";
 import { BrandGradient } from "./BrandGradient";
 
@@ -17,12 +17,21 @@ interface VoiceButtonProps {
   size?: number;
   /** Shows a continuous pulsing halo to invite interaction. */
   pulse?: boolean;
+  /** Glyph inside the circle. Defaults to a mic; pass Phone for a call. */
+  icon?: LucideIcon;
+  accessibilityLabel?: string;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 /** The signature large microphone button on Home. */
-export function VoiceButton({ onPress, size = 76, pulse = true }: VoiceButtonProps) {
+export function VoiceButton({
+  onPress,
+  size = 76,
+  pulse = true,
+  icon: Icon = Mic,
+  accessibilityLabel = "Start voice input",
+}: VoiceButtonProps) {
   const press = useSharedValue(1);
   const halo = useSharedValue(0);
 
@@ -59,7 +68,7 @@ export function VoiceButton({ onPress, size = 76, pulse = true }: VoiceButtonPro
 
       <AnimatedPressable
         accessibilityRole="button"
-        accessibilityLabel="Start voice input"
+        accessibilityLabel={accessibilityLabel}
         onPressIn={() => (press.value = withTiming(0.92, { duration: 120 }))}
         onPressOut={() =>
           (press.value = withSequence(
@@ -98,7 +107,7 @@ export function VoiceButton({ onPress, size = 76, pulse = true }: VoiceButtonPro
             { alignItems: "center", justifyContent: "center", zIndex: 1 },
           ]}
         >
-          <Mic size={size * 0.4} color="#FFFFFF" strokeWidth={2.2} />
+          <Icon size={size * 0.4} color="#FFFFFF" strokeWidth={2.2} />
         </View>
       </AnimatedPressable>
     </View>

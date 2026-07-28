@@ -145,22 +145,16 @@ export function HomeScreen() {
             entering={FadeInDown.delay(200).duration(420)}
             className="mb-3 items-center"
           >
-            <View className="flex-row items-center gap-5">
-              <VoiceButton onPress={() => setVoiceOpen(true)} size={62} />
-              {/* The central line: say the business and the runtime routes,
-                  exactly like the chat above. */}
-              <Pressable
-                onPress={() => router.push("/call/general")}
-                accessibilityRole="button"
-                accessibilityLabel="Start a voice call"
-                className="h-[52px] w-[52px] items-center justify-center rounded-full border border-hairline dark:border-hairline-dark"
-                style={{ backgroundColor: "#0EA66E14" }}
-              >
-                <Phone size={22} color="#0EA66E" />
-              </Pressable>
-            </View>
+            {/* The central voice line. Same signature button as before —
+                only the glyph and the destination changed. */}
+            <VoiceButton
+              onPress={() => router.push("/call/general")}
+              size={62}
+              icon={Phone}
+              accessibilityLabel="Start a voice call"
+            />
             <Text className="mt-1 text-[13px] font-medium text-ink-muted dark:text-white/50">
-              Tap to speak · or call
+              Tap to call
             </Text>
           </Animated.View>
 
