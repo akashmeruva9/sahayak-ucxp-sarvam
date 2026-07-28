@@ -1,10 +1,20 @@
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Check, FileText, Image as ImageIcon, Info, Paperclip, TriangleAlert } from "lucide-react-native";
 import type { Message } from "@/types";
 import { formatClock } from "@/utils/time";
 import { BusinessBadge } from "./BusinessBadge";
 import { LoadingDots } from "./LoadingDots";
+
+/**
+ * The entrance, on the phone only.
+ *
+ * Reanimated `entering` stalls on web: the view holds its initial opacity until
+ * something forces a repaint, so a freshly rendered thread reads as greyed out
+ * until you scroll it. Web gets the same layout with no animation.
+ */
+const Row = (Platform.OS === "web" ? View : Animated.View) as typeof Animated.View;
+const ENTER = Platform.OS === "web" ? undefined : FadeInDown.duration(260);
 
 const toneStyles = {
   success: { icon: Check, color: "#0EA66E", bg: "bg-emerald-50 dark:bg-emerald-500/10" },
@@ -23,7 +33,7 @@ export function ChatBubble({ message }: { message: Message }) {
       attachment?.kind === "pdf" ? FileText : attachment?.kind === "image" ? ImageIcon : Paperclip;
 
     return (
-      <Animated.View entering={FadeInDown.duration(260)} className="mb-3 items-end">
+      <Row entering={ENTER} className="mb-3 items-end">
         <View className="max-w-[82%] rounded-card rounded-br-md bg-accent px-4 py-3">
           {attachment ? (
             <View
@@ -47,7 +57,7 @@ export function ChatBubble({ message }: { message: Message }) {
         <Text className="mr-1 mt-1 text-[11px] text-ink-faint dark:text-white/30">
           {formatClock(message.createdAt)}
         </Text>
-      </Animated.View>
+      </Row>
     );
   }
 
@@ -56,7 +66,7 @@ export function ChatBubble({ message }: { message: Message }) {
   const ToneIcon = toneStyle.icon;
 
   return (
-    <Animated.View entering={FadeInDown.duration(260)} className="mb-3 items-start">
+    <Row entering={ENTER} className="mb-3 items-start">
       <View className="max-w-[86%] rounded-card rounded-bl-md border border-hairline/70 bg-elevated px-4 py-3 dark:border-hairline-dark/70 dark:bg-elevated-dark">
         {message.businessId ? (
           <View className="mb-2">
@@ -99,6 +109,6 @@ export function ChatBubble({ message }: { message: Message }) {
           {formatClock(message.createdAt)}
         </Text>
       ) : null}
-    </Animated.View>
+    </Row>
   );
 }

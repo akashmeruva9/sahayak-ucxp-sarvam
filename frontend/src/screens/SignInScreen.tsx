@@ -16,6 +16,16 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { ScreenContainer } from "@/components";
 
+/**
+ * The entrance, on the phone only.
+ *
+ * Reanimated `entering` stalls on web — the form holds its initial opacity
+ * until something forces a repaint, so the first screen of the app renders
+ * almost invisible and there is nothing to scroll to fix it.
+ */
+const Card = (Platform.OS === "web" ? View : Animated.View) as typeof Animated.View;
+const ENTER = Platform.OS === "web" ? undefined : FadeInDown.duration(360);
+
 /** Google's four-colour "G", drawn rather than shipped as an asset. */
 function GoogleMark({ size = 18 }: { size?: number }) {
   return (
@@ -83,7 +93,7 @@ export function SignInScreen({ onSkip }: { onSkip?: () => void }) {
           contentContainerClassName="flex-grow justify-center px-6 pb-16"
           keyboardShouldPersistTaps="handled"
         >
-          <Animated.View entering={FadeInDown.duration(360)}>
+          <Card entering={ENTER}>
             <Text className="text-[34px] font-bold tracking-tight text-ink dark:text-white">
               {mode === "in" ? "Welcome back" : "Create account"}
             </Text>
@@ -186,7 +196,7 @@ export function SignInScreen({ onSkip }: { onSkip?: () => void }) {
                 </Text>
               </Pressable>
             ) : null}
-          </Animated.View>
+          </Card>
         </ScrollView>
       </KeyboardAvoidingView>
     </ScreenContainer>

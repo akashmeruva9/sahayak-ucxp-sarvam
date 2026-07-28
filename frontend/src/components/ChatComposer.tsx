@@ -116,7 +116,11 @@ export function ChatComposer({
             className="h-10 w-10 items-center justify-center overflow-hidden rounded-full"
           >
             <BrandGradient />
-            <ArrowUp size={22} color="#FFFFFF" strokeWidth={2.6} />
+            {/* The gradient is absolutely positioned, so on web it paints over
+                any static sibling. The arrow has to opt back on top. */}
+            <View style={{ zIndex: 1 }}>
+              <ArrowUp size={22} color="#FFFFFF" strokeWidth={2.6} />
+            </View>
           </View>
         </AnimatedPressable>
       </View>

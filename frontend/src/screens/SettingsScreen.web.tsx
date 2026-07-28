@@ -3,8 +3,6 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useColorScheme } from "nativewind";
 import Constants from "expo-constants";
 import {
-  Check,
-  Globe,
   Moon,
   Server,
   Smartphone,
@@ -13,7 +11,6 @@ import {
   type LucideIcon,
 } from "lucide-react-native";
 import type { ThemePreference } from "@/types";
-import { SUPPORTED_LANGUAGES, palette } from "@/constants/theme";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { COMPILED_BASE_URL, pingBackend } from "@/api/client";
@@ -29,10 +26,8 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 /**
  * Settings, desktop edition. Web only.
  *
- * The phone screen stacks rows and hides language behind a modal — correct on a
- * small screen, wasteful on a wide one. Here each concern is a card in a
- * two-column grid, and language is picked inline: on desktop a modal to choose
- * one of four options is a click and a dismissal for no benefit.
+ * The phone screen stacks full-width rows — correct on a small screen, wasteful
+ * on a wide one. Here each concern is a card in a two-column grid.
  */
 const MEASURE = 960;
 
@@ -83,8 +78,6 @@ export function SettingsScreen() {
 
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
-  const languageCode = useSettingsStore((s) => s.languageCode);
-  const setLanguage = useSettingsStore((s) => s.setLanguage);
   const apiOverride = useSettingsStore((s) => s.apiOverride);
   const apiReady = useSettingsStore((s) => s.apiReady);
   const saveApiOverride = useSettingsStore((s) => s.saveApiOverride);
@@ -109,7 +102,7 @@ export function SettingsScreen() {
           Settings
         </Text>
         <Text className="mt-2 text-[16px] text-ink-muted dark:text-white/50">
-          Appearance, language and the backend this client talks to.
+          Appearance, your account and the backend this client talks to.
         </Text>
 
         <View className="mt-9 flex-row flex-wrap gap-5">
@@ -140,44 +133,6 @@ export function SettingsScreen() {
                     >
                       {opt.label}
                     </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Card>
-
-          {/* Language — inline, no modal */}
-          <Card
-            icon={Globe}
-            title="App language"
-            hint="Replies always come back in whatever language you write in; this is only the interface."
-            delay={60}
-          >
-            <View className="flex-row flex-wrap gap-2">
-              {SUPPORTED_LANGUAGES.map((lang) => {
-                const active = lang.code === languageCode;
-                return (
-                  <Pressable
-                    key={lang.code}
-                    onPress={() => setLanguage(lang.code)}
-                    className={`flex-row items-center rounded-full px-3.5 py-2 ${
-                      active
-                        ? "bg-accent/15"
-                        : "border border-hairline/70 dark:border-hairline-dark/70"
-                    }`}
-                  >
-                    <Text
-                      className={`text-[13.5px] font-semibold ${
-                        active ? "text-accent" : "text-ink-soft dark:text-white/60"
-                      }`}
-                    >
-                      {lang.native}
-                    </Text>
-                    {active ? (
-                      <View className="ml-1.5">
-                        <Check size={13} color={palette.accent} strokeWidth={3} />
-                      </View>
-                    ) : null}
                   </Pressable>
                 );
               })}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Text, View, useWindowDimensions } from "react-native";
+import { Platform, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
   FadeIn,
@@ -16,6 +16,14 @@ import { GRADIENT, palette } from "@/constants/theme";
 import { ALPHABET_GLYPHS } from "@/constants/alphabets";
 import { LANGUAGE_GREETINGS } from "@/constants/languages";
 import { useThemeColors } from "@/hooks/useThemeColors";
+
+/**
+ * Reanimated `entering` animations stall under react-native-web: the view mounts
+ * at its initial opacity and never advances until something forces a repaint, so
+ * the screen sits there greyed out or invisible. Web gets the same layout with
+ * no entrance; the phone keeps it.
+ */
+const WEB = Platform.OS === "web";
 
 /** Branded splash → a Sarvam-style wall of language scripts, then auto-advances. */
 export function SplashScreen() {
@@ -103,7 +111,7 @@ export function SplashScreen() {
       {/* Brand panel over the wall */}
       <View className="flex-1 items-center justify-center px-8">
         <Animated.View
-          entering={FadeIn.duration(500)}
+          entering={WEB ? undefined : FadeIn.duration(500)}
           className="items-center rounded-3xl border border-hairline/60 bg-canvas/80 px-10 py-9 dark:border-hairline-dark/60 dark:bg-canvas-dark/80"
         >
           <View className="items-center justify-center">
@@ -144,7 +152,7 @@ export function SplashScreen() {
           </View>
 
           <Animated.Text
-            entering={FadeInDown.delay(280).duration(500)}
+            entering={WEB ? undefined : FadeInDown.delay(280).duration(500)}
             className="mt-6 text-[28px] font-bold tracking-tight text-ink dark:text-white"
           >
             Sahayak
@@ -154,7 +162,7 @@ export function SplashScreen() {
           <View className="mt-4 h-16 w-full items-center justify-center">
             <Animated.View
               key={greeting.code}
-              entering={FadeInDown.duration(340)}
+              entering={WEB ? undefined : FadeInDown.duration(340)}
               exiting={FadeOutUp.duration(280)}
               style={{ position: "absolute" }}
               className="items-center"
@@ -169,7 +177,7 @@ export function SplashScreen() {
           </View>
 
           <Animated.Text
-            entering={FadeInDown.delay(400).duration(500)}
+            entering={WEB ? undefined : FadeInDown.delay(400).duration(500)}
             className="mt-3 text-center text-[13px] font-medium leading-[19px] text-ink-muted dark:text-white/50"
           >
             One Place · Every Business · Every Language
@@ -177,7 +185,7 @@ export function SplashScreen() {
         </Animated.View>
       </View>
 
-      <Animated.View entering={FadeIn.delay(600)} className="absolute inset-x-0 bottom-14 items-center">
+      <Animated.View entering={WEB ? undefined : FadeIn.delay(600)} className="absolute inset-x-0 bottom-14 items-center">
         <LoadingDots color={palette.accent} size={8} />
       </Animated.View>
     </ScreenContainer>

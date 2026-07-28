@@ -251,7 +251,12 @@ export async function getJson<T>(path: string, timeoutMs = 10_000): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, { signal: controller.signal });
+    // Send the session token: /history returns the signed-in user's durable
+    // conversations with it, and only this process's in-memory ones without.
+    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+      signal: controller.signal,
+      headers: authHeaders(),
+    });
     if (!response.ok) {
       throw new ApiError(`Request failed (HTTP ${response.status})`, response.status);
     }

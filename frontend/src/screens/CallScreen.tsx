@@ -14,6 +14,14 @@ import { formatDuration } from "@/utils/time";
 import { BusinessBadge, ScreenContainer, Waveform } from "@/components";
 import { useThemeColors } from "@/hooks/useThemeColors";
 
+/**
+ * Reanimated `entering` animations stall under react-native-web: the view mounts
+ * at its initial opacity and never advances until something forces a repaint, so
+ * the screen sits there greyed out or invisible. Web gets the same layout with
+ * no entrance; the phone keeps it.
+ */
+const WEB = Platform.OS === "web";
+
 /** Where a call turn currently is. Drives the whole screen. */
 type Phase = "idle" | "listening" | "thinking" | "speaking" | "error";
 
@@ -235,7 +243,7 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
         {lines.map((line, i) => (
           <Animated.View
             key={i}
-            entering={FadeInUp.duration(220)}
+            entering={WEB ? undefined : FadeInUp.duration(220)}
             className={`mb-3 ${line.who === "you" ? "items-end" : "items-start"}`}
           >
             <View
@@ -265,7 +273,7 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
         ))}
 
         {error ? (
-          <Animated.View entering={FadeIn} className="mt-2 items-center">
+          <Animated.View entering={WEB ? undefined : FadeIn} className="mt-2 items-center">
             <Text className="text-center text-[14px] leading-5 text-rose-500">{error}</Text>
             {micAllowed === false && Platform.OS !== "web" ? (
               <Pressable

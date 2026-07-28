@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, Text, View } from "react-native";
+import { Modal, Platform, Pressable, Text, View } from "react-native";
 import Animated, { FadeIn, FadeInUp, FadeOut } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { Check, X } from "lucide-react-native";
@@ -10,6 +10,14 @@ import { formatDuration } from "@/utils/time";
 import { palette } from "@/constants/theme";
 import { Waveform } from "./Waveform";
 import { LoadingDots } from "./LoadingDots";
+
+/**
+ * Reanimated `entering` animations stall under react-native-web: the view mounts
+ * at its initial opacity and never advances until something forces a repaint, so
+ * the screen sits there greyed out or invisible. Web gets the same layout with
+ * no entrance; the phone keeps it.
+ */
+const WEB = Platform.OS === "web";
 
 interface VoiceOverlayProps {
   visible: boolean;
@@ -90,7 +98,7 @@ export function VoiceOverlay({ visible, onClose, onResult }: VoiceOverlayProps) 
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel}>
       <View className="flex-1 items-center justify-center bg-black/60 px-8">
         <Animated.View
-          entering={FadeInUp.duration(280)}
+          entering={WEB ? undefined : FadeInUp.duration(280)}
           exiting={FadeOut.duration(160)}
           className="w-full items-center rounded-3xl bg-elevated px-6 py-10 dark:bg-elevated-dark"
         >
@@ -115,7 +123,7 @@ export function VoiceOverlay({ visible, onClose, onResult }: VoiceOverlayProps) 
           </Text>
 
           {error ? (
-            <Animated.View entering={FadeIn} className="w-full items-center">
+            <Animated.View entering={WEB ? undefined : FadeIn} className="w-full items-center">
               <Text className="mb-6 text-center text-[14px] leading-5 text-ink-muted dark:text-white/60">
                 {error}
               </Text>
@@ -124,7 +132,7 @@ export function VoiceOverlay({ visible, onClose, onResult }: VoiceOverlayProps) 
               </ControlButton>
             </Animated.View>
           ) : !processing ? (
-            <Animated.View entering={FadeIn} className="flex-row items-center gap-8">
+            <Animated.View entering={WEB ? undefined : FadeIn} className="flex-row items-center gap-8">
               <ControlButton onPress={handleCancel} tone="neutral">
                 <X size={26} color="#64748B" />
               </ControlButton>

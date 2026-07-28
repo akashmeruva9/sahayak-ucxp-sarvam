@@ -6,9 +6,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
 import {
-  Check,
   ChevronRight,
-  Globe,
   Info,
   Moon,
   Server,
@@ -18,14 +16,12 @@ import {
   type LucideIcon,
 } from "lucide-react-native";
 import type { ThemePreference } from "@/types";
-import { SUPPORTED_LANGUAGES } from "@/constants/theme";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { authConfigured } from "@/lib/supabase";
 import { COMPILED_BASE_URL, pingBackend } from "@/api/client";
 import { ScreenContainer } from "@/components";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import { palette } from "@/constants/theme";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; icon: LucideIcon }[] = [
   { value: "system", label: "System", icon: Smartphone },
@@ -38,13 +34,10 @@ export function SettingsScreen() {
   const { setColorScheme } = useColorScheme();
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
-  const languageCode = useSettingsStore((s) => s.languageCode);
-  const setLanguage = useSettingsStore((s) => s.setLanguage);
 
   const authUser = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
 
-  const [langOpen, setLangOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
 
   const apiOverride = useSettingsStore((s) => s.apiOverride);
@@ -79,8 +72,6 @@ export function SettingsScreen() {
     setTesting(false);
   };
 
-  const activeLanguage =
-    SUPPORTED_LANGUAGES.find((l) => l.code === languageCode) ?? SUPPORTED_LANGUAGES[0];
 
   const applyTheme = (value: ThemePreference) => {
     Haptics.selectionAsync().catch(() => {});
@@ -129,17 +120,6 @@ export function SettingsScreen() {
               );
             })}
           </View>
-        </Animated.View>
-
-        {/* Language */}
-        <Animated.View entering={FadeInDown.delay(80).duration(360)} className="mt-8">
-          <SectionLabel>Language</SectionLabel>
-          <SettingsRow
-            icon={Globe}
-            title="App language"
-            value={activeLanguage.native}
-            onPress={() => setLangOpen(true)}
-          />
         </Animated.View>
 
         {/* Account */}
@@ -270,32 +250,6 @@ export function SettingsScreen() {
           Sahayak · Unified Customer Experience Protocol
         </Text>
       </ScrollView>
-
-      {/* Language picker */}
-      <PickerModal visible={langOpen} title="Choose language" onClose={() => setLangOpen(false)}>
-        {SUPPORTED_LANGUAGES.map((lang) => {
-          const active = lang.code === languageCode;
-          return (
-            <Pressable
-              key={lang.code}
-              onPress={() => {
-                Haptics.selectionAsync().catch(() => {});
-                setLanguage(lang.code);
-                setLangOpen(false);
-              }}
-              className="flex-row items-center justify-between px-5 py-4"
-            >
-              <View>
-                <Text className="text-[16px] font-medium text-ink dark:text-white">
-                  {lang.native}
-                </Text>
-                <Text className="text-[13px] text-ink-muted dark:text-white/40">{lang.label}</Text>
-              </View>
-              {active ? <Check size={20} color={palette.accent} /> : null}
-            </Pressable>
-          );
-        })}
-      </PickerModal>
 
       {/* About UCXP */}
       <PickerModal visible={aboutOpen} title="About UCXP" onClose={() => setAboutOpen(false)}>
