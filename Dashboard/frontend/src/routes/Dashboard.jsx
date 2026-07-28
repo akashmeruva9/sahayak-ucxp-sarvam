@@ -4,7 +4,7 @@ import { CAPABILITY_BY_KEY, LANGUAGE_BY_CODE } from '../lib/contract';
 import { api } from '../lib/api';
 import ManifestPane from '../components/ManifestPane';
 import {
-  CompletionRing, ErrorPanel, Spinner, StatusPill,
+  BusinessAvatar, CompletionRing, ErrorPanel, Spinner, StatusPill,
 } from '../components/Primitives';
 
 /** Post-onboarding view: what is live, and one click back into editing. */
@@ -85,6 +85,7 @@ export default function Dashboard() {
             ← Businesses
           </button>
           <span className="h-5 w-px flex-none bg-line" aria-hidden="true" />
+          <BusinessAvatar name={summary?.name} logoUrl={summary?.logo_url} size={24} />
           <span className="truncate text-sm font-semibold tracking-tight">
             {summary?.name || 'Untitled business'}
           </span>

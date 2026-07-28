@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import AppHeader from '../components/AppHeader';
 import ManifestPane from '../components/ManifestPane';
 import {
-  CompletionBar, ErrorPanel, Spinner, StatusPill,
+  BusinessAvatar, CompletionBar, ErrorPanel, Spinner, StatusPill,
 } from '../components/Primitives';
 
 const SOURCE_LABEL = { shopify: 'Shopify', custom: 'Custom API', none: '—', '': '—' };
@@ -221,6 +221,7 @@ export default function Admin() {
 
           <div className="mb-4 rounded-card border border-line bg-canvas px-5 py-4.5">
             <div className="mb-3.5 flex flex-wrap items-center gap-3">
+              <BusinessAvatar name={detail.name} logoUrl={detail.logo_url} size={28} />
               <h1 className="text-lg font-semibold tracking-tight">{detail.name}</h1>
               <span className="rounded-full border border-line bg-surface px-2.5 py-[3px]
                                font-mono text-xs">
@@ -525,8 +526,9 @@ export default function Admin() {
                   style={{ gridTemplateColumns: GRID }}
                 >
                   <div className="truncate px-3.5 py-3 font-mono text-xs text-ink">{merchant.id}</div>
-                  <div className="truncate px-3.5 py-3 text-[13px] font-medium">
-                    {merchant.name || 'Untitled business'}
+                  <div className="flex items-center gap-2 px-3.5 py-3 text-[13px] font-medium">
+                    <BusinessAvatar name={merchant.name} logoUrl={merchant.logo_url} size={20} />
+                    <span className="truncate">{merchant.name || 'Untitled business'}</span>
                   </div>
                   <div className="truncate px-3.5 py-3 text-[12.5px] text-ink-muted">
                     {merchant.email || '—'}

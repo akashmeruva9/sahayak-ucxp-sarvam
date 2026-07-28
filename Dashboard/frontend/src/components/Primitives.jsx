@@ -115,6 +115,59 @@ export function CompletionBar({ pct = 0 }) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* BusinessAvatar                                                              */
+/* -------------------------------------------------------------------------- */
+function initialsOf(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return parts.slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+}
+
+/** A business's logo, falling back to its initials.
+ *
+ * The fallback is not decoration. A logo that fails to load emits a console
+ * error, and `assertNoConsoleErrors` treats that as a gate failure — so the
+ * <img> is rendered only when there is something to render, and swaps itself
+ * back out on error rather than leaving a broken image behind.
+ *
+ * The field is `logo_url` on anything that came through summarize() and
+ * `logoUrl` on raw section state, so both spellings are accepted here rather
+ * than at each of the five call sites.
+ */
+export function BusinessAvatar({ name, logoUrl, size = 40, className = '' }) {
+  const src = logoUrl || '';
+  const [failed, setFailed] = useState(false);
+  const box = {
+    width: size, height: size, fontSize: Math.round(size * 0.35),
+  };
+
+  if (src && !failed) {
+    return (
+      <img
+        src={src}
+        alt=""
+        aria-hidden="true"
+        style={box}
+        onError={() => setFailed(true)}
+        className={`flex-none rounded-card border border-line bg-surface
+                    object-cover ${className}`}
+      />
+    );
+  }
+
+  return (
+    <span
+      style={box}
+      aria-hidden="true"
+      className={`flex flex-none items-center justify-center rounded-card
+                  bg-surface font-semibold ${className}`}
+    >
+      {initialsOf(name)}
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Toggle                                                                      */
 /* -------------------------------------------------------------------------- */
 export function Toggle({ checked, onChange, label, disabled = false }) {

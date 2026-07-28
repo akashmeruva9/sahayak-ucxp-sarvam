@@ -3,15 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { LANGUAGE_BY_CODE } from '../lib/contract';
 import { api } from '../lib/api';
 import {
-  CompletionRing, ErrorPanel, Modal, Spinner, StatusPill, useToast,
+  BusinessAvatar, CompletionRing, ErrorPanel, Modal, Spinner, StatusPill, useToast,
 } from '../components/Primitives';
 import AppHeader from '../components/AppHeader';
-
-function initials(name) {
-  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return '?';
-  return parts.slice(0, 2).map((p) => p[0].toUpperCase()).join('');
-}
 
 export default function Home() {
   const navigate = useNavigate();
@@ -145,13 +139,7 @@ export default function Home() {
                 data-testid={`business-card-${biz.id}`}
               >
                 <div className="flex items-start gap-3">
-                  <span
-                    className="flex h-10 w-10 flex-none items-center justify-center rounded-card
-                               bg-surface text-sm font-semibold"
-                    aria-hidden="true"
-                  >
-                    {initials(biz.name)}
-                  </span>
+                  <BusinessAvatar name={biz.name} logoUrl={biz.logo_url} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[15px] font-semibold tracking-tight">
                       {biz.name || 'Untitled business'}

@@ -3,7 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { SECTIONS, STATUS_GLYPH, slugify } from '../lib/contract';
 import { useBusiness } from '../state/useBusiness';
 import ManifestPane from '../components/ManifestPane';
-import { CompletionRing, ErrorPanel, Spinner, StatusPill } from '../components/Primitives';
+import {
+  BusinessAvatar, CompletionRing, ErrorPanel, Spinner, StatusPill,
+} from '../components/Primitives';
 import S1BusinessProfile from '../sections/S1BusinessProfile';
 import S2DataSource from '../sections/S2DataSource';
 import S3Capabilities from '../sections/S3Capabilities';
@@ -90,6 +92,13 @@ export default function Onboarding() {
             ← Businesses
           </button>
           <span className="h-5 w-px flex-none bg-line" aria-hidden="true" />
+          {/* Raw section state here, so the camelCase spelling -- not logo_url.
+              Hidden on the narrowest screens: this header is already at the
+              width budget at 375px (gate F9), and you know which business you
+              are in from the name beside it. */}
+          <span className="hidden flex-none sm:block">
+            <BusinessAvatar name={bizName} logoUrl={profile.logoUrl} size={24} />
+          </span>
           <span className="truncate text-sm font-semibold tracking-tight">{bizName}</span>
           <StatusPill status={activation.activated ? 'Active' : 'Draft'} />
           <span className="flex-1" />

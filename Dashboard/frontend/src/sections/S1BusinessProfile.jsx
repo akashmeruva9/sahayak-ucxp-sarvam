@@ -1,12 +1,20 @@
+import { useState } from 'react';
 import { CATEGORIES } from '../lib/contract';
 import { Field } from '../components/Primitives';
 import SectionCard from './SectionCard';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
+// A logo is stored inline as base64, not uploaded, so it rides along in every
+// business list response and in the published manifest -- and base64 inflates a
+// file by about a third. A 2 MB photo would put ~2.7 MB into each of those, for
+// something rendered at 40 pixels. Cap it where a real logo still fits easily.
+const MAX_LOGO_BYTES = 200 * 1024;
+
 export default function S1BusinessProfile({ sections, updateSection, slug }) {
   const p = sections['1'] || {};
   const set = (patch) => updateSection(1, patch);
+  const [logoError, setLogoError] = useState('');
 
   const emailError =
     p.email && !EMAIL_RE.test(p.email) ? 'That does not look like a valid email' : '';
@@ -16,6 +24,12 @@ export default function S1BusinessProfile({ sections, updateSection, slug }) {
   const onLogo = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_LOGO_BYTES) {
+      setLogoError('That image is over 200 KB. Please use a smaller one.');
+      event.target.value = '';
+      return;
+    }
+    setLogoError('');
     const reader = new FileReader();
     reader.onload = () => set({ logoUrl: String(reader.result || '') });
     reader.readAsDataURL(file);
@@ -182,6 +196,9 @@ export default function S1BusinessProfile({ sections, updateSection, slug }) {
               </label>
               <span className="text-xs text-ink-faint">PNG or SVG · square works best</span>
             </>
+          )}
+          {logoError && (
+            <span className="text-xs text-err" data-testid="logo-error">{logoError}</span>
           )}
         </div>
 
