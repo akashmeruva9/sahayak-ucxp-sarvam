@@ -63,10 +63,10 @@ CAPABILITIES = [
         "description": "Live status for \"Where is my order?\"",
         "default_path": "/api/orders/{order_id}",
         "default_method": "GET",
-        "default_request": '{\n  "order_id": "MS-1042"\n}',
+        "default_request": '{\n  "order_id": "ORD-1042"\n}',
         "default_response": (
             '{\n  "status": "in_transit",\n  "courier": "Delhivery",\n'
-            '  "eta": "2026-07-29",\n  "tracking_url": "https://track.delhivery.com/MS-1042"\n}'
+            '  "eta": "2026-07-29",\n  "tracking_url": "https://track.example.com/ORD-1042"\n}'
         ),
     },
     {
@@ -75,7 +75,7 @@ CAPABILITIES = [
         "description": "Initiate and track refunds",
         "default_path": "/api/orders/{order_id}/refund",
         "default_method": "POST",
-        "default_request": '{\n  "order_id": "MS-1042",\n  "reason": "damaged_on_arrival"\n}',
+        "default_request": '{\n  "order_id": "ORD-1042",\n  "reason": "damaged_on_arrival"\n}',
         "default_response": (
             '{\n  "refund_id": "rf_88h2",\n  "status": "initiated",\n  "amount": 12499,\n'
             '  "currency": "INR",\n  "eta_days": 5\n}'
@@ -87,7 +87,7 @@ CAPABILITIES = [
         "description": "Eligibility, windows and conditions",
         "default_path": "/api/policies/return",
         "default_method": "GET",
-        "default_request": '{\n  "product_id": "KS-SAREE-201"\n}',
+        "default_request": '{\n  "product_id": "SKU-201"\n}',
         "default_response": (
             '{\n  "returnable": true,\n  "window_days": 7,\n'
             '  "conditions": "Unworn, tags intact"\n}'
@@ -99,10 +99,10 @@ CAPABILITIES = [
         "description": "One-tap repeat purchase",
         "default_path": "/api/orders/{order_id}/reorder",
         "default_method": "POST",
-        "default_request": '{\n  "order_id": "MS-0977"\n}',
+        "default_request": '{\n  "order_id": "ORD-0977"\n}',
         "default_response": (
-            '{\n  "new_order_id": "MS-1105",\n  "status": "created",\n'
-            '  "payment_link": "https://pay.meenakshisilks.in/MS-1105"\n}'
+            '{\n  "new_order_id": "ORD-1105",\n  "status": "created",\n'
+            '  "payment_link": "https://pay.yourbusiness.in/ORD-1105"\n}'
         ),
     },
     {
@@ -111,10 +111,10 @@ CAPABILITIES = [
         "description": "Coverage checks and claims",
         "default_path": "/api/warranty/{product_id}",
         "default_method": "GET",
-        "default_request": '{\n  "product_id": "KS-SAREE-201"\n}',
+        "default_request": '{\n  "product_id": "SKU-201"\n}',
         "default_response": (
             '{\n  "covered": true,\n  "expires": "2027-01-15",\n'
-            '  "claim_url": "https://meenakshisilks.in/warranty"\n}'
+            '  "claim_url": "https://yourbusiness.in/warranty"\n}'
         ),
     },
     {
@@ -123,7 +123,7 @@ CAPABILITIES = [
         "description": "Swap size, colour or item",
         "default_path": "/api/orders/{order_id}/exchange",
         "default_method": "POST",
-        "default_request": '{\n  "order_id": "MS-1042",\n  "new_variant": "KS-SAREE-201-RED"\n}',
+        "default_request": '{\n  "order_id": "ORD-1042",\n  "new_variant": "SKU-201-RED"\n}',
         "default_response": (
             '{\n  "exchange_id": "ex_31kq",\n  "status": "approved",\n'
             '  "pickup_eta": "2026-07-30"\n}'
@@ -135,7 +135,7 @@ CAPABILITIES = [
         "description": "Cancel before dispatch",
         "default_path": "/api/orders/{order_id}/cancel",
         "default_method": "POST",
-        "default_request": '{\n  "order_id": "MS-1042"\n}',
+        "default_request": '{\n  "order_id": "ORD-1042"\n}',
         "default_response": '{\n  "status": "cancelled",\n  "refund_eta_days": 3\n}',
     },
 ]

@@ -33,7 +33,7 @@ export default function S1BusinessProfile({ sections, updateSection, slug }) {
             className="ucxp-input"
             name="name"
             data-testid="field-name"
-            placeholder="e.g. Meenakshi Silks"
+            placeholder="e.g. your shop's name"
             value={p.name || ''}
             onChange={(e) => set({ name: e.target.value })}
             onBlur={(e) =>

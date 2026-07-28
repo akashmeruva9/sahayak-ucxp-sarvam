@@ -29,7 +29,15 @@ async function request(path, options = {}) {
       }
     }
     if (!response.ok) {
-      return { error: body?.error || 'Something went wrong. Please try again.' };
+      if (body?.error) return { error: body.error };
+      // The API always answers with {"error": ...}, so a 5xx carrying anything
+      // else did not come from the API -- it came from whatever sits in front of
+      // it, which means the backend is down. Say that instead of "something
+      // went wrong", which sends you looking for a bug that isn't there.
+      if (response.status >= 500) {
+        return { error: 'Could not reach the UCXP server. Check that it is running.' };
+      }
+      return { error: 'Something went wrong. Please try again.' };
     }
     return body ?? {};
   } catch (err) {

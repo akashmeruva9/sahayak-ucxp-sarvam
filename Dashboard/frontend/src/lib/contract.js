@@ -56,9 +56,9 @@ export const CAPABILITIES = [
     description: 'Live status for "Where is my order?"',
     defaultPath: '/api/orders/{order_id}',
     defaultMethod: 'GET',
-    defaultRequest: '{\n  "order_id": "MS-1042"\n}',
+    defaultRequest: '{\n  "order_id": "ORD-1042"\n}',
     defaultResponse:
-      '{\n  "status": "in_transit",\n  "courier": "Delhivery",\n  "eta": "2026-07-29",\n  "tracking_url": "https://track.delhivery.com/MS-1042"\n}',
+      '{\n  "status": "in_transit",\n  "courier": "Delhivery",\n  "eta": "2026-07-29",\n  "tracking_url": "https://track.example.com/ORD-1042"\n}',
   },
   {
     key: 'refund',
@@ -66,7 +66,7 @@ export const CAPABILITIES = [
     description: 'Initiate and track refunds',
     defaultPath: '/api/orders/{order_id}/refund',
     defaultMethod: 'POST',
-    defaultRequest: '{\n  "order_id": "MS-1042",\n  "reason": "damaged_on_arrival"\n}',
+    defaultRequest: '{\n  "order_id": "ORD-1042",\n  "reason": "damaged_on_arrival"\n}',
     defaultResponse:
       '{\n  "refund_id": "rf_88h2",\n  "status": "initiated",\n  "amount": 12499,\n  "currency": "INR",\n  "eta_days": 5\n}',
   },
@@ -76,7 +76,7 @@ export const CAPABILITIES = [
     description: 'Eligibility, windows and conditions',
     defaultPath: '/api/policies/return',
     defaultMethod: 'GET',
-    defaultRequest: '{\n  "product_id": "KS-SAREE-201"\n}',
+    defaultRequest: '{\n  "product_id": "SKU-201"\n}',
     defaultResponse:
       '{\n  "returnable": true,\n  "window_days": 7,\n  "conditions": "Unworn, tags intact"\n}',
   },
@@ -86,9 +86,9 @@ export const CAPABILITIES = [
     description: 'One-tap repeat purchase',
     defaultPath: '/api/orders/{order_id}/reorder',
     defaultMethod: 'POST',
-    defaultRequest: '{\n  "order_id": "MS-0977"\n}',
+    defaultRequest: '{\n  "order_id": "ORD-0977"\n}',
     defaultResponse:
-      '{\n  "new_order_id": "MS-1105",\n  "status": "created",\n  "payment_link": "https://pay.meenakshisilks.in/MS-1105"\n}',
+      '{\n  "new_order_id": "ORD-1105",\n  "status": "created",\n  "payment_link": "https://pay.yourbusiness.in/ORD-1105"\n}',
   },
   {
     key: 'warranty',
@@ -96,9 +96,9 @@ export const CAPABILITIES = [
     description: 'Coverage checks and claims',
     defaultPath: '/api/warranty/{product_id}',
     defaultMethod: 'GET',
-    defaultRequest: '{\n  "product_id": "KS-SAREE-201"\n}',
+    defaultRequest: '{\n  "product_id": "SKU-201"\n}',
     defaultResponse:
-      '{\n  "covered": true,\n  "expires": "2027-01-15",\n  "claim_url": "https://meenakshisilks.in/warranty"\n}',
+      '{\n  "covered": true,\n  "expires": "2027-01-15",\n  "claim_url": "https://yourbusiness.in/warranty"\n}',
   },
   {
     key: 'exchange',
@@ -106,7 +106,7 @@ export const CAPABILITIES = [
     description: 'Swap size, colour or item',
     defaultPath: '/api/orders/{order_id}/exchange',
     defaultMethod: 'POST',
-    defaultRequest: '{\n  "order_id": "MS-1042",\n  "new_variant": "KS-SAREE-201-RED"\n}',
+    defaultRequest: '{\n  "order_id": "ORD-1042",\n  "new_variant": "SKU-201-RED"\n}',
     defaultResponse:
       '{\n  "exchange_id": "ex_31kq",\n  "status": "approved",\n  "pickup_eta": "2026-07-30"\n}',
   },
@@ -116,7 +116,7 @@ export const CAPABILITIES = [
     description: 'Cancel before dispatch',
     defaultPath: '/api/orders/{order_id}/cancel',
     defaultMethod: 'POST',
-    defaultRequest: '{\n  "order_id": "MS-1042"\n}',
+    defaultRequest: '{\n  "order_id": "ORD-1042"\n}',
     defaultResponse: '{\n  "status": "cancelled",\n  "refund_eta_days": 3\n}',
   },
 ];
