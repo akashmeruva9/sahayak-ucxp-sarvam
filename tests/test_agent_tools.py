@@ -55,9 +55,16 @@ class FakeRuntime:
         conversation_id: str | None = None,
         language: str | None = None,
         user_id: str | None = None,
+        force_business_id: str | None = None,
     ):
         self.calls.append(
-            {"text": text, "conversation_id": conversation_id, "language": language, "user_id": user_id}
+            {
+                "text": text,
+                "conversation_id": conversation_id,
+                "language": language,
+                "user_id": user_id,
+                "force_business_id": force_business_id,
+            }
         )
         return self.final, FakeConversation(conversation_id or "conv-1")
 
@@ -149,6 +156,29 @@ def test_conversation_id_is_echoed_back():
 def test_empty_message_is_rejected():
     client, _ = make_client(COMPLETED)
     assert client.post("/agent/resolve", json={}).status_code == 422
+
+
+# --------------------------------------------------------------------------- #
+# Business scoping — a call from one merchant's screen stays on that manifest,
+# the same rule the app's business chat and the pinned WhatsApp line follow.
+# --------------------------------------------------------------------------- #
+def test_business_id_pins_the_turn_to_one_manifest():
+    client, runtime = make_client(COMPLETED)
+    client.post("/agent/resolve", json={"message": "where is my order", "business_id": "ravi-electronics"})
+    assert runtime.calls[-1]["force_business_id"] == "ravi-electronics"
+
+
+def test_omitting_business_id_routes_across_all_manifests():
+    client, runtime = make_client(COMPLETED)
+    client.post("/agent/resolve", json={"message": "where is my order"})
+    # None ⇒ the runtime's own router decides, exactly like the central chat.
+    assert runtime.calls[-1]["force_business_id"] is None
+
+
+def test_business_alias_is_accepted_for_business_id():
+    client, runtime = make_client(COMPLETED)
+    client.post("/agent/resolve", json={"message": "hi", "business": "sri-pharma"})
+    assert runtime.calls[-1]["force_business_id"] == "sri-pharma"
 
 
 # --------------------------------------------------------------------------- #

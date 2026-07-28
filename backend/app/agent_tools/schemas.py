@@ -16,6 +16,7 @@ _MESSAGE_ALIASES = ("text", "query", "utterance", "input", "prompt", "transcript
 _CONV_ALIASES = ("session_id", "call_id", "conversationId", "sessionId")
 _LANG_ALIASES = ("lang", "language_code", "locale", "detected_language")
 _USER_ALIASES = ("caller", "from", "phone", "userId")
+_BUSINESS_ALIASES = ("business", "businessId", "merchant", "merchant_id", "store")
 
 
 class ResolveRequest(BaseModel):
@@ -25,6 +26,10 @@ class ResolveRequest(BaseModel):
     conversation_id: str | None = None
     language: str | None = None
     user_id: str | None = None
+    #: Pin the turn to one business — a call placed from that merchant's screen,
+    #: or an agent that answers for a single merchant. Omitted ⇒ the runtime
+    #: routes across every manifest, exactly like the app's central chat.
+    business_id: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -44,6 +49,7 @@ class ResolveRequest(BaseModel):
         fill("conversation_id", _CONV_ALIASES)
         fill("language", _LANG_ALIASES)
         fill("user_id", _USER_ALIASES)
+        fill("business_id", _BUSINESS_ALIASES)
         return d
 
 

@@ -60,6 +60,10 @@ async def resolve(req: ResolveRequest, runtime: Any = Depends(get_runtime_dep)) 
         conversation_id=req.conversation_id,
         language=req.language,
         user_id=req.user_id,
+        # A call placed from one merchant's screen (or a single-merchant agent)
+        # pins every turn to that manifest — the same rule the app's business
+        # chat and the WhatsApp line already follow. Omitted ⇒ route across all.
+        force_business_id=req.business_id,
     )
 
     receipt = final.get("receipt")
@@ -115,30 +119,45 @@ async def execute(req: ExecuteRequest) -> ResolveResponse:
 
 
 @router.get("/execute-spec", summary="Per-capability tool definition for a fast voice agent")
-async def execute_spec() -> dict[str, Any]:
+async def execute_spec(business_id: str | None = None) -> dict[str, Any]:
+    """Fast-path tool definition. ``?business_id=<id>`` scopes it to one merchant."""
     base = os.getenv("UCXP_PUBLIC_BASE_URL", "").strip().rstrip("/")
     url = f"{base}/agent/execute" if base else "/agent/execute"
+    registry = get_registry()
+
+    scoped = registry.get(business_id) if business_id else None
+    if business_id and scoped is None:
+        raise HTTPException(status_code=404, detail=f"No manifest for '{business_id}'")
 
     businesses: list[str] = []
     capabilities: set[str] = set()
     catalog_lines: list[str] = []
-    for m in get_registry().all():
+    for m in ([scoped] if scoped else registry.all()):
         businesses.append(m.business.id)
         for c in m.capabilities:
             capabilities.add(c.id)
             inputs = ", ".join(i.name for i in c.required_inputs) or "none"
             catalog_lines.append(f"{m.business.id}.{c.id} (inputs: {inputs})")
 
+    lead = (
+        f"Execute a customer-support action for {scoped.business.name} and get a receipt. "
+        "Decide the capability from what the caller wants, "
+        if scoped
+        else "Execute a specific customer-support action and get a receipt. Decide the business "
+             "and capability from what the caller wants, "
+    )
+
     return {
         "name": "execute_capability",
         "description": (
-            "Execute a specific customer-support action and get a receipt. Decide the business "
-            "and capability from what the caller wants, collect the listed inputs (ask the caller "
+            lead
+            + "collect the listed inputs (ask the caller "
             "for anything you don't have), then call this. It returns { say, receipt, needs_input }. "
             "If needs_input is set, ask for that value and call again. For destructive actions it may "
             "return state 'confirm' — confirm with the caller, then call again with confirmed=true. "
             "Available actions: " + "; ".join(sorted(catalog_lines)) + "."
         ),
+        "scoped_to": scoped.id if scoped else None,
         "method": "POST",
         "url": url,
         "parameters": {
@@ -161,42 +180,75 @@ async def execute_spec() -> dict[str, Any]:
 
 
 @router.get("/tool-spec", summary="Tool definition to paste into the Samvaad dashboard")
-async def tool_spec() -> dict[str, Any]:
+async def tool_spec(business_id: str | None = None) -> dict[str, Any]:
+    """The Samvaad tool definition.
+
+    Pass ``?business_id=<id>`` for a **single-merchant** agent — that merchant's
+    own support line. The spec is then scoped to its manifest and the caller is
+    never routed to another business, mirroring the app's business chat and the
+    pinned WhatsApp number. Omit it for a central agent that serves everyone.
+    """
     base = os.getenv("UCXP_PUBLIC_BASE_URL", "").strip().rstrip("/")
     url = f"{base}/agent/resolve" if base else "/agent/resolve"
+    registry = get_registry()
 
+    scoped = registry.get(business_id) if business_id else None
+    if business_id and scoped is None:
+        raise HTTPException(status_code=404, detail=f"No manifest for '{business_id}'")
+
+    manifests = [scoped] if scoped else registry.all()
     catalog = "; ".join(
-        f"{m.business.name}: {', '.join(c.id for c in m.capabilities)}"
-        for m in get_registry().all()
+        f"{m.business.name}: {', '.join(c.id for c in m.capabilities)}" for m in manifests
     )
 
-    return {
-        "name": "resolve_customer_request",
-        "description": (
+    if scoped:
+        description = (
+            f"Resolve a customer's request for {scoped.business.name} end to end — this runs the "
+            "real workflow and returns a receipt (ETA, refund or booking reference). Call it "
+            "whenever the caller asks about an order, delivery, bill, refund or cancellation. "
+            f"You answer only for {scoped.business.name}; it handles — {catalog}."
+        )
+    else:
+        description = (
             "Resolve a customer's request end to end — this runs the real workflow and "
             "returns a receipt (ticket ID, ETA, booking or refund reference). Call it whenever "
             "the caller asks about an order, delivery, bill, booking, refund, cancellation or "
             f"appointment. Covered businesses — {catalog}."
-        ),
+        )
+
+    properties: dict[str, Any] = {
+        "message": {
+            "type": "string",
+            "description": "The caller's request, transcribed verbatim in their own language.",
+        },
+        "conversation_id": {
+            "type": "string",
+            "description": "Echo back the conversation_id from the previous call so memory carries across turns.",
+        },
+        "language": {
+            "type": "string",
+            "description": "BCP-47 code Samvaad detected (e.g. te-IN, hi-IN). Optional.",
+        },
+    }
+    if scoped:
+        # A constant enum: the agent must send this id and cannot pick another
+        # business, which is what makes the line single-merchant.
+        properties["business_id"] = {
+            "type": "string",
+            "enum": [scoped.id],
+            "description": f"Always \"{scoped.id}\" — this line answers only for {scoped.business.name}.",
+        }
+
+    return {
+        "name": "resolve_customer_request",
+        "description": description,
         "method": "POST",
         "url": url,
+        "scoped_to": scoped.id if scoped else None,
         "parameters": {
             "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string",
-                    "description": "The caller's request, transcribed verbatim in their own language.",
-                },
-                "conversation_id": {
-                    "type": "string",
-                    "description": "Echo back the conversation_id from the previous call so memory carries across turns.",
-                },
-                "language": {
-                    "type": "string",
-                    "description": "BCP-47 code Samvaad detected (e.g. te-IN, hi-IN). Optional.",
-                },
-            },
-            "required": ["message"],
+            "properties": properties,
+            "required": ["message", "business_id"] if scoped else ["message"],
         },
         "usage": (
             "Speak the `say` field to the caller. If `needs_input` is set, ask `say` and call "
