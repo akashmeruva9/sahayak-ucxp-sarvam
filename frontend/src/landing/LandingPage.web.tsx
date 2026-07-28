@@ -626,7 +626,7 @@ export function LandingPage() {
                   From Kashmir to Kanyakumari — <b className="accent" style={{ fontWeight: 800 }}>22 official languages</b>,
                   every dialect in between. The customer speaks the tongue they think in; Sahayak answers in the same voice.
                 </p>
-                <div className="bignum flow">1.4B</div>
+                <div className="bignum accent">1.4B</div>
                 <div style={{ color: "var(--ink-muted)", fontSize: 14, marginTop: 4 }}>people · one protocol · every language</div>
               </div>
               <div className="constel">

@@ -80,11 +80,14 @@ html.dark .lp{
 .lp section{padding:clamp(64px,9vw,116px) 0;position:relative}
 .lp .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;
   letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:18px}
-.lp .eyebrow::before{content:"";width:16px;height:2px;border-radius:2px;background:var(--grad)}
+.lp .eyebrow::before{content:"";width:16px;height:2px;border-radius:2px;background:var(--accent)}
 .lp h1,.lp h2,.lp h3,.lp h4{letter-spacing:-.03em;line-height:1.05;font-weight:800}
 .lp h2{font-size:clamp(30px,4.3vw,50px);margin-bottom:16px}
 .lp .lead{color:var(--ink-soft);font-size:clamp(16px,1.7vw,19.5px);max-width:60ch;line-height:1.55}
-.lp .accent{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+/* Solid saffron, not the gradient. theme.ts is explicit: "Solid accent is the
+   saffron end of the gradient (for text/icons); hero fills use the full
+   gradient." The landing was spending the gradient on ordinary text. */
+.lp .accent{color:var(--accent)}
 .lp .flow{background:var(--grad);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;
   color:transparent;animation:lpflow 9s ease-in-out infinite alternate}
 @keyframes lpflow{to{background-position:100% 0}}
@@ -177,7 +180,7 @@ html.dark .lp .page-aurora i{opacity:.13}
 .lp .proof{margin-top:30px;display:flex;align-items:center;gap:14px;color:var(--ink-muted);font-size:13.5px}
 .lp .avatars{display:flex}
 .lp .avatars span{width:30px;height:30px;border-radius:50%;border:2px solid var(--canvas);margin-left:-9px;
-  background:var(--grad);display:grid;place-items:center;color:#fff;font-size:12px;font-weight:700}
+  background:var(--accent);display:grid;place-items:center;color:#fff;font-size:12px;font-weight:700}
 .lp .avatars span:first-child{margin-left:0}
 
 /* device */
@@ -191,7 +194,9 @@ html.dark .lp .page-aurora i{opacity:.13}
 .lp .msg{max-width:85%;padding:10px 14px;border-radius:16px;font-size:13.5px;line-height:1.45;margin-bottom:9px;
   opacity:0;transform:translateY(8px);animation:lpmsgin .5s cubic-bezier(.3,.7,.3,1) forwards}
 .lp .msg.a{background:var(--surface);border:1px solid var(--hairline);border-bottom-left-radius:5px}
-.lp .msg.u{background:var(--grad);color:#fff;margin-left:auto;border-bottom-right-radius:5px;box-shadow:var(--sh-glow)}
+/* Solid accent — exactly what ChatBubble.tsx renders (bg-accent). The mock
+   conversation should look like the real one, not a brighter cousin. */
+.lp .msg.u{background:var(--accent);color:#fff;margin-left:auto;border-bottom-right-radius:5px}
 .lp .visual .msg{opacity:1;transform:none;animation:none}
 @keyframes lpmsgin{to{opacity:1;transform:none}}
 .lp .device .msg:nth-child(2){animation-delay:.2s}.lp .device .msg:nth-child(3){animation-delay:1.4s}
@@ -237,16 +242,21 @@ html.dark .lp .receipt{color:#34d399}
   box-shadow:var(--sh-1);position:relative;overflow:hidden;transition:transform .28s cubic-bezier(.3,.7,.3,1),box-shadow .28s,border-color .28s}
 .lp .card:hover{transform:translateY(-4px);box-shadow:var(--sh-2);border-color:var(--ink-faint)}
 .lp .card .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;margin-bottom:16px;
-  background:var(--grad-soft);border:1px solid var(--hairline)}
+  background:var(--accent-muted);border:1px solid var(--hairline)}
 .lp .card h3{font-size:18px;margin-bottom:7px}
 .lp .card p{color:var(--ink-muted);font-size:14.5px;line-height:1.5}
 .lp .card.c3{grid-column:span 3}.lp .card.c2{grid-column:span 2}.lp .card.c4{grid-column:span 4}
-.lp .card.feat{grid-column:span 3;grid-row:span 2;background:var(--grad);background-size:180% 180%;color:#fff;border:0;
-  display:flex;flex-direction:column;justify-content:flex-end;animation:lpfeat 14s ease-in-out infinite alternate;box-shadow:var(--sh-glow)}
+/* The feature card earns its hierarchy from size and a warm accent wash, not
+   from a saturated full-bleed gradient panel. */
+.lp .card.feat{grid-column:span 3;grid-row:span 2;background:var(--surface);border:1px solid var(--hairline);
+  display:flex;flex-direction:column;justify-content:flex-end;box-shadow:var(--sh-1);position:relative}
+.lp .card.feat::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(120% 90% at 12% 8%,var(--accent-muted),transparent 62%)}
+.lp .card.feat>*{position:relative;z-index:1}
 @keyframes lpfeat{to{background-position:100% 100%}}
-.lp .card.feat .ic{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.24)}
+.lp .card.feat .ic{background:var(--accent-muted);border-color:var(--hairline)}
 .lp .card.feat h3{font-size:clamp(22px,2.4vw,30px)}
-.lp .card.feat p{color:rgba(255,255,255,.9);font-size:15px;max-width:34ch}
+.lp .card.feat p{color:var(--ink-muted);font-size:15px;max-width:34ch}
 .lp .card .stat{font-size:40px;font-weight:900;letter-spacing:-.03em;line-height:1;margin-bottom:2px}
 
 /* pipeline */
@@ -254,10 +264,10 @@ html.dark .lp .receipt{color:#34d399}
 .lp .step{background:var(--elevated);border:1px solid var(--hairline);border-radius:var(--r-card);padding:22px 20px;position:relative;
   overflow:hidden;transition:transform .25s,box-shadow .25s,border-color .25s}
 .lp .step:hover{transform:translateY(-3px);box-shadow:var(--sh-2);border-color:var(--ink-faint)}
-.lp .step .n{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff;background:var(--grad);margin-bottom:14px}
+.lp .step .n{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff;background:var(--accent);margin-bottom:14px}
 .lp .step h4{font-size:15.5px;margin-bottom:5px}
 .lp .step p{font-size:13px;color:var(--ink-muted);line-height:1.45}
-.lp .step .sweep{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--grad);transform:scaleX(0);transform-origin:left;transition:transform .4s}
+.lp .step .sweep{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .4s}
 .lp .step:hover .sweep{transform:scaleX(1)}
 
 /* split rows */
@@ -275,11 +285,11 @@ html.dark .lp .receipt{color:#34d399}
 .lp .dash h4{font-size:14px;margin-bottom:4px}
 .lp .dash .sm{font-size:12px;color:var(--ink-muted);margin-bottom:16px}
 .lp .emptystate{border:1.5px dashed var(--hairline);border-radius:var(--r-card);padding:26px;text-align:center;background:var(--surface)}
-.lp .emptystate .eic{width:46px;height:46px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;background:var(--grad-soft);color:var(--accent)}
+.lp .emptystate .eic{width:46px;height:46px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;background:var(--accent-muted);color:var(--accent)}
 .lp .emptystate b{display:block;font-size:14.5px;margin-bottom:4px}
 .lp .emptystate span{font-size:12.5px;color:var(--ink-muted)}
 .lp .barrow{display:flex;align-items:flex-end;gap:9px;height:118px;margin-top:14px}
-.lp .bcol{flex:1;background:var(--grad);border-radius:7px 7px 0 0;animation:lpgrow 1s cubic-bezier(.2,.8,.2,1) both}
+.lp .bcol{flex:1;background:var(--accent);opacity:.85;border-radius:7px 7px 0 0;animation:lpgrow 1s cubic-bezier(.2,.8,.2,1) both}
 @keyframes lpgrow{from{height:0}}
 .lp .barcap{display:flex;justify-content:space-between;color:var(--ink-faint);font-size:11.5px;margin-top:8px}
 
@@ -288,10 +298,12 @@ html.dark .lp .receipt{color:#34d399}
 .lp .constel-in{display:grid;grid-template-columns:.92fr 1.08fr;gap:48px;align-items:center;max-width:var(--content);margin:0 auto;padding:clamp(48px,7vw,88px) 24px}
 .lp .bignum{font-size:clamp(40px,5.4vw,66px);font-weight:900;letter-spacing:-.04em;line-height:1}
 .lp .constel{position:relative;width:100%;max-width:440px;margin:0 auto;aspect-ratio:1/1}
-.lp .ring{position:absolute;border-radius:50%;border:1px dashed rgba(178,75,196,.34)}
+/* Neutral orbits — the rings are structure, not brand. Three different
+   saturated hues turned the diagram into the loudest thing on the page. */
+.lp .ring{position:absolute;border-radius:50%;border:1px dashed var(--hairline)}
 .lp .ring.r1{inset:3%;animation:lpspin 48s linear infinite}
-.lp .ring.r2{inset:20%;border-color:rgba(47,93,255,.3);animation:lpspin 36s linear infinite reverse}
-.lp .ring.r3{inset:37%;border-color:rgba(255,106,44,.3);animation:lpspin 28s linear infinite}
+.lp .ring.r2{inset:20%;animation:lpspin 36s linear infinite reverse}
+.lp .ring.r3{inset:37%;border-color:var(--accent);opacity:.45;animation:lpspin 28s linear infinite}
 @keyframes lpspin{to{transform:rotate(360deg)}}
 .lp .links{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .lp .links line{stroke:url(#lp-cl);stroke-width:.5;stroke-dasharray:2.5 4;animation:lpdash 3.6s linear infinite;opacity:.6}
@@ -308,18 +320,21 @@ html.dark .lp .receipt{color:#34d399}
   display:grid;place-items:center;font-size:22px;font-weight:700;box-shadow:var(--sh-1);animation:lpnpulse 3s ease-in-out infinite;transition:transform .25s,border-color .25s,color .25s}
 .lp .node:hover .g{transform:scale(1.14);border-color:var(--accent);color:var(--accent)}
 .lp .node .nm{font-size:11px;font-weight:600;color:var(--ink-muted)}
-@keyframes lpnpulse{0%,100%{box-shadow:0 0 0 2px rgba(178,75,196,.22)}50%{box-shadow:0 0 0 10px transparent}}
+@keyframes lpnpulse{0%,100%{box-shadow:0 0 0 2px var(--accent-muted)}50%{box-shadow:0 0 0 10px transparent}}
 
 /* stats */
 .lp .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
 .lp .sb{background:var(--elevated);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:26px;box-shadow:var(--sh-1);transition:transform .25s,box-shadow .25s}
 .lp .sb:hover{transform:translateY(-3px);box-shadow:var(--sh-2)}
-.lp .sb .n{font-size:clamp(30px,3.6vw,44px);font-weight:900;letter-spacing:-.03em;line-height:1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lp .sb .n{font-size:clamp(30px,3.6vw,44px);font-weight:900;letter-spacing:-.03em;line-height:1;color:var(--accent)}
 .lp .sb .t{color:var(--ink-muted);font-size:13.5px;margin-top:9px;line-height:1.45}
 
 /* persona / honest */
-.lp .persona{background:var(--grad);border-radius:var(--r-xl);padding:2px;box-shadow:var(--sh-glow)}
-.lp .persona-in{background:var(--elevated);border-radius:calc(var(--r-xl) - 2px);padding:clamp(30px,4vw,48px)}
+/* A hairline and a single accent rule, rather than a glowing gradient frame —
+   the quote should carry the section, not the border around it. */
+.lp .persona{background:var(--hairline);border-radius:var(--r-xl);padding:1px;box-shadow:var(--sh-1)}
+.lp .persona-in{background:var(--elevated);border-radius:calc(var(--r-xl) - 1px);padding:clamp(30px,4vw,48px);
+  border-left:3px solid var(--accent)}
 .lp .persona .q{font-size:clamp(21px,2.6vw,32px);font-weight:600;line-height:1.42;letter-spacing:-.02em;max-width:28ch}
 .lp .persona .q b{font-weight:800}
 .lp .persona .attr{color:var(--ink-muted);margin-top:20px;font-size:15.5px;max-width:64ch;line-height:1.5}
@@ -329,13 +344,17 @@ html.dark .lp .receipt{color:#34d399}
 .lp .honest li .mk2{position:absolute;left:0;top:1px;font-size:16px}
 
 /* CTA + footer */
+/* The closing CTA sits on the app's own surface. The single primary button is
+   the colour moment; a full-bleed gradient panel here was competing with it. */
 .lp .ctaband{position:relative;border-radius:var(--r-xl);padding:clamp(44px,6vw,72px);text-align:center;overflow:hidden;
-  background:var(--grad);background-size:180% 180%;animation:lpfeat 16s ease-in-out infinite alternate;box-shadow:var(--sh-glow)}
-.lp .ctaband h2{color:#fff}
-.lp .ctaband p{color:rgba(255,255,255,.9);max-width:52ch;margin:14px auto 28px}
-.lp .ctaband .btn.ghost{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3);color:#fff}
-.lp .ctaband .btn.ghost:hover{background:rgba(255,255,255,.22)}
-.lp .ctaband .btn.white{background:#fff;color:#171310}
+  background:var(--surface);border:1px solid var(--hairline);box-shadow:var(--sh-1)}
+.lp .ctaband::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(90% 120% at 50% 0%,var(--accent-muted),transparent 60%)}
+.lp .ctaband>*{position:relative;z-index:1}
+.lp .ctaband h2{color:var(--ink)}
+.lp .ctaband p{color:var(--ink-soft);max-width:52ch;margin:14px auto 28px}
+.lp .ctaband .btn.white{background:var(--grad);color:#fff;box-shadow:var(--sh-glow)}
+.lp .ctaband .btn.white:hover{filter:brightness(1.06) saturate(1.04)}
 .lp footer{padding:56px 0 60px;border-top:1px solid var(--hairline);margin-top:8px}
 .lp .foot{display:flex;justify-content:space-between;gap:28px;flex-wrap:wrap;align-items:flex-start}
 .lp .foot .tag{color:var(--ink-muted);font-size:14px;margin-top:12px;max-width:34ch;line-height:1.5}
