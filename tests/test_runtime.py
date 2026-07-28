@@ -129,6 +129,57 @@ def classification(business: str | None, capability: str | None, inputs: dict | 
 # --------------------------------------------------------------------------- #
 # Manifests are the only source of business behaviour
 # --------------------------------------------------------------------------- #
+def _manifest_without_capabilities(tmp_path):
+    """A merchant onboarded with a profile and nothing connected."""
+    import json, shutil
+
+    src = REPO / "manifests"
+    for f in src.glob("*.json"):
+        shutil.copy(f, tmp_path / f.name)
+    bare = {
+        "ucxp_version": "0.1",
+        "business": {
+            "id": "quiet-traders",
+            "name": "Quiet Traders",
+            "category": "Retail",
+            "languages": ["en-IN"],
+        },
+        "capabilities": [],
+        "endpoints": [],
+        "knowledge": [{"id": "hours", "text": "Open 10am to 8pm, Monday to Saturday."}],
+    }
+    (tmp_path / "quiet-traders.json").write_text(json.dumps(bare))
+    return tmp_path
+
+
+async def test_a_business_with_no_capabilities_never_asks_for_an_order(tmp_path):
+    """The manifest is the contract, including when it declares nothing.
+
+    A merchant can be onboarded with a profile and no connected services. The
+    runtime used to greet them with "I can help with your recent orders" and
+    tell the composer to offer order status and refunds regardless of what the
+    manifest said, so a store with no APIs asked customers for order numbers it
+    could never look up.
+    """
+    runtime = build([], manifests_dir=_manifest_without_capabilities(tmp_path))
+    final, _ = await runtime.run("hi", force_business_id="quiet-traders")
+
+    reply = final["reply_text"].lower()
+    assert "order" not in reply
+    assert "refund" not in reply
+    assert "quiet traders" in reply
+    # No capability was invented, so nothing is waiting on an input.
+    assert final.get("capability_id") is None
+    assert final.get("needs") is None or final["status"] != "needs_input"
+
+
+async def test_no_capabilities_costs_no_classifier_call(tmp_path):
+    """With nothing to classify into, the model is not asked."""
+    runtime = build([], manifests_dir=_manifest_without_capabilities(tmp_path))
+    await runtime.run("where is my stuff", force_business_id="quiet-traders")
+    assert not any("capability" in p.lower() for p in runtime.engine.reason_calls)
+
+
 def test_all_manifests_load_and_are_internally_consistent():
     registry = ManifestRegistry(settings())
     # The three demo businesses must always be present; merchants are additive,

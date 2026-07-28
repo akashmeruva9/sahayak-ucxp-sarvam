@@ -329,6 +329,21 @@ class UcxpRuntime:
                 "latency": {"classify_ms": 0.0},
             }
 
+        # Nothing to classify into. A merchant onboarded without endpoints has a
+        # profile and maybe some policy, and no actions at all — handing that to
+        # the classifier invites it to answer with a capability the manifest
+        # never declared, which the gather step then chases inputs for. That is
+        # how a store with no APIs ended up asking customers for order numbers.
+        # It also saves a model call on every turn for such a business.
+        if manifest is not None and not manifest.capabilities:
+            logger.info(f"classify.no_capabilities business={resolved}")
+            return {
+                "capability_id": None,
+                "inputs": {},
+                "confidence": 1.0,
+                "latency": {"classify_ms": 0.0},
+            }
+
         # A business is loaded — pinned, named in this message, or carried over
         # from earlier in the chat. Either way the conversation belongs to it
         # until the customer names a different one (which the router catches
@@ -666,10 +681,27 @@ class UcxpRuntime:
         # from its documented knowledge rather than deflecting.
         known = manifest.business.name if manifest else "Sahayak"
         template = self._welcome(manifest)
+
+        # What this business can actually do, read off its manifest. Naming
+        # "order status, refunds" here regardless — as this used to — told the
+        # model to offer a lookup to merchants who have connected nothing, and
+        # put business behaviour in the runtime, which the manifest owns.
+        offers = [_friendly_input(c.id) for c in (manifest.capabilities if manifest else [])]
+        if offers:
+            close = f"and point them to what you can do here ({', '.join(offers)})."
+        elif manifest and manifest.knowledge:
+            close = (
+                "Answer only from the documented policies above. This business has connected no "
+                "services, so do not offer to look anything up or ask for an order number."
+            )
+        else:
+            close = (
+                "This business has connected no services and published nothing, so say plainly "
+                "that you can't look anything up for them yet. Do not ask for any details."
+            )
         outcome = (
             f"The customer sent a greeting or a general question to {known}. Answer it warmly "
-            f"as {known}, using the business's documented policies where relevant, and point "
-            f"them to what you can do (order status, refunds)."
+            f"as {known}, using the business's documented policies where relevant, {close}"
         )
         return (outcome, "", template, "smalltalk")
 
@@ -719,13 +751,26 @@ class UcxpRuntime:
         # Capability *ids* read cleanly ("track order", "refund"); published
         # descriptions are noun-phrases that don't fit a sentence.
         actions = [_friendly_input(c.id) for c in manifest.capabilities]
-        if len(actions) > 1:
-            offer = ", ".join(actions[:-1]) + f" and {actions[-1]}"
-        elif actions:
-            offer = actions[0]
-        else:
-            offer = "your recent orders"
 
+        # A merchant can be onboarded without connecting anything — a profile
+        # and some published policy, no endpoints. Offering "your recent orders"
+        # there, as this used to, promises a lookup that cannot happen and then
+        # asks for an order number to perform it with. The manifest is the
+        # contract: with no capabilities there is nothing to offer.
+        if not actions:
+            if manifest.knowledge:
+                return (
+                    f"Hello! Welcome to {manifest.business.name}. Ask me anything about them "
+                    "and I'll answer from what they've published."
+                )
+            return (
+                f"Hello! Welcome to {manifest.business.name}. They haven't connected any "
+                "services here yet, so I can't look anything up for you."
+            )
+
+        offer = (
+            ", ".join(actions[:-1]) + f" and {actions[-1]}" if len(actions) > 1 else actions[0]
+        )
         asks = [
             i.name
             for c in manifest.capabilities
