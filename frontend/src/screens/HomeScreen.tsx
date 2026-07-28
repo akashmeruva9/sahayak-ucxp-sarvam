@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   Text,
   View,
@@ -9,6 +10,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { Phone } from "lucide-react-native";
 import type { BusinessId, ConversationSummary } from "@/types";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -143,9 +145,22 @@ export function HomeScreen() {
             entering={FadeInDown.delay(200).duration(420)}
             className="mb-3 items-center"
           >
-            <VoiceButton onPress={() => setVoiceOpen(true)} size={62} />
-            <Text className="-mt-1 text-[13px] font-medium text-ink-muted dark:text-white/50">
-              Tap to speak
+            <View className="flex-row items-center gap-5">
+              <VoiceButton onPress={() => setVoiceOpen(true)} size={62} />
+              {/* The central line: say the business and the runtime routes,
+                  exactly like the chat above. */}
+              <Pressable
+                onPress={() => router.push("/call/general")}
+                accessibilityRole="button"
+                accessibilityLabel="Start a voice call"
+                className="h-[52px] w-[52px] items-center justify-center rounded-full border border-hairline dark:border-hairline-dark"
+                style={{ backgroundColor: "#0EA66E14" }}
+              >
+                <Phone size={22} color="#0EA66E" />
+              </Pressable>
+            </View>
+            <Text className="mt-1 text-[13px] font-medium text-ink-muted dark:text-white/50">
+              Tap to speak · or call
             </Text>
           </Animated.View>
 

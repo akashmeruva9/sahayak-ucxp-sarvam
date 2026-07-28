@@ -86,7 +86,12 @@ export function CompaniesScreen() {
         )}
         renderItem={({ item }) => (
           <View className="mb-2">
-            <CompanyRow business={item} onPress={openChat} />
+            <CompanyRow
+              business={item}
+              onPress={openChat}
+              // The call is pinned to this merchant, like the chat above it.
+              onCall={(b) => router.push(`/call/${b.id}`)}
+            />
           </View>
         )}
         ListEmptyComponent={

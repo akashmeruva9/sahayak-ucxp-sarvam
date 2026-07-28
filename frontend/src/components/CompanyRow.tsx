@@ -1,6 +1,6 @@
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
-import { MessageCircle } from "lucide-react-native";
+import { MessageCircle, Phone } from "lucide-react-native";
 import type { Business } from "@/types";
 import { palette } from "@/constants/theme";
 import { Card } from "./Card";
@@ -8,10 +8,16 @@ import { Card } from "./Card";
 interface CompanyRowProps {
   business: Business;
   onPress: (business: Business) => void;
+  /** Start a voice call pinned to this business. Omit to hide the call action. */
+  onCall?: (business: Business) => void;
 }
 
-/** A single row in the company directory. Tap → opens that company's support chat. */
-export function CompanyRow({ business, onPress }: CompanyRowProps) {
+/**
+ * A single row in the company directory. Tap → that company's support chat;
+ * the phone button → the same support, by voice. Both are scoped to this
+ * business alone.
+ */
+export function CompanyRow({ business, onPress, onCall }: CompanyRowProps) {
   return (
     <Animated.View entering={FadeIn.duration(200)}>
       <Card onPress={() => onPress(business)} className="p-3.5" elevated={false}>
@@ -31,6 +37,19 @@ export function CompanyRow({ business, onPress }: CompanyRowProps) {
               {business.category}
             </Text>
           </View>
+
+          {onCall ? (
+            <Pressable
+              onPress={() => onCall(business)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Call ${business.name}`}
+              className="ml-2 h-9 w-9 items-center justify-center rounded-full"
+              style={{ backgroundColor: "#0EA66E14" }}
+            >
+              <Phone size={17} color="#0EA66E" />
+            </Pressable>
+          ) : null}
 
           <View
             className="ml-2 h-9 w-9 items-center justify-center rounded-full"

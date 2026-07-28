@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { ChevronLeft } from "lucide-react-native";
+import { ChevronLeft, Phone } from "lucide-react-native";
 import type { Message } from "@/types";
 import { getBusiness } from "@/constants/businesses";
 import { pickDocument } from "@/api/documents";
@@ -98,6 +98,21 @@ export function ConversationScreen({ id }: { id: string }) {
             {conversation?.title ?? "Conversation"}
           </Text>
         </View>
+        {/* Same conversation, by voice. Scoped chats call that business; a
+            general chat opens the central line. */}
+        <Pressable
+          onPress={() =>
+            router.push(`/call/${conversation?.scoped && conversation.businessId ? conversation.businessId : "general"}`)
+          }
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Call instead"
+          className="mr-2 h-9 w-9 items-center justify-center rounded-full"
+          style={{ backgroundColor: "#0EA66E14" }}
+        >
+          <Phone size={17} color="#0EA66E" />
+        </Pressable>
+
         {conversation?.businessId ? (
           <BusinessBadge businessId={conversation.businessId} size="sm" />
         ) : (

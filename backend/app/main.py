@@ -24,6 +24,7 @@ from .api.whatsapp import router as whatsapp_router
 from .connectors.shopify import router as shopify_router
 from .auth import resolve_user
 from .config import get_settings
+from .documents import EMPTY_MESSAGES, extract
 from .memory.session_store import get_session_store
 from .memory.context import get_store
 from .mock.router import router as mock_router
@@ -33,6 +34,7 @@ from .schemas.api import (
     BusinessOut,
     ChatRequest,
     ChatResponse,
+    DocumentResponse,
     HealthOut,
     NeedsOut,
     ReceiptOut,
@@ -186,14 +188,106 @@ async def transcribe(
     }
 
 
+@app.post("/document", response_model=DocumentResponse, tags=["conversation"])
+async def document(
+    file: Annotated[UploadFile, File(description="PDF, photo or screenshot (10 MB max)")],
+    caption: Annotated[str | None, Form()] = None,
+    conversation_id: Annotated[str | None, Form()] = None,
+    language: Annotated[str | None, Form()] = None,
+    user_id: Annotated[str | None, Form()] = None,
+    business_id: Annotated[str | None, Form()] = None,
+    authorization: Annotated[str | None, Header()] = None,
+) -> DocumentResponse:
+    """A document in, a resolved job out — the same path text takes.
+
+    The customer photographs an order confirmation instead of typing the order
+    number. We extract the text, frame it as reference material, and hand it to
+    `runtime.run`, so routing, slot-filling and receipts behave exactly as they
+    do for a typed message. This is the WhatsApp document path, reachable from
+    the app and the browser.
+    """
+    started = time.perf_counter()
+    caller = await resolve_user(authorization)
+    resolved_user = caller.id if caller else user_id
+
+    data = await file.read()
+    result = extract(
+        data,
+        content_type=file.content_type,
+        filename=file.filename,
+        caption=caption or "",
+    )
+
+    # An unreadable file is a conversation turn, not an HTTP error: the customer
+    # gets a bubble telling them what to do next, in the same place every other
+    # reply appears. A 4xx would surface as a generic network failure instead.
+    if not result.ok:
+        logger.info(
+            f"document.rejected file={file.filename} type={file.content_type} "
+            f"kind={result.kind} error={result.error}"
+        )
+        return DocumentResponse(
+            conversation_id=conversation_id or "",
+            reply_text=EMPTY_MESSAGES.get(result.kind, EMPTY_MESSAGES["unsupported"]),
+            state="failed",
+            document_kind=result.kind,
+            latency_ms=round((time.perf_counter() - started) * 1000, 2),
+        )
+
+    final, conversation = await get_runtime().run(
+        result.text,
+        conversation_id=conversation_id,
+        language=language,
+        user_id=resolved_user,
+        force_business_id=business_id,
+    )
+    elapsed = (time.perf_counter() - started) * 1000
+    logger.info(
+        f"document.done conversation={conversation.id} kind={result.kind} "
+        f"chars={len(result.raw)} business={final.get('business_id')} "
+        f"capability={final.get('capability_id')} state={final.get('status')} total_ms={elapsed:.0f}"
+    )
+
+    base = _to_response(final, conversation.id, elapsed)
+    response = DocumentResponse(
+        **base.model_dump(),
+        document_kind=result.kind,
+        extracted_chars=len(result.raw),
+    )
+
+    # History shows what the customer sent, not the framed prompt we built from
+    # it — a wall of OCR text in the transcript helps nobody.
+    summary = (caption or "").strip() or f"[{result.kind}] {file.filename or 'document'}"
+    get_session_store().record_turn_later(
+        conversation_id=conversation.id,
+        user_id=caller.id if caller else None,
+        channel="app",
+        external_id=None,
+        business_id=final.get("business_id"),
+        language=final.get("language", "en-IN"),
+        user_text=summary,
+        reply_text=response.reply_text,
+        capability=final.get("capability_id"),
+        receipt=response.receipt.model_dump() if response.receipt else None,
+        latency_ms=elapsed,
+    )
+    return response
+
+
 @app.post("/voice", response_model=VoiceResponse, tags=["conversation"])
 async def voice(
     file: Annotated[UploadFile, File(description="Audio clip, 30 s max")],
     conversation_id: Annotated[str | None, Form()] = None,
     user_id: Annotated[str | None, Form()] = None,
     speak: Annotated[bool, Form()] = True,
+    business_id: Annotated[str | None, Form()] = None,
 ) -> VoiceResponse:
-    """Speech in, resolution out, spoken back in the caller's language."""
+    """Speech in, resolution out, spoken back in the caller's language.
+
+    ``business_id`` pins the turn to one merchant — a call placed from that
+    business's screen. Omitted ⇒ the runtime routes across every manifest,
+    matching the central chat.
+    """
     started = time.perf_counter()
     runtime = get_runtime()
 
@@ -207,6 +301,7 @@ async def voice(
         conversation_id=conversation_id,
         language=speech.detected_language.value,
         user_id=user_id,
+        force_business_id=business_id,
     )
 
     audio_b64 = ""
