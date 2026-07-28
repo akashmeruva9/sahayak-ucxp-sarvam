@@ -566,6 +566,102 @@ _SCRIPT_TO_LANGUAGE: dict[str, Language] = {
 }
 
 
+#: The script each language is natively written in. Several share one, which is
+#: why this can't be derived by inverting the map above.
+_LANGUAGE_TO_SCRIPT: dict[Language, str] = {
+    Language.HINDI: "DEVANAGARI",
+    Language.MARATHI: "DEVANAGARI",
+    Language.SANSKRIT: "DEVANAGARI",
+    Language.NEPALI: "DEVANAGARI",
+    Language.KONKANI: "DEVANAGARI",
+    Language.DOGRI: "DEVANAGARI",
+    Language.MAITHILI: "DEVANAGARI",
+    Language.BODO: "DEVANAGARI",
+    Language.BENGALI: "BENGALI",
+    Language.ASSAMESE: "BENGALI",
+    Language.MANIPURI: "BENGALI",
+    Language.GUJARATI: "GUJARATI",
+    Language.PUNJABI: "GURMUKHI",
+    Language.KANNADA: "KANNADA",
+    Language.MALAYALAM: "MALAYALAM",
+    Language.ODIA: "ORIYA",
+    Language.TAMIL: "TAMIL",
+    Language.TELUGU: "TELUGU",
+    Language.URDU: "ARABIC",
+    Language.SINDHI: "ARABIC",
+    Language.KASHMIRI: "ARABIC",
+    Language.SANTALI: "OL",
+    Language.ENGLISH: "LATIN",
+}
+
+#: Enough ordinary English to recognise an ordinary English sentence. Function
+#: words carry most of the signal — a romanised Indic sentence borrows English
+#: nouns ("order", "refund") but almost never English glue ("is", "with", "my").
+_ENGLISH_MARKERS: frozenset[str] = frozenset(
+    """
+    a an the this that these those there here it its
+    i me my mine we our us you your he she they them their his her
+    is am are was were be been being do does did done have has had
+    can could will would shall should may might must
+    of in on at to for from with without by about into over under
+    and or but not no yes if then than so because when while
+    what where which who whom why how
+    order orders refund refunds cancel cancelled return returns delivery
+    deliver delivered track tracking status ticket bill invoice payment
+    booking book appointment complaint help support account price cost
+    where's what's i'm i've don't can't won't
+    """.split()
+)
+
+
+def looks_like_english(text: str, *, threshold: float = 0.4) -> bool:
+    """True when enough of *text* is ordinary English to call it English.
+
+    Only meaningful for Latin-script input, and deliberately generous: the cost
+    of a false positive is a reply in English, the cost of a false negative is
+    leaving Sarvam's answer alone.
+    """
+    words = [w for w in re.findall(r"[a-z']+", (text or "").lower()) if len(w) > 1]
+    if not words:
+        return False
+    hits = sum(1 for w in words if w in _ENGLISH_MARKERS)
+    return hits / len(words) >= threshold
+
+
+def text_uses_script(text: str, script: str) -> bool:
+    """True when *text* contains at least one letter from *script*."""
+    for char in text or "":
+        if not char.isalpha():
+            continue
+        try:
+            name = unicodedata.name(char)
+        except ValueError:
+            continue
+        if name.split(" ")[0] == script:
+            return True
+    return False
+
+
+def contradicts_text(language: Language, text: str) -> bool:
+    """True when *language* cannot be what *text* is written in.
+
+    Language identification on short strings is unreliable, and a wrong answer
+    is expensive: the runtime translates the entire reply into whatever comes
+    back. This is the sanity check that costs nothing.
+
+    A claim is rejected only when both signals agree it is wrong — the text
+    contains none of the language's own script, *and* it reads as plain English.
+    Romanised Indic input ("mera order kahan hai", which Sarvam correctly calls
+    Hindi in Latin script) fails the second test and is left alone.
+    """
+    script = _LANGUAGE_TO_SCRIPT.get(language)
+    if script is None or script == "LATIN":
+        return False
+    if text_uses_script(text, script):
+        return False
+    return looks_like_english(text)
+
+
 def guess_language_from_script(text: str) -> Language:
     """Cheap offline fallback: pick the language of the dominant script."""
     counts: dict[str, int] = {}

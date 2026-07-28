@@ -22,7 +22,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ai_engine import Language, SarvamOrchestrator, Settings, Stage  # noqa: E402
 from ai_engine.prompts import PromptManager  # noqa: E402
-from ai_engine.utils import chunk_text, guess_language_from_script, merge_wav_base64  # noqa: E402
+from ai_engine.utils import (  # noqa: E402
+    chunk_text,
+    contradicts_text,
+    guess_language_from_script,
+    merge_wav_base64,
+)
 
 # --------------------------------------------------------------------------- #
 # Fixtures
@@ -395,6 +400,54 @@ async def test_lid_failure_falls_back_to_script_detection():
     assert response.success
     assert response.language is Language.TAMIL
     assert response.source == "script-heuristic"
+
+
+def lid_says(code: str, script: str = "Latn"):
+    """A LID stub that always claims *code*, whatever the input."""
+    return Recorder(
+        {"/text-lid": lambda n, b: httpx.Response(200, json={"language_code": code, "script_code": script})}
+    )
+
+
+async def test_impossible_lid_answer_is_overruled():
+    """Latin-script English must never come back as an Indic language.
+
+    Sarvam's LID really does return ml-IN for "track order 1001 with ravi
+    electronics" — order numbers and brand names give it nothing to go on. The
+    caller translates the whole reply into whatever we return, so an answer the
+    text itself contradicts has to be rejected here.
+    """
+    async with engine(lid_says("ml-IN")) as ai:
+        response = await ai.detect_language("track order 1001 with ravi electronics")
+    assert response.success
+    assert response.language is Language.ENGLISH
+    assert response.source == "lid-overruled"
+
+
+async def test_romanised_indic_is_left_alone():
+    """The guard must not eat Hinglish, which is genuinely Hindi in Latin."""
+    async with engine(lid_says("hi-IN")) as ai:
+        response = await ai.detect_language("mera order kahan hai")
+    assert response.language is Language.HINDI
+    assert response.source == "sarvam-lid"
+
+
+async def test_native_script_is_always_trusted():
+    async with engine(lid_says("ml-IN", "Mlym")) as ai:
+        response = await ai.detect_language("\u0d0e\u0d28\u0d4d\u0d31\u0d46 \u0d13\u0d7c\u0d21\u0d7c \u0d0e\u0d35\u0d3f\u0d1f\u0d46")
+    assert response.language is Language.MALAYALAM
+    assert response.source == "sarvam-lid"
+
+
+def test_contradicts_text_needs_both_signals():
+    # No Malayalam letters and plainly English -> impossible.
+    assert contradicts_text(Language.MALAYALAM, "cancel my booking please") is True
+    # No Devanagari, but not English either -> could be romanised Hindi.
+    assert contradicts_text(Language.HINDI, "naa order ekkada undi") is False
+    # Written in its own script -> trusted, always.
+    assert contradicts_text(Language.HINDI, "\u092e\u0947\u0930\u093e \u0911\u0930\u094d\u0921\u0930 \u0915\u0939\u093e\u0901 \u0939\u0948") is False
+    # English is never overruled; it is what we fall back to.
+    assert contradicts_text(Language.ENGLISH, "\u092e\u0947\u0930\u093e \u0911\u0930\u094d\u0921\u0930") is False
 
 
 async def test_missing_api_key_is_a_configuration_error():

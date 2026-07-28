@@ -24,6 +24,7 @@ from .utils import (
     SarvamHTTPClient,
     TranslationError,
     chunk_text,
+    contradicts_text,
     guess_language_from_script,
     truncate,
 )
@@ -77,6 +78,15 @@ class TranslationService:
             guessed = guess_language_from_script(text)
             detected = guessed if guessed.is_resolved else default
             source = "script-heuristic" if guessed.is_resolved else "default"
+        elif contradicts_text(detected, text):
+            # LID is a guess, and on short strings with order numbers and brand
+            # names it is sometimes a wild one: "track order 1001 with ravi
+            # electronics" comes back as Malayalam. Callers translate the whole
+            # reply into whatever we return, so an impossible answer is worse
+            # than no answer.
+            logger.warning(f"lid.overruled claimed={detected.value} text={truncate(text, 60)!r}")
+            detected = Language.ENGLISH
+            source = "lid-overruled"
 
         response = DetectionResponse(
             request_id=request_id,
