@@ -53,27 +53,29 @@ const STATS = [
   { to: 400, suffix: "M", prefix: "", t: "people locked out of English-first support" },
 ];
 
+/**
+ * The brand mark. A raster rather than the drawn glyph it replaces: the logo is
+ * artwork, not an icon, so it is used as supplied instead of being redrawn
+ * approximately in SVG.
+ */
+/**
+ * Metro hands back `{ uri }` for a required image on web; a plain <img> needs
+ * the string.
+ */
+const LOGO_SRC: string = (() => {
+  const asset = require("../../assets/logo.png") as string | { uri: string };
+  return typeof asset === "string" ? asset : asset.uri;
+})();
+
 function Mark({ className = "mk" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 100 100" aria-hidden="true">
-      <defs>
-        <linearGradient id="lp-mkg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#2F5DFF" />
-          <stop offset=".5" stopColor="#B24BC4" />
-          <stop offset="1" stopColor="#FF6A2C" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M26,16 H74 a14,14 0 0 1 14,14 V58 a14,14 0 0 1 -14,14 H46 L30,86 V72 H26 a14,14 0 0 1 -14,-14 V30 a14,14 0 0 1 14,-14 Z"
-        fill="url(#lp-mkg)"
-      />
-      <g stroke="#fff" strokeWidth="6" strokeLinecap="round" fill="none">
-        <path d="M30,34 H70" />
-        <path d="M38,34 V56" />
-        <path d="M50,34 V61" />
-        <path d="M62,34 V52" />
-      </g>
-    </svg>
+    <img
+      className={className}
+      src={LOGO_SRC}
+      alt=""
+      aria-hidden="true"
+      style={{ borderRadius: "28%", objectFit: "cover" }}
+    />
   );
 }
 

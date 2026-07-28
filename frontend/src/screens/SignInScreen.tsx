@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,7 +16,7 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import { BrandGradient, ScreenContainer } from "@/components";
+import { ScreenContainer } from "@/components";
 
 /**
  * The entrance, on the phone only.
@@ -116,10 +117,12 @@ export function SignInScreen({ onSkip }: { onSkip?: () => void }) {
                   className="flex-row items-center"
                 >
                   <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-2xl">
-                    <BrandGradient />
-                    <Text className="text-[22px]" style={{ lineHeight: 26, color: "#FFFFFF" }}>
-                      ✦
-                    </Text>
+                    <Image
+                      source={require("../../assets/logo.png")}
+                      style={{ width: "100%", height: "100%" }}
+                      resizeMode="cover"
+                      accessibilityLabel="Sahayak"
+                    />
                   </View>
                   <Text className="ml-3 text-[22px] font-bold tracking-tight text-ink dark:text-white">
                     Sahayak

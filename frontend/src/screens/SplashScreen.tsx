@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Platform, Text, View, useWindowDimensions } from "react-native";
+import { Image, Platform, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
   FadeIn,
@@ -11,7 +11,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { BrandGradient, LoadingDots, ScreenContainer } from "@/components";
+import { LoadingDots, ScreenContainer } from "@/components";
 import { GRADIENT, palette } from "@/constants/theme";
 import { ALPHABET_GLYPHS } from "@/constants/alphabets";
 import { LANGUAGE_GREETINGS } from "@/constants/languages";
@@ -144,10 +144,12 @@ export function SplashScreen() {
               ]}
               className="items-center justify-center"
             >
-              <BrandGradient />
-              <Text className="text-[42px]" style={{ lineHeight: 50, color: "#FFFFFF" }}>
-                ✦
-              </Text>
+              <Image
+                source={require("../../assets/logo.png")}
+                style={{ width: "100%", height: "100%" }}
+                resizeMode="cover"
+                accessibilityLabel="Sahayak"
+              />
             </Animated.View>
           </View>
 
