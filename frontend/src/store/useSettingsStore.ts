@@ -16,7 +16,9 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
-  theme: "system",
+  // Dark by default — the product is a dark-first surface; "system" made the
+  // first paint depend on the viewer's OS setting.
+  theme: "dark",
   languageCode: "en",
   apiOverride: null,
   apiReady: false,

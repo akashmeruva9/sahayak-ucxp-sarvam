@@ -1,3 +1,15 @@
+// Shared tail for every font stack, so a missing webfont degrades to the
+// platform UI face rather than Times New Roman.
+const SYSTEM_SANS = [
+  "system-ui",
+  "-apple-system",
+  "Segoe UI",
+  "Roboto",
+  "Helvetica Neue",
+  "Arial",
+  "sans-serif",
+];
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
@@ -36,11 +48,15 @@ module.exports = {
         "elevated-dark": "#221D17",
         "hairline-dark": "#332C22",
       },
+      // Each stack ends in a real system sans. The Inter_* names are the
+      // families expo-font registers on native; on web they may not resolve,
+      // and without a fallback the browser drops to its default *serif* — which
+      // is why headings rendered serif while unstyled body text stayed sans.
       fontFamily: {
-        sans: ["Inter_400Regular"],
-        medium: ["Inter_500Medium"],
-        semibold: ["Inter_600SemiBold"],
-        bold: ["Inter_700Bold"],
+        sans: ["Inter_400Regular", "Inter", ...SYSTEM_SANS],
+        medium: ["Inter_500Medium", "Inter", ...SYSTEM_SANS],
+        semibold: ["Inter_600SemiBold", "Inter", ...SYSTEM_SANS],
+        bold: ["Inter_700Bold", "Inter", ...SYSTEM_SANS],
       },
       borderRadius: {
         card: "16px",
