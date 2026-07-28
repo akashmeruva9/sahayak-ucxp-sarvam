@@ -26,6 +26,25 @@ def _env_int(key: str, default: int) -> int:
         return default
 
 
+def _resolve_search_provider() -> str:
+    """Infer the search provider from whichever key is present.
+
+    An explicit UCXP_SEARCH_PROVIDER wins, so a machine holding several keys
+    can still pin one. No key at all ⇒ "none", and the feature stays off.
+    """
+    forced = _env("UCXP_SEARCH_PROVIDER", "").lower()
+    if forced:
+        return forced
+    for name, key in (
+        ("tavily", "TAVILY_API_KEY"),
+        ("brave", "BRAVE_API_KEY"),
+        ("serper", "SERPER_API_KEY"),
+    ):
+        if _env(key, ""):
+            return name
+    return "none"
+
+
 class RuntimeSettings(BaseModel):
     """Every knob the UCXP runtime has."""
 
@@ -52,6 +71,17 @@ class RuntimeSettings(BaseModel):
     #:            trip (~7-20 s with sarvam-105b).
     #:   never  — template only; falls back to a fixed line when none renders.
     compose_with_llm: str = "auto"
+
+    # --- Web search for businesses with no manifest -------------------------
+    #: Set whichever key you have; the provider is inferred from it. Explicitly
+    #: set UCXP_SEARCH_PROVIDER only to force one when several keys exist.
+    tavily_api_key: str = ""
+    brave_api_key: str = ""
+    serper_api_key: str = ""
+    search_timeout_s: float = 10.0
+    #: Resolved in from_env(): tavily | brave | serper | none
+    search_provider: str = "none"
+
     log_level: str = "INFO"
 
     # --- WhatsApp transport (Twilio sandbox). Generic messaging config, not
@@ -91,6 +121,11 @@ class RuntimeSettings(BaseModel):
             min_capability_confidence=float(_env("UCXP_MIN_CONFIDENCE", "0.35")),
             action_timeout_s=float(_env("UCXP_ACTION_TIMEOUT", "8")),
             compose_with_llm=_env("UCXP_COMPOSE_WITH_LLM", "auto").lower(),
+            tavily_api_key=_env("TAVILY_API_KEY", ""),
+            brave_api_key=_env("BRAVE_API_KEY", ""),
+            serper_api_key=_env("SERPER_API_KEY", ""),
+            search_timeout_s=float(_env("UCXP_SEARCH_TIMEOUT", "10")),
+            search_provider=_resolve_search_provider(),
             log_level=_env("UCXP_LOG_LEVEL", "INFO"),
             twilio_account_sid=_env("TWILIO_ACCOUNT_SID", ""),
             twilio_auth_token=_env("TWILIO_AUTH_TOKEN", ""),

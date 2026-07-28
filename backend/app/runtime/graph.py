@@ -31,6 +31,7 @@ from .llm import build_prompt, think_json, think_text
 from .loader import ManifestRegistry, get_registry
 from .renderer import RenderError, RuleError, evaluate_condition, render
 from .state import TurnState
+from .websearch import SearchUnavailable, as_context, search
 
 #: Whole-word tokens only — substring matching once let "sri p(ha)rma" confirm
 #: a pending refund. Multi-word phrases are checked separately.
@@ -46,6 +47,35 @@ _VALUE_LIKE = re.compile(r"\d|\b(today|tomorrow|tonight|monday|tuesday|wednesday
 def _friendly_input(name: str) -> str:
     """`order_number` → `order number`, for use in a sentence."""
     return name.replace("_", " ").replace("-", " ").strip()
+
+
+#: Words that start a sentence or a question and are not a business name.
+_NOT_A_NAME = {
+    "i", "my", "me", "the", "a", "an", "is", "are", "was", "where", "what",
+    "when", "how", "why", "can", "could", "would", "please", "hi", "hello",
+    "hey", "order", "refund", "status", "help", "need", "want", "check",
+    "track", "cancel", "delivery", "package", "it", "this", "that", "for",
+    "from", "about", "with", "and", "or", "do", "does", "did", "you", "your",
+}
+
+
+def _candidate_business_name(text: str) -> str | None:
+    """Pull a plausible brand name out of a message, or None.
+
+    Capitalised runs are the signal ("my Acme order", "Acme Traders").
+    Deliberately conservative: a false positive sends us searching the web for
+    something that isn't a business, which is slower and reads oddly.
+    """
+    runs = re.findall(r"\b([A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*)*)", text or "")
+    for run in runs:
+        words = [w for w in run.split() if w.lower() not in _NOT_A_NAME]
+        if not words:
+            continue
+        candidate = " ".join(words)
+        # A single short token is usually a sentence start, not a brand.
+        if len(candidate) >= 4:
+            return candidate
+    return None
 
 
 def _might_contain_value(text: str) -> bool:
@@ -236,12 +266,16 @@ class UcxpRuntime:
         # five-business catalogue to conclude "I don't know which" cost ~38 s
         # and told us nothing the router hadn't already established.
         if not resolved:
-            logger.info("classify.no_business asking the customer to name one")
+            unknown = _candidate_business_name(state["english_text"]) or _candidate_business_name(
+                state["raw_text"]
+            )
+            logger.info(f"classify.no_business unknown={unknown!r}")
             return {
                 "capability_id": None,
                 "inputs": {},
                 "confidence": 0.0,
                 "needs_business": True,
+                "unknown_business": unknown,
                 "latency": {"classify_ms": 0.0},
             }
 
@@ -458,6 +492,18 @@ class UcxpRuntime:
         manifest: Manifest | None = state.get("manifest")
         capability = manifest.capability(state["capability_id"]) if manifest and state.get("capability_id") else None
 
+        # A business we don't serve: look it up so the answer is useful rather
+        # than a flat "no". Runs before _outcome so it can supply the reply.
+        if state.get("needs_business") and state.get("unknown_business"):
+            looked_up = await self._lookup_unknown_business(state)
+            if looked_up:
+                return {
+                    "reply_en": looked_up,
+                    "status": "unknown_business",
+                    "receipt": None,
+                    "latency": {"compose_ms": (time.perf_counter() - started) * 1000},
+                }
+
         outcome, facts, template, status = self._outcome(state, conversation, manifest, capability)
 
         # A question back to the user is already perfectly worded — don't
@@ -576,6 +622,35 @@ class UcxpRuntime:
             f"them to what you can do (order status, refunds)."
         )
         return (outcome, "", template, "smalltalk")
+
+    async def _lookup_unknown_business(self, state: TurnState) -> str | None:
+        """Search the web for a business with no manifest; None ⇒ fall through.
+
+        Never raises into a turn: if search is unconfigured or the provider is
+        down, the customer just gets the ordinary "which business?" reply.
+        """
+        name = state["unknown_business"]
+        try:
+            results = await search(f"{name} customer support contact", self.settings)
+        except SearchUnavailable as exc:
+            logger.info(f"compose.websearch_skipped business={name!r} reason={exc}")
+            return None
+        if not results:
+            return None
+
+        reply = await think_text(
+            self.engine,
+            build_prompt(
+                "unknown_business",
+                text=state["english_text"],
+                business=name,
+                results=as_context(results),
+                available=", ".join(m.business.name for m in self.registry.all()),
+            ),
+            step="unknown_business",
+            user_text=state["english_text"],
+        )
+        return reply or None
 
     @staticmethod
     def _welcome(manifest: Manifest | None) -> str:

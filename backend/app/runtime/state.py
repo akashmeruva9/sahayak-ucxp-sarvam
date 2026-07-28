@@ -57,6 +57,8 @@ class TurnState(TypedDict, total=False):
     missing_input: str | None
     #: No business in context and none named — ask the customer to name one.
     needs_business: bool
+    #: A brand named in the message that has no manifest — worth a web lookup.
+    unknown_business: str | None
     missing_prompt: str | None
     knowledge_answer: str | None
 
