@@ -1,293 +1,387 @@
-# Sahayak — AI Engine
+# Sahayak — a UCXP runtime
 
+**UCXP is a protocol for customer resolution. This repository is a runtime that speaks it and contains zero business-specific code.**
 
-PPT Link : https://docs.google.com/presentation/d/1nnpIAuOZ8mrtoTnzKNjGvEPaeVxSKGnRwMhsYY4F-AY/edit?usp=sharing
+Adding a business means adding one JSON manifest. It does not mean editing the
+runtime, adding a branch, registering a handler, or deploying code. That claim is
+the point of the project, so it is built to be checked rather than believed —
+two `grep`s and two `curl`s, in §2.
 
-Demo : 
+| Surface | Where |
+|---|---|
+| Runtime (live) | <https://sahayak-ucxp-sarvam-production.up.railway.app> |
+| Web app (live) | <https://sahayak-ucxp.vercel.app> |
+| Android | release APK, built from the same Expo codebase |
+| WhatsApp | Twilio sandbox → `POST /whatsapp/webhook` |
+| Voice call | Sarvam Samvaad agent → `POST /agent/execute` |
+| Deck | [Google Slides](https://docs.google.com/presentation/d/1nnpIAuOZ8mrtoTnzKNjGvEPaeVxSKGnRwMhsYY4F-AY/edit?usp=sharing) |
+| Merchant onboarding demo | [Loom](https://www.loom.com/share/c7904325fba347adaaad6f623799d98a) |
 
 https://github.com/user-attachments/assets/ce71b48b-8d3c-4edc-8088-5113533392cf
 
-
 https://github.com/user-attachments/assets/ede17ab2-73b6-46e2-9e45-6e043a5b5059
 
-Merchant Onboarding Demo : https://www.loom.com/share/c7904325fba347adaaad6f623799d98a
-
-
-The AI layer of Sahayak. It integrates **every Sarvam AI capability behind one
-interface** so nothing else in the system ever calls Sarvam directly.
-
-```
-Frontend  →  UCXP Runtime  →  AI Engine  →  Sarvam APIs
-```
-
-This repo builds **only** the AI Engine. No business logic, no protocol, no
-database, no auth, no workflows, no customer-support behaviour.
-
 ---
 
-## One line to use it
+## Documentation
 
-```python
-from ai_engine import SarvamOrchestrator
+This README is the overview. The detail lives in [`docs/`](./docs/).
 
-async with SarvamOrchestrator() as engine:
-    response = await engine.process_voice(audio_bytes)
-
-response.detected_language   # Language.HINDI
-response.transcript          # "मेरा ऑर्डर अभी तक नहीं आया है"
-response.translated_text     # "My order has not arrived yet"
-response.llm_response        # answer, reasoning language (English)
-response.response_text       # answer, user's language
-response.audio_base64        # spoken answer, base64 WAV
-response.latency             # per-stage milliseconds
-response.error               # None, or a structured ErrorDetail
-```
-
-The caller never sees a Sarvam payload, a model name, a retry, or an HTTP client.
-
----
-
-## Run it locally (no API key needed)
-
-```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-
-# 1. offline test suite — 33 tests, every Sarvam call mocked in-process
-.venv/bin/python -m pytest
-
-# 2. a fake Sarvam that speaks the real wire format
-.venv/bin/python tools/mock_sarvam.py            # http://127.0.0.1:8099
-
-# 3. drive the engine against it
-export SARVAM_BASE_URL=http://127.0.0.1:8099 SARVAM_API_KEY=mock
-.venv/bin/python tools/demo.py gen-audio sample.wav
-.venv/bin/python tools/demo.py voice sample.wav --out reply.wav
-.venv/bin/python tools/demo.py text "मेरा ऑर्डर कहाँ है?"
-```
-
-Point it at the real thing by dropping the two overrides and putting your key in
-`.env` (`cp .env.example .env`). Note that exported shell variables win over
-`.env`, so `unset SARVAM_BASE_URL SARVAM_API_KEY` first.
-
-The mock can misbehave on purpose, which is how the retry path is exercised:
-
-```bash
-MOCK_FAIL_RATE=0.5 MOCK_LATENCY_MS=400 python tools/mock_sarvam.py
-```
-
-### As a service
-
-```bash
-.venv/bin/python -m uvicorn ai_engine.app:app --port 8080     # docs at /docs
-curl -X POST localhost:8080/v1/text -H 'content-type: application/json' \
-     -d '{"text":"मेरा ऑर्डर कहाँ है?"}'
-curl -X POST localhost:8080/v1/voice -F file=@sample.wav
-```
-
----
-
-## Verified against the live API (2026-07-26)
-
-All seven Sarvam APIs, full voice round trip — Sarvam TTS generated the question
-clip, `process_voice()` consumed it:
-
-| Stage | Model | Latency |
-|---|---|---|
-| speech to text | `saarika:v2.5` | 405 ms |
-| translate → English | `sarvam-translate:v1` | 227 ms |
-| reasoning | `sarvam-105b` | **4673 ms** |
-| translate → Hindi | `sarvam-translate:v1` | 356 ms |
-| text to speech | `bulbul:v2` | 1139 ms |
-| | | **6.8 s total** |
-
-Text-only pipeline: **2.1 s**. The LLM dominates; everything else is sub-second.
-
-### The LLM is a reasoning model — read this
-
-`sarvam-m` is **deprecated**. The current models are `sarvam-30b` and
-`sarvam-105b`, and **both think before they answer**. The chain of thought comes
-back in `reasoning_content` and is billed against `max_tokens`, so a budget that
-is too small gets consumed by thinking and `content` comes back **null**.
-
-- Thinking **cannot be disabled** — `reasoning_effort` accepts only
-  `low`/`medium`/`high`, and `enable_thinking: false` is ignored.
-- `max_tokens` is capped by your plan (4096 on the *starter* tier).
-- Observed reasoning for one identical one-line prompt: 735–15,476 characters.
-- `sarvam-30b` often exhausts 4096 tokens mid-thought; `sarvam-105b` finished
-  every time. **Default is `sarvam-105b` at `max_tokens=4096`.**
-
-A larger `max_tokens` costs nothing when reasoning is short — it is a cap, not a
-spend — so don't lower it to save money. If the model is still cut off, the
-engine retries once with a doubled budget (up to
-`SARVAM_LLM_MAX_TOKENS_CEILING`) and otherwise returns an actionable error:
-
-```
-llm_failed: sarvam-105b used its entire 4096-token budget reasoning and never
-produced an answer. Raise SARVAM_LLM_MAX_TOKENS…
-```
-
-`LLMResponse.reasoning` keeps the chain of thought for debugging but is
-**excluded from serialisation** — it must never reach an end user.
-
-### Other live-API notes
-
-- `/translate` and `/transliterate` **reject `"auto"`** as a source language.
-  The engine resolves an unknown source through `/text-lid` first, so callers
-  can still omit it.
-- `saarika:v2` is deprecated → `saarika:v2.5`. Also available: `saarika:flash`,
-  `saaras:v3`, `saaras:v3-realtime`.
-- `bulbul:v3` exists with a **completely different speaker set** (`priya`,
-  `aditya`, `ritu`, …); v2 voices are rejected by v3. Change
-  `SARVAM_TTS_MODEL` and `SARVAM_TTS_SPEAKER` together — `GET /v1/voices` lists
-  both sets.
-
----
-
-## The two pipelines
-
-**Voice** — `process_voice(audio)`
-
-```
-audio → detect language → speech to text → translate to English
-      → LLM → translate back → text to speech → VoiceResponse
-```
-
-**Text** — `process_text(text)`
-
-```
-text → detect language → translate → LLM → translate back → TextResponse
-```
-
-Language detection rides along with speech-to-text (`saarika` returns the code
-it heard); text input uses `/text-lid`, falling back to a Unicode-script
-heuristic if that call fails. Both hops are skipped when the user is already
-speaking the reasoning language.
-
----
-
-## The interface
-
-| Method | Does |
+| Document | Covers |
 |---|---|
-| `process_voice(audio, …)` | the whole voice pipeline, audio in → audio out |
-| `process_text(text, …)` | the whole text pipeline |
-| `translate(text, target_language=…)` | translation only |
-| `speak(text, language=…)` | synthesis only |
-| `reason(text \| messages, …)` | LLM only, no translation hops |
-| `transcribe(audio, …)` | speech to text only (`translate_to_english=True` → saaras) |
-| `transliterate(text, target_language=…)` | script conversion |
-| `detect_language(text)` | language identification |
-| `health()` | configuration, models, prompts |
-
-Every Sarvam API is covered: `speech-to-text`, `speech-to-text-translate`,
-`translate`, `transliterate`, `text-lid`, `chat/completions`, `text-to-speech`.
+| [**architecture.md**](./docs/architecture.md) | Context and container views, the layering rules as a dependency graph, component map, deployment topology, cross-cutting invariants, known debt |
+| [**request-lifecycle.md**](./docs/request-lifecycle.md) | The LangGraph turn in depth — state diagram, every short-circuit, the three prompts and their gates, four sequence diagrams, failure semantics |
+| [**manifest-spec.md**](./docs/manifest-spec.md) | Both manifest schemas, the complete `normalize.py` mapping table, template and rule grammar, the load path, what the published schema cannot express |
+| [**channels.md**](./docs/channels.md) | The four clients compared, per-channel sequence diagrams, the WhatsApp 10 s constraint, the Samvaad tools, the business-pinning rule |
+| [**data-and-memory.md**](./docs/data-and-memory.md) | The three memory layers, how a mid-flow confirmation survives a restart, fact propagation, the Supabase schema, known gaps |
+| [**operations.md**](./docs/operations.md) | Local dev, Docker, Railway (including the `UCXP_PORT` loopback trap), Vercel, the APK, env vars, health checks, a symptom → cause → fix table |
+| [**decisions.md**](./docs/decisions.md) | The engineering decision log as prose, grouped by theme, each with context → decision → trade-off |
+| [**manifest-sync.md**](./docs/manifest-sync.md) | The dashboard ↔ runtime publishing contract |
+| [**frontend/README.md**](./frontend/README.md) | The client: screen map, API layer, state, scoping rule, platform differences, build |
+| [**PLAN.md**](./PLAN.md) | The append-only source of truth — scope, contracts, status board, the raw 50-row decision log |
 
 ---
 
-## Layout
+## 1. The thesis
 
-```
-ai_engine/
-  orchestrator.py    SarvamOrchestrator — the only class anyone else imports
-  speech.py          speech-to-text        (saarika / saaras)
-  translation.py     translate, transliterate, language id
-  llm.py             reasoning + conversation formatting   (sarvam-m)
-  tts.py             synthesis, chunking, wav merging      (bulbul)
-  prompts.py         prompt loading, rendering, composition
-  prompt_library/    system.md · business.md · workflow.md
-  config.py          every knob, read from .env
-  models.py          languages, speakers, roles, stages, services
-  schemas.py         SpeechResponse · TextResponse · TranslationResponse · VoiceResponse …
-  utils.py           http client, retries, errors, latency, audio, logging
-  app.py             optional FastAPI surface over the orchestrator
-tools/
-  mock_sarvam.py     local stand-in for api.sarvam.ai
-  demo.py            CLI for every capability
-tests/
-  test_ai_engine.py  offline suite
-```
+Everyone building AI customer support today builds a bot per company. The
+company's policies, endpoints and edge cases end up inside the assistant. That
+does not compose: the second company needs a second bot.
 
-`utils.SarvamHTTPClient` is the only place that talks to `api.sarvam.ai`.
+UCXP inverts it. A business publishes a **manifest** — a JSON document declaring
+its capabilities, the inputs each one needs, the endpoint each one calls, the
+rules that can block it, and the receipt the customer gets back. Any compliant
+runtime can then serve that business without knowing it exists.
+
+So the interesting engineering is not "we called an LLM". It is a **generic
+reasoning graph** whose candidate set, slots, rules, templates and receipts are
+all read out of a document at request time — and the discipline to keep it
+generic while five real Shopify merchants, four client channels and a live phone
+call all run through it.
+
+**A job is only done when a receipt comes back.** A reply that explains a policy
+and stops is a failure mode this system is designed against: on the voice-agent
+path, `done` is literally `receipt is not None`.
 
 ---
 
-## Prompts
+## 2. Verify the claim
 
-Prompts are files, not code. Three ship by default:
+Two directional rules make this a protocol rather than an app
+([details](./docs/architecture.md#4-the-layering-rules-as-a-dependency-graph)):
 
-| Key | Purpose |
-|---|---|
-| `system` | base operating rules, output language, TTS-friendly formatting |
-| `business` | persona, tone, boundaries, escalation |
-| `workflow` | turn-level procedure for driving a task |
+1. **Only `ai_engine/` talks to Sarvam.** The runtime imports
+   `SarvamOrchestrator` and calls methods on it — never a model name, an HTTP
+   client, a retry, or a key.
+2. **Nothing in the runtime knows a business exists.** Business behaviour enters
+   only through `manifests/*.json`.
 
-```python
-await engine.process_text(
-    "मेरा ऑर्डर कहाँ है?",
-    prompt_key=["system", "business"],
-    prompt_variables={"brand": "Sahayak", "domain": "orders", "tone": "warm",
-                      "escalation_path": "a human agent"},
-)
+```bash
+# Rule 2 — no business name anywhere in the runtime.
+grep -rniE "flipkart|airtel|apollo|ravi|lakshmi|meena|sri-pharma|anna-groceries" \
+     backend/app/runtime/
+# → no matches
+
+# Rule 1 — no Sarvam wire access, model constant, or credential outside ai_engine/.
+grep -rn "api\.sarvam\.ai\|SARVAM_API_KEY\|saarika\|bulbul\|sarvam-translate\|SARVAM_LLM_MODEL" \
+     backend/
+# → no matches
 ```
 
-Placeholders are `{{name}}`. Add a prompt by dropping a `.md` file in
-`prompt_library/` (or point `AI_ENGINE_PROMPTS_DIR` at your own directory), or
-register one at runtime:
+Then ask the runtime itself:
 
-```python
-engine.prompts.register("collections", "Chase the invoice for {{customer}}.")
+```bash
+BASE=https://sahayak-ucxp-sarvam-production.up.railway.app
+curl -s $BASE/businesses                    # the directory, comprehended from manifests
+curl -s $BASE/manifests/ravi-electronics    # the document that produced it
 ```
+
+`GET /businesses` has no list in it. It is a comprehension over whatever
+manifests loaded.
 
 ---
 
-## Errors, retries, degradation
+## 3. System
 
-Public methods **never raise** — they return a response with `success=False` and
-a structured `error`:
+```mermaid
+flowchart TB
+    subgraph clients["Client channels — all speak the same contract"]
+        A["Expo app<br/>Android APK"]
+        B["Web SPA<br/>Vercel"]
+        C["WhatsApp<br/>Twilio sandbox"]
+        D["Phone call<br/>Sarvam Samvaad"]
+    end
+
+    subgraph runtime["UCXP Runtime · backend/ · no business code"]
+        E["HTTP surface<br/>/chat /voice /document /whatsapp /agent"]
+        F["LangGraph state machine<br/>understand → route → classify →<br/>gather → act → compose → localize"]
+        G["Manifest registry<br/>loader + normalize"]
+        H["Action executor<br/>template renderer<br/>rule evaluator"]
+        I["Conversation memory<br/>+ disk snapshot"]
+    end
+
+    subgraph engine["AI Engine · ai_engine/ — the only Sarvam client"]
+        J["SarvamOrchestrator"]
+    end
+
+    subgraph data["Business data"]
+        K["manifests/*.json"]
+        L["Supabase<br/>ucxp_manifests<br/>published by the<br/>onboarding dashboard"]
+        M["Shopify connector<br/>one generic route<br/>for every merchant"]
+    end
+
+    A --> E
+    B --> E
+    C --> E
+    D --> E
+    E --> F
+    F --> G
+    F --> H
+    F --> I
+    F --> J
+    J --> O["Sarvam APIs<br/>STT · translate · LLM · TTS"]
+    G --> K
+    G --> L
+    H --> M
+    M --> P["Shopify Admin API<br/>or deterministic mock"]
+```
+
+The runtime and the AI Engine **deploy as one image and talk in-process** — they
+share a lifecycle, and a network hop on the hottest path would buy nothing. Every
+channel converges on the same `UcxpRuntime.run()`, which is why a photographed
+order over WhatsApp and a typed message in the app produce the same receipt.
+
+Full context, container, component and deployment views:
+[`docs/architecture.md`](./docs/architecture.md).
+
+---
+
+## 4. One turn
+
+```mermaid
+flowchart LR
+    U["understand<br/>detect + translate"] --> R["route<br/>pinned / alias / sticky"]
+    R --> C["classify<br/>LLM prompt 1"]
+    C --> G["gather<br/>slots, prompt 2 if gated open"]
+    G --> A["act<br/>call the declared endpoint,<br/>then run the rules"]
+    A --> CO["compose<br/>render template,<br/>prompt 3 only if nothing renders"]
+    CO --> L["localize<br/>back to the customer's language"]
+
+    C -. "confirmation · farewell ·<br/>no business · no capability" .-> CO
+    G -. "missing slot ·<br/>needs confirmation ·<br/>answered from policy" .-> CO
+    A -. "rule denied ·<br/>action failed" .-> CO
+```
+
+The dotted edges are the point. A naive implementation calls the model three
+times per turn. This one calls it **zero** times for a confirmation, a goodbye,
+or a message with no business resolved; **once** for a normal completed job; and
+three times only when a slot is missing *and* nothing renders.
+
+Live, measured today:
+
+```bash
+curl -s -X POST $BASE/chat -H 'content-type: application/json' \
+  -d '{"text":"where is my order 1001","business_id":"ravi-electronics"}'
+```
 
 ```json
+{"conversation_id":"e8a42f…","reply_text":"Your request is shipped, arriving Wednesday, 29 July.",
+ "business_id":"ravi-electronics","capability":"track_order",
+ "receipt":{"label":"shipped","tone":"success"},
+ "needs":null,"state":"resolved","language":"en-IN","degraded":[],"latency_ms":13343.19}
+```
+
+The same capability through the Sarvam-free voice path returns the same receipt
+in **0.40 s**.
+
+State diagram, every short-circuit, and four detailed sequence diagrams:
+[`docs/request-lifecycle.md`](./docs/request-lifecycle.md).
+
+---
+
+## 5. The manifest
+
+```mermaid
+flowchart LR
+    subgraph doc["The manifest — data, not code"]
+        M1["routing<br/>aliases, domains"]
+        M2["capability<br/>id, description, examples"]
+        M3["required_inputs<br/>name, prompt, default_from"]
+        M4["rules<br/>when → deny"]
+        M5["endpoint<br/>method, url template"]
+        M6["response + receipt<br/>templates"]
+    end
+
+    subgraph run["The runtime — generic"]
+        R1["route"]
+        R2["classify<br/>candidates built FROM the manifest"]
+        R3["gather<br/>slots driven BY the manifest"]
+        R4["act<br/>calls the endpoint, evaluates the rules"]
+        R5["compose<br/>renders the templates"]
+    end
+
+    M1 --> R1 --> R2
+    M2 --> R2 --> R3
+    M3 --> R3 --> R4
+    M5 --> R4
+    M4 --> R4 --> R5
+    M6 --> R5 --> OUT["Receipt<br/>label + tone<br/>rendered as a card"]
+```
+
+```jsonc
 {
-  "code": "upstream_error", "message": "HTTP 503: service unavailable",
-  "stage": "llm_reasoning", "service": "llm", "status_code": 503,
-  "retryable": true, "attempts": 3
+  "ucxp_version": "0.1",
+  "business":  { "id": "…", "name": "…", "category": "…", "languages": ["en-IN", "hi-IN"] },
+  "routing":   { "aliases": ["…"], "domains": ["order", "refund"] },
+  "capabilities": [{
+    "id": "track_order",
+    "description": "Find where a customer's order is and when it arrives.",
+    "examples": ["where is my order", "मेरा ऑर्डर कहाँ है"],
+    "required_inputs": [{ "name": "order_id", "type": "string",
+                          "prompt": "What's your order ID?",
+                          "default_from": "context.last_order_id" }],
+    "rules":    [{ "id": "refund_window", "when": "result.days_since_delivery > 7",
+                   "deny": "Refunds are only available within 7 days of delivery." }],
+    "confirm":  false,
+    "action":   "get_order_status",
+    "response": "Your order {{order_id}} is {{result.status}} and arrives {{result.eta}}.",
+    "receipt":  { "label": "Arriving {{result.eta}}", "tone": "success" }
+  }],
+  "endpoints": [{ "id": "get_order_status", "method": "GET",
+                  "url": "{{connector_base}}/connectors/shopify/{{business_id}}/orders/{{order_id}}" }],
+  "knowledge": [{ "id": "refund_policy", "text": "Refunds are processed within 5-7 business days." }]
 }
 ```
 
-Timeouts, 429s and 5xx retry with exponential backoff and jitter (honouring
-`Retry-After`); 4xx and auth failures fail fast. Partial results survive — a
-request that dies at the LLM still returns the transcript.
+The classifier's candidate list is built from `capabilities`. A missing template
+key **raises** rather than rendering blank. Rules are evaluated by an AST walker
+over an allow-list, never `eval`.
 
-Non-critical stages degrade instead of failing the request, and say so in
-`degraded_stages`:
-
-- **TTS fails** → text answer is still returned
-- **Inbound translation fails** → the multilingual model reasons on the raw text
-- **Outbound translation fails** → the English answer is returned
-
-Set `AI_ENGINE_GRACEFUL_DEGRADATION=false` for strict all-or-nothing behaviour.
+Both schemas, the full normalization mapping, and an honest account of what the
+published schema cannot express:
+[`docs/manifest-spec.md`](./docs/manifest-spec.md).
 
 ---
 
-## Logging
+## 6. HTTP surface
 
-One structured line per Sarvam call — service, endpoint, language, latency,
-success, attempts — plus a per-pipeline summary:
+Exactly what the live service reports at `/openapi.json`.
 
-```
-sarvam.call OK   service=speech_to_text endpoint=/speech-to-text language=unknown latency_ms=130.01 success=True attempts=1
-sarvam.retry service=llm attempt=2/5 in=0.10s reason=upstream_error: HTTP 503
-pipeline.voice.done language=hi-IN audio=yes degraded=[] total_ms=711
-  breakdown={'stt_ms': 130.0, 'translate_in_ms': 123.3, 'llm_ms': 125.1, 'translate_out_ms': 125.1, 'tts_ms': 204.0}
-```
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/chat` | text in, resolution out, with a receipt |
+| `POST` | `/voice` | speech in, resolution out, spoken back |
+| `POST` | `/transcribe` | STT only — so the app can show the customer their own words first |
+| `POST` | `/document` | PDF or photo in; answers **200 even when unreadable** |
+| `POST` | `/whatsapp/webhook` | Twilio; acks instantly, answers out of band |
+| `GET` | `/businesses` · `/manifests/{id}` · `/health` · `/history` | protocol introspection |
+| `POST` | `/manifests/reload` | adopt newly published manifests without a restart |
+| `POST` | `/agent/resolve` · `/agent/execute` | Samvaad tools — full runtime, and the sub-second path |
+| `GET` | `/agent/tool-spec` · `/agent/execute-spec` | tool definitions generated from live manifests |
+| `GET/POST` | `/connectors/shopify/{business_id}/…` | the generic connector every merchant points at |
 
-`AI_ENGINE_LOG_JSON=true` for machine-readable output; `AI_ENGINE_LOG_FILE` to
-also write to disk. Transcripts are truncated to 80 characters in logs and audio
-is never logged.
+Per-channel behaviour, contracts and constraints:
+[`docs/channels.md`](./docs/channels.md).
 
 ---
 
-## Configuration
+## 7. Engineering decisions worth reading
 
-Everything comes from `.env` — see `.env.example` for the full annotated list:
-API key and base URL, timeouts, retry policy, model names, endpoint paths, voice
-settings, pivot and supported languages, prompt directory, logging.
+Eight of the fifty, with the reasoning; the rest are in
+[`docs/decisions.md`](./docs/decisions.md).
+
+| Decision | Why it matters |
+|---|---|
+| **LangGraph as a state machine, not an agent framework** | The turn genuinely branches — three nodes end it early, each persisting different state. The conditional edges become the specification |
+| **Gated prompts: 58 s → ~10 s** | Prompt 2 runs only when a slot is missing *and* a regex says the text plausibly holds a value; prompt 3 only when no template renders. Determinism is a side effect, not a compromise |
+| **Response templates synthesised from the manifest's declared shape** | Published manifests describe an API response, not a sentence — so `compose` fell through on every turn. Greeting 52 s → **2.1 s**, lookup 44 s → **8.6 s** |
+| **A normalization adapter for a second published schema** | The graph, executor and renderer never learn there are two shapes, and `GET /manifests/{id}` still serves the original document. Its cost is real and documented |
+| **One generic Shopify connector, real or mock on the same path** | Mock and live differ by a credential, not a branch — so the demo path *is* the production path |
+| **Async WhatsApp replies** | Resolution takes 20–27 s; a Twilio webhook must answer in ~10 s. Ack in 0.4 s, deliver out of band |
+| **`force_business_id` shared by four channels** | A merchant's WhatsApp number is its own support line. One parameter expresses that everywhere; the central chat is simply its absence |
+| **Disk-persisted conversation memory** | A restart between "shall I go ahead?" and "Yes" used to lose the pending refund. Atomic snapshot after every turn, on a mounted volume |
+
+---
+
+## 8. Repository layout
+
+| Path | What lives there |
+|---|---|
+| `ai_engine/` | The only Sarvam client. Orchestrator, speech, translation, LLM, TTS, prompts as `.md`, retries, graceful degradation. Interface frozen |
+| `backend/app/main.py` | FastAPI surface and protocol introspection |
+| `backend/app/runtime/` | `graph.py` (the seven nodes), `loader.py`, `normalize.py`, `executor.py`, `renderer.py`, `llm.py`, `prompts/` |
+| `backend/app/connectors/` | One generic Shopify connector, real or mock |
+| `backend/app/agent_tools/` | Samvaad tool surface and the sub-second execute path |
+| `backend/app/api/whatsapp.py` | Twilio adapter — transport only |
+| `backend/app/documents.py` | PDF + image OCR, shared by every channel |
+| `backend/app/memory/` | Conversation state, disk snapshot, durable Supabase store |
+| `manifests/` | The five published merchant manifests |
+| `frontend/` | Expo SDK 57 → Android APK + web SPA + landing page |
+| `tests/` | Offline suites, every network call faked |
+| `db/`, `docs/` | Supabase schema and the documentation set |
+
+---
+
+## 9. Quickstart
+
+```bash
+# Backend
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env                        # add SARVAM_API_KEY
+.venv/bin/python -m uvicorn backend.app.main:app --reload --port 8000
+
+# Tests — no API key needed
+.venv/bin/python -m pytest
+
+# AI Engine against a fake Sarvam
+.venv/bin/python tools/mock_sarvam.py       # :8099
+SARVAM_BASE_URL=http://127.0.0.1:8099 SARVAM_API_KEY=mock \
+  .venv/bin/python tools/demo.py text "मेरा ऑर्डर कहाँ है?"
+
+# Frontend
+cd frontend && npm install && npm run dev
+```
+
+> Exported shell variables beat `.env` — `unset SARVAM_BASE_URL SARVAM_API_KEY`
+> before running against the real API.
+
+Docker, Railway, Vercel, the release APK, environment variables and
+troubleshooting: [`docs/operations.md`](./docs/operations.md).
+
+---
+
+## 10. Current status and limitations
+
+Verified 2026-07-28 against the live deployment and the committed tree. Nothing
+below is aspirational.
+
+**Working and verified**
+
+- Runtime live on Railway. `/health` reports 5 manifests, engine configured,
+  `sarvam-105b`.
+- `/chat` returns a receipt in **13.3 s** for a pinned merchant;
+  `/agent/execute` returns the same receipt in **0.40 s**.
+- Web SPA live on Vercel; release APK built and verified running standalone.
+- WhatsApp verified end to end over the Twilio sandbox — text, voice note, PDF
+  and photo in; async reply out.
+- Five merchants with no runtime code behind them. Both greps in §2 return
+  nothing.
+
+**Known gaps — stated because a judge will find them anyway**
+
+| Gap | Detail |
+|---|---|
+| `tests/test_runtime.py` is **red** — 11 failed, 8 passed | Targets the retired Flipkart/Airtel/Apollo set. The other three suites are green: **91 of 102 passing** overall |
+| The **consistency harness does not exist** | `PLAN.md` §6 promises `POST /harness/run` and §8 a dashboard; `backend/app/harness/` was never created. Consistency is demonstrated, not measured |
+| The **rule engine is inert in production** | `normalize.py` emits `rules: []` because the published schema has no rules field. The evaluator and its AST allow-list are unit-tested; no live capability exercises them — [detail](./docs/manifest-spec.md#6-what-the-published-schema-cannot-express) |
+| The live deployment is currently serving **mock Shopify data** | The Supabase-published `ravi-electronics` row has no `store_subdomain`, and Supabase rows override local files, so the connector takes the mock branch — [detail](./docs/operations.md#the-live-shopify-issue-in-full) |
+| `/agent/execute` is a **second implementation** of the resolution semantics | Reuses the executor, renderer and rule evaluator, but does not snapshot memory to disk or learn `last_<key>` facts — [detail](./docs/channels.md#5-samvaad-agent-tools) |
+| **WhatsApp turns never reach the durable store** | `db/schema.sql` reserves `channel = 'whatsapp'` and `external_id`; neither is populated — [detail](./docs/data-and-memory.md#73-whatsapp-turns-never-reach-the-durable-store) |
+| **Web voice is broken** | A browser recorder exists, but its hook exports `finish`/`loudness` while both call sites destructure `stop`. `tsc` cannot catch it — [detail](./frontend/README.md#10-known-issues-and-limitations) |
+| The **live phone call has not been dialled** from a real Samvaad agent | Both tool endpoints are built, spec'd, unit-tested and verified over the public URL. The last mile is dashboard configuration |
+| **Web search for unknown businesses is untested** against a live provider | No key was available when it was written. With no key the feature is off |
+| `PLAN.md` §7 has **three duplicate decision ids** | #35, #42 and #43 each appear twice. The log is append-only by policy, so this is recorded rather than silently renumbered — [detail](./docs/decisions.md) |
+
+Depth is deliberately five merchants and four languages (`en-IN`, `hi-IN`,
+`te-IN`, `ta-IN`). The engine supports eleven; we do not claim them. See
+[`PLAN.md`](./PLAN.md) §4 and §9 for what is deliberately not being built.

@@ -6,11 +6,7 @@
   "framework": null,
   "rewrites": [
     {
-      "source": "/dashboard/:path*",
-      "destination": "/dashboard/index.html"
-    },
-    {
-      "source": "/((?!_expo|assets|favicon|dashboard|.*\\.[a-zA-Z0-9]+$).*)",
+      "source": "/((?!_expo|assets|favicon|.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/"
     }
   ],

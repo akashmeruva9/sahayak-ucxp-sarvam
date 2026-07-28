@@ -34,3 +34,10 @@ logs/
 .DS_Store
 .ucxp_state.json
 frontend/.android-patches/
+
+# Local sandbox holding a copy of the `dashboard-restructure` branch's
+# Dashboard/, used to run and test it. Deliberately untracked: that code lives
+# on its own branch and is deployed as its own service, so a copy on main would
+# be a third version to keep in step — and edits here would never reach the
+# live dashboard.
+dashboard/

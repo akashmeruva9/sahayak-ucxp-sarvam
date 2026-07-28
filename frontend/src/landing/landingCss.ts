@@ -77,7 +77,9 @@ html.dark .lp{
   transform:translateY(-200%);transition:transform .2s}
 .lp .skip:focus-visible{transform:none;box-shadow:var(--ring)}
 
-.lp section{padding:clamp(64px,9vw,116px) 0;position:relative}
+/* Ten sections at the old clamp spent ~2,300px on padding alone — the page read
+   as long because of the gaps between things, not the things. */
+.lp section{padding:clamp(44px,5.5vw,72px) 0;position:relative}
 .lp .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;
   letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:18px}
 .lp .eyebrow::before{content:"";width:16px;height:2px;border-radius:2px;background:var(--accent)}
@@ -131,6 +133,12 @@ html.dark .lp{
 .lp .btn.ghost:hover{box-shadow:var(--sh-2);border-color:var(--ink-faint)}
 .lp .btn.white:hover{filter:brightness(.97)}
 .lp .btn.sm{padding:9px 16px;font-size:14px}
+/* The merchant entrance. A third tier on purpose: the nav anchors are muted
+   text that move you around this page, the primary is the gradient, and this
+   sits between them — an outlined action in the brand colour, because it
+   leaves for a different product. */
+.lp .btn.ghost.onboard{color:var(--accent);border-color:var(--hairline);font-weight:600}
+.lp .btn.ghost.onboard:hover{border-color:var(--accent);background:var(--accent-muted)}
 .lp .btn.arrow svg{transition:transform .19s cubic-bezier(.2,.8,.25,1)}
 .lp .btn.arrow:hover svg{transform:translateX(3px)}
 /* A hover lift on a touch screen sticks after the tap — there is no pointer to
@@ -240,7 +248,7 @@ html.dark .lp .receipt{color:#34d399}
 .lp .logos .lg:hover{color:var(--ink);transform:translateY(-2px);box-shadow:var(--sh-2);border-color:var(--ink-faint)}
 
 /* bento */
-.lp .grid-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:40px;flex-wrap:wrap}
+.lp .grid-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:28px;flex-wrap:wrap}
 .lp .bento{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:minmax(168px,auto);gap:18px}
 .lp .card{background:var(--elevated);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:26px;
   box-shadow:var(--sh-1);position:relative;overflow:hidden;transition:transform .28s cubic-bezier(.3,.7,.3,1),box-shadow .28s,border-color .28s}
@@ -411,6 +419,9 @@ html.dark .lp .receipt{color:#34d399}
   .lp .node .nm{display:none}.lp .node .g{width:40px;height:40px;font-size:19px}
   .lp .cta-row .btn{flex:1}
   .lp .btn{padding:12px 16px}
+  /* Phone nav has room for the brand, the theme toggle and one action. The
+     merchant entrance stays reachable from the closing CTA. */
+  .lp .btn.ghost.onboard{display:none}
 }
 @media(prefers-reduced-motion:reduce){
   .lp *{animation:none!important}

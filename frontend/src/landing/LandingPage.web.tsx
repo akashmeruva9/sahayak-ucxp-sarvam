@@ -46,6 +46,9 @@ const LINKS = NODES.map((n) => ({
   y: parseFloat(n.top),
 }));
 
+/** The merchant dashboard, deployed as its own service. */
+const MERCHANT_DASHBOARD_URL = "https://sahayak-merchant-dashboard.up.railway.app/";
+
 const STATS = [
   { to: 22, suffix: "", prefix: "", t: "official languages; only ~10–20% speak English" },
   { to: 120, suffix: "", prefix: "₹", t: "cost per manually-handled support issue" },
@@ -130,12 +133,14 @@ export function LandingPage() {
    * Merchant onboarding — the dashboard, where a business connects its store
    * and publishes a manifest.
    *
-   * A full page load, not `router.push`: /dashboard is a separate Vite app
-   * served as a static folder on the same origin, so Expo Router has no route
-   * for it and pushing would land on the not-found screen.
+   * A separate product on its own host: the dashboard ships as one service
+   * where FastAPI serves its Vite build, so its frontend and its /api share an
+   * origin and its session cookie works. Proxying it through this domain would
+   * mean re-hosting a build that is already deployed and keeping the two in
+   * step, so this simply leaves.
    */
   const openDashboard = useCallback(() => {
-    window.location.href = "/dashboard";
+    window.location.href = MERCHANT_DASHBOARD_URL;
   }, []);
 
   /**
@@ -387,7 +392,6 @@ export function LandingPage() {
             <a href="#protocol" onClick={jump("protocol")}>UCXP</a>
             <a href="#demo" onClick={jump("demo")}>Demo</a>
             <a href="#roadmap" onClick={jump("roadmap")}>Roadmap</a>
-            <a href="/dashboard">For businesses</a>
           </div>
           <div className="navright">
             <button
@@ -407,6 +411,13 @@ export function LandingPage() {
                 </svg>
               )}
             </button>
+            {/* Deliberately not one of the nav anchors above. Why/How/UCXP
+                scroll this page; this leaves it for a different product and a
+                different audience — merchants, not customers — so it is an
+                outlined action next to the primary, not a text link. */}
+            <a className="btn ghost sm onboard" href={MERCHANT_DASHBOARD_URL}>
+              Onboard Business
+            </a>
             <button className="btn primary sm" onClick={enterApp}>{ctaLabel}</button>
           </div>
         </div>
@@ -466,9 +477,6 @@ export function LandingPage() {
                   <div className="msg a">
                     Done — ₹1,299 refunded in 5–7 days.<br />
                     <span className="receipt">✓ RFND600322</span>
-                  </div>
-                  <div className="msg a" style={{ width: "fit-content", padding: "6px 8px" }} aria-label="Sahayak is responding">
-                    <span className="typing"><i /><i /><i /></span>
                   </div>
                 </div>
                 <div className="floatchip fc2">✅ Job completed</div>
@@ -605,7 +613,7 @@ export function LandingPage() {
                 </ul>
                 <div className="cta-row">
                   <button className="btn primary arrow" onClick={openDashboard}>
-                    Merchant onboarding <Arrow />
+                    Onboard Business <Arrow />
                   </button>
                 </div>
               </div>
@@ -757,7 +765,7 @@ export function LandingPage() {
               <p>UPI unified payments. Sahayak unifies customer experience — by voice, in every language.</p>
               <div className="cta-row" style={{ justifyContent: "center" }}>
                 <button className="btn white arrow" onClick={enterApp}>{ctaLabel} <Arrow /></button>
-                <a className="btn ghost" href="/dashboard">Merchant onboarding</a>
+                <a className="btn ghost" href={MERCHANT_DASHBOARD_URL}>Onboard Business</a>
               </div>
             </div>
           </div>
