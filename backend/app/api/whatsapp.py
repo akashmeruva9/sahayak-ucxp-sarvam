@@ -10,8 +10,9 @@ Delivered over the Twilio WhatsApp sandbox: Twilio POSTs each message here as a
 form-encoded webhook; we reply with TwiML. Inbound media is downloaded with the
 Twilio credentials, then:
   • audio/*          → engine.transcribe  (the /voice path, minus the routing)
-  • application/pdf  → pypdf text extraction
-  • image/*          → Tesseract OCR
+  • PDFs and images  → ``documents.extract`` (pypdf / Tesseract OCR), the same
+                       module ``POST /document`` uses, so a file resolves the
+                       same way here as it does in the app
 Text replies are always sent; a spoken voice-note reply is attached when
 UCXP_WHATSAPP_SPEAK=1 and ffmpeg is available to transcode WAV→MP3.
 """
@@ -22,7 +23,6 @@ import base64
 import shutil
 import subprocess
 import uuid
-from io import BytesIO
 from typing import Annotated, Any
 
 import httpx
@@ -30,6 +30,7 @@ from fastapi import APIRouter, BackgroundTasks, Form, Request, Response
 from loguru import logger
 
 from ..config import get_settings
+from ..documents import EMPTY_MESSAGES, extract
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -65,37 +66,6 @@ async def _download(url: str) -> bytes:
         resp = await client.get(url, auth=auth)
         resp.raise_for_status()
         return resp.content
-
-
-def _pdf_to_text(data: bytes) -> str:
-    from pypdf import PdfReader
-
-    reader = PdfReader(BytesIO(data))
-    parts = [(page.extract_text() or "").strip() for page in reader.pages]
-    return "\n".join(p for p in parts if p).strip()
-
-
-def _image_to_text(data: bytes) -> str:
-    """OCR a screenshot/photo. Screenshots are the common case (order pages,
-    bills), so we preprocess for legibility — small phone-screen glyphs read
-    badly at native size, and Tesseract does far better on an upscaled,
-    grayscale image than on the raw capture."""
-    import pytesseract
-    from PIL import Image, ImageOps
-
-    img = Image.open(BytesIO(data))
-    img = ImageOps.exif_transpose(img)  # honour photo rotation
-    img = img.convert("L")  # grayscale
-
-    # Upscale small images so text is ~big enough for Tesseract's models.
-    longest = max(img.size)
-    if longest < 1600:
-        factor = 1600 / longest
-        img = img.resize((int(img.width * factor), int(img.height * factor)))
-    img = ImageOps.autocontrast(img)
-
-    text = pytesseract.image_to_string(img)
-    return " ".join(text.split()).strip()
 
 
 def _wav_to_mp3(wav: bytes) -> bytes | None:
@@ -134,53 +104,17 @@ async def _resolve_input(
                 return ("", None, "audio_error")
             return (speech.transcript, speech.detected_language.value, "audio")
 
-        if media_type == "application/pdf":
-            extracted = _pdf_to_text(data)
-            return (_frame_document(extracted, body, "PDF"), None, "pdf") if extracted \
-                else ("", None, "pdf_empty")
-
-        if media_type.startswith("image/"):
-            extracted = _image_to_text(data)
-            return (_frame_document(extracted, body, "screenshot/photo"), None, "image") if extracted \
-                else ("", None, "image_empty")
-
-        return ("", None, f"unsupported:{media_type}")
+        # PDFs and images go through the shared extractor, so this channel and
+        # the app resolve an identical document identically.
+        result = extract(data, content_type=media_type, filename=None, caption=body)
+        return (result.text, None, result.kind) if result.ok else ("", None, result.kind)
 
     return (body.strip(), None, "text")
 
 
-def _frame_document(extracted: str, caption: str, source: str) -> str:
-    """Present extracted document text to the runtime as reference material.
-
-    Raw OCR/PDF text is noisy and isn't a user utterance, so we label it and
-    ask the assistant to pull the relevant details (order id, ticket no, etc.)
-    from it. Any caption the user typed alongside the file is their actual
-    intent, so it leads. Generic — no business specifics.
-    """
-    caption = caption.strip()
-    if caption:
-        intent = caption
-    else:
-        # No caption: infer the most likely job from what the document shows and
-        # act on it, rather than asking the customer to restate the obvious.
-        intent = (
-            "I'm sending this document — identify the business and what I most likely need "
-            "from it (e.g. tracking an order, paying/checking a bill, an appointment, or a "
-            "complaint) and go ahead with that."
-        )
-    return (
-        f"{intent}\n\n"
-        f"[The customer sent a {source}. Details extracted from it — use these to identify the "
-        f"business and to fill any inputs you need (order number, booking reference, account id, "
-        f"bill number, etc.):]\n"
-        f"{extracted}"
-    )
-
-
 _EMPTY_MESSAGES = {
     "audio_error": "I couldn't understand that voice note — could you try again or type it?",
-    "pdf_empty": "That PDF has no readable text (it may be scanned). Try a photo of it, or type the details.",
-    "image_empty": "I couldn't read any text in that image. Try a clearer photo, or type the details.",
+    **EMPTY_MESSAGES,
 }
 
 

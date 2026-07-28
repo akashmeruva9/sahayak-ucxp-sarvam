@@ -54,6 +54,20 @@ class VoiceResponse(ChatResponse):
     audio_base64: str = ""
 
 
+class DocumentResponse(ChatResponse):
+    """A resolved turn that started as an uploaded file.
+
+    Identical to a chat turn — same receipt, same needs, same state — plus what
+    we managed to read. An unreadable file comes back here too, with
+    ``state="failed"`` and the reason in ``reply_text``.
+    """
+
+    #: pdf | image, or the failure reason: pdf_empty · image_empty · too_large ·
+    #: unsupported · extract_failed
+    document_kind: str = ""
+    extracted_chars: int = 0
+
+
 class BusinessOut(BaseModel):
     id: str
     name: str
