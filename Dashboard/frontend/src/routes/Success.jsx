@@ -91,7 +91,7 @@ export default function Success() {
       </div>
 
       <h1 className="mb-1.5 text-center text-[26px] font-semibold tracking-tight">
-        {manifest?.business || 'Your business'} is live on UCXP
+        {manifest?.business || 'Your business'} is live on Sahayak
       </h1>
       <p className="mb-7 max-w-[520px] text-center text-sm leading-relaxed text-ink-muted">
         Any UCXP-compatible assistant can now support your customers — in their own language.

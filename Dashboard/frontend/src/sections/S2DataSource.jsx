@@ -145,7 +145,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
       <SectionCard
         testId="section-2"
         title="Data source"
-        subtitle="How UCXP reads live order data. You approve access — we never see passwords or ask you to paste raw keys."
+        subtitle="How Sahayak reads live order data. You approve access — we never see passwords or ask you to paste raw keys."
       >
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {SOURCES.map((source) => {
@@ -297,7 +297,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
                 {d.credentialRef || `vault://${slug}`}
               </span>
               <span className="text-xs text-ink-muted">
-                — secret held in the UCXP vault, never in your manifest
+                — secret held in the Sahayak vault, never in your manifest
               </span>
             </div>
           </div>
@@ -356,7 +356,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
                 <LockIcon />
               </span>
               <p className="text-[12.5px] leading-relaxed text-ink-muted">
-                Secrets live in the UCXP vault, referenced by{' '}
+                Secrets live in the Sahayak vault, referenced by{' '}
                 <span className="font-mono text-[11.5px] text-ink">credential_ref</span>. They never
                 appear in your manifest, exports, or this screen.
               </p>
@@ -420,7 +420,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
         {/* ---------------- None ---------------- */}
         {d.type === 'none' && (
           <p className="ucxp-panel" data-testid="no-source-note">
-            UCXP will answer from your knowledge base and policies only. Order-specific questions
+            Sahayak will answer from your knowledge base and policies only. Order-specific questions
             get a polite handoff to {credEmail}. You can connect a data source anytime.
           </p>
         )}
@@ -455,7 +455,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
             </div>
           </div>
 
-          <p className="mb-2.5 text-[13.5px] font-medium">UCXP wants to:</p>
+          <p className="mb-2.5 text-[13.5px] font-medium">Sahayak wants to:</p>
           <div className="mb-4 rounded-input border border-line">
             {[
               ['Read orders', 'Status, fulfilment and tracking — read-only'],
@@ -475,7 +475,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
           </div>
 
           <p className="mb-4 text-[11.5px] leading-relaxed text-ink-muted">
-            UCXP never sees your password. You can revoke this access in Shopify at any time.
+            Sahayak never sees your password. You can revoke this access in Shopify at any time.
           </p>
 
           {connectError && (

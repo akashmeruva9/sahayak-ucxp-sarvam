@@ -35,7 +35,7 @@ async function request(path, options = {}) {
       // it, which means the backend is down. Say that instead of "something
       // went wrong", which sends you looking for a bug that isn't there.
       if (response.status >= 500) {
-        return { error: 'Could not reach the UCXP server. Check that it is running.' };
+        return { error: 'Could not reach the Sahayak server. Check that it is running.' };
       }
       return { error: 'Something went wrong. Please try again.' };
     }
@@ -47,7 +47,7 @@ async function request(path, options = {}) {
       };
     }
     return {
-      error: 'Could not reach the UCXP server. Check it is running on port 8000.',
+      error: 'Could not reach the Sahayak server. Check it is running on port 8000.',
     };
   } finally {
     clearTimeout(timer);

@@ -214,7 +214,7 @@ export default function Admin() {
       <main className="mx-auto max-w-[1360px] px-6 pb-16 pt-7">
         <h1 className="mb-1 text-xl font-semibold tracking-tight">Merchants</h1>
         <p className="mb-5 text-[13px] text-ink-muted">
-          Every business onboarding or live on UCXP.
+          Every business onboarding or live on Sahayak.
         </p>
 
         {error && (

@@ -58,7 +58,7 @@ for (const run of [1, 2, 3]) {
     // Success screen.
     await page.waitForURL(new RegExp(`/business/${id}/success`), { timeout: 30_000 });
     await expect(page.getByTestId('success-badge')).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Ravi Electronics is live on UCXP/ }))
+    await expect(page.getByRole('heading', { name: /Ravi Electronics is live on Sahayak/ }))
       .toBeVisible();
     await expect(page.getByTestId('manifest-url')).toContainText(`${id}.json`);
     await expect(page.getByText('Credentials vaulted — never exposed in exports')).toBeVisible();
@@ -121,7 +121,7 @@ for (const run of [1, 2, 3]) {
     await expect(page.getByTestId('custom-header')).toHaveValue('Authorization');
     await page.getByTestId('send-credential-link').click();
     await expect(page.getByTestId('credential-link-sent')).toBeVisible();
-    await expect(page.getByText('Secrets live in the UCXP vault')).toBeVisible();
+    await expect(page.getByText('Secrets live in the Sahayak vault')).toBeVisible();
     await waitForSave(page);
 
     // Hand-type two full contracts.

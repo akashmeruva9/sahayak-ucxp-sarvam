@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
+import Logo from './Logo';
 
-/** Shared header for Home and Admin. The tagline is the product's identity line. */
+/** Shared header for Home and Admin. */
 export default function AppHeader({ context, right, maxWidth = 1280 }) {
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-canvas">
@@ -10,18 +11,19 @@ export default function AppHeader({ context, right, maxWidth = 1280 }) {
         style={{ maxWidth }}
       >
         <Link to="/" className="flex items-center gap-2.5 no-underline">
-          <span
-            className="flex h-7 w-7 items-center justify-center rounded-input bg-ink text-sm
-                       font-semibold text-white"
-            aria-hidden="true"
-          >
-            U
+          <Logo className="h-7 w-7" />
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-[15px] font-semibold tracking-tight text-ink">Sahayak</span>
+            {/* The name in its own script. The Noto families are already loaded
+                for the language picker, so this costs nothing to render. */}
+            <span
+              className="hidden font-indic text-[12px] leading-none text-ink-faint sm:inline"
+              aria-hidden="true"
+            >
+              सहायक
+            </span>
           </span>
-          <span className="text-[15px] font-semibold tracking-tight text-ink">UCXP</span>
         </Link>
-        <span className="hidden text-xs text-ink-faint sm:inline" data-testid="tagline">
-          AI for all from India
-        </span>
         {context && (
           <span className="ucxp-pill bg-surface text-ink-muted">{context}</span>
         )}

@@ -356,7 +356,7 @@ export default function ContractEditor({ contract, onChange, onCustomize, onRese
             </TableShell>
             <p className="mt-1.5 text-xs text-ink-faint">
               Use <span className="font-mono">{'{{credential_ref}}'}</span> where the secret goes —
-              UCXP swaps in the vaulted value at runtime.
+              Sahayak swaps in the vaulted value at runtime.
             </p>
           </div>
 
@@ -568,7 +568,7 @@ export default function ContractEditor({ contract, onChange, onCustomize, onRese
             {buildCurl(contract, baseUrl)}
           </pre>
           <p className="text-xs text-ink-faint">
-            This is the exact call UCXP will make. The secret is substituted from the vault at
+            This is the exact call Sahayak will make. The secret is substituted from the vault at
             runtime — it is never shown here.
           </p>
         </div>

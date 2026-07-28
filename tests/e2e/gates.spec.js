@@ -429,7 +429,6 @@ test('F11 layout matches the design reference', async ({ page }) => {
   await page.goto('/');
   const homeHeader = await page.getByTestId('header-bar').boundingBox();
   expect(Math.round(homeHeader.height)).toBe(58);
-  await expect(page.getByTestId('tagline')).toHaveText('AI for all from India');
 
   // The JSON pane is the dark one.
   await page.goto(`/business/${id}`);
