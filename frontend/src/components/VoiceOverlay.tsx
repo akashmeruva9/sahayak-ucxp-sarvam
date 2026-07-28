@@ -30,7 +30,7 @@ const ISSUE_MESSAGE: Record<RecordingIssue, string> = {
   "permission-denied":
     "Microphone access is blocked. Enable it in Settings → Expo Go → Microphone, then reopen the app.",
   "web-unsupported":
-    "Recording isn't supported in the browser yet. Try the app on a phone or simulator.",
+    "This browser doesn't support recording. Try Chrome, Edge or Safari.",
   "recorder-error":
     "The microphone couldn't start. Close any other app using it and try again.",
 };

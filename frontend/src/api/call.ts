@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import type { BusinessAction, BusinessId } from "@/types";
 import { ApiError, isMockMode, postForm } from "./client";
 
@@ -57,6 +58,27 @@ function fileFromUri(uri: string): { uri: string; name: string; type: string } {
   return { uri, name: `turn.${ext}`, type: mime[ext] ?? "application/octet-stream" };
 }
 
+/**
+ * Attach the recording to the form.
+ *
+ * Native streams a `{uri,name,type}` part; the web recorder hands back a
+ * `blob:` URL, which FormData cannot take — it needs the Blob itself, so we
+ * read it back and revoke the URL afterwards.
+ */
+async function appendAudio(form: FormData, uri: string): Promise<void> {
+  if (Platform.OS === "web") {
+    const blob = await (await fetch(uri)).blob();
+    const ext = (blob.type.split("/")[1] ?? "webm").split(";")[0];
+    form.append("file", blob, `turn.${ext}`);
+    URL.revokeObjectURL(uri);
+    return;
+  }
+  const part = fileFromUri(uri);
+  // React Native streams this natively over XHR; the DOM lib types the value
+  // as Blob, hence the cast.
+  form.append("file", part as unknown as Blob);
+}
+
 export async function sendCallTurn(req: CallTurnRequest): Promise<CallTurnResult> {
   if (isMockMode()) {
     throw new ApiError(
@@ -66,11 +88,8 @@ export async function sendCallTurn(req: CallTurnRequest): Promise<CallTurnResult
     );
   }
 
-  const part = fileFromUri(req.uri);
   const form = new FormData();
-  // React Native streams this {uri,name,type} part natively over XHR; the DOM
-  // lib types the value as Blob, hence the cast. postForm() uses XHR, not fetch.
-  form.append("file", part as unknown as Blob);
+  await appendAudio(form, req.uri);
   if (req.conversationId) form.append("conversation_id", req.conversationId);
   if (req.businessId && req.businessId !== "generic") {
     form.append("business_id", req.businessId);

@@ -83,10 +83,10 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
     let cancelled = false;
     (async () => {
       if (Platform.OS === "web") {
-        if (!cancelled) {
-          setMicAllowed(false);
-          setError("Calling needs a microphone, which this browser build can't use yet. Use the Android app to call.");
-        }
+        // The browser raises its own prompt on the first getUserMedia call,
+        // which happens when recording starts. Asking here as well would show
+        // two prompts, so enable the button and let the real request ask.
+        if (!cancelled) setMicAllowed(true);
         return;
       }
       try {
@@ -153,10 +153,12 @@ export function CallScreen({ businessId }: { businessId?: BusinessId }) {
       setPhase("error");
       setError(
         clip.issue === "permission-denied"
-          ? "Microphone access is blocked. Enable it in Settings → Apps → Sahayak → Permissions, then try again."
+          ? Platform.OS === "web"
+            ? "Microphone access was blocked. Allow it for this site (click the 🔒 in the address bar) and try again."
+            : "Microphone access is blocked. Enable it in Settings → Apps → Sahayak → Permissions, then try again."
           : clip.issue === "web-unsupported"
-            ? "Calling needs a microphone, which this browser build can't use yet. Use the Android app to call."
-            : "The microphone couldn't start. Close any other app using it and try again."
+            ? "This browser doesn't support recording. Try Chrome, Edge or Safari."
+            : "The microphone couldn't start. Close anything else using it and try again."
       );
       if (clip.issue === "permission-denied") setMicAllowed(false);
       return;
