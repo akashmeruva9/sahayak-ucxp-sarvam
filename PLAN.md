@@ -102,6 +102,7 @@ STT → reasoning → TTS as one experience, never presented as four API calls.
 | Manifests | `manifests/` | 🟡 **MIGRATING** — retired flipkart/airtel/apollo; now the **published Shopify merchants** (ravi-electronics loaded; 4 more being added). Normalized to the internal shape at load | Builder 2 |
 | Mock business APIs | `backend/app/mock/` | ✅ **DONE** — legacy flipkart/airtel/apollo + one **generic Shopify connector** (`/mock/connectors/shopify/...`) serving every merchant, deterministic | Builder 2 |
 | WhatsApp | `backend/app/api/whatsapp.py` | 🟢 **LIVE over Twilio sandbox** — `POST /whatsapp/webhook` reuses `runtime.run`, keyed on the sender's number for memory. Text · voice-note (transcribe) · PDF (pypdf) · image (Tesseract OCR) in; async reply out via Twilio REST (see §7 #19). Verified end-to-end 2026-07-26: real inbound text + voice note, outbound reply delivered+read. Cloudflare tunnel for the webhook | Builder 3 |
+| Voice-call channel | `backend/app/agent_tools/` | 🟡 **Built + verified over the tunnel** — Route A: Samvaad owns the call; UCXP is its Advanced Tool. Live-call path `POST /agent/execute` (~0.7 s through tunnel); `/agent/resolve` kept for the full-reasoning path. Not yet dialled from a real Samvaad agent. See §12 | — |
 | Consistency harness | `backend/app/harness/` | ⬜ Not started | Builder 3 |
 | Frontend ↔ Runtime wiring | `frontend/src/api/` | 🟡 **Wired to the runtime** — `/chat` + `/transcribe`, receipts render as action cards, conversation id carries memory. Voice transcription proven on-device; the chat path is not yet | Builder 1 |
 | Android APK | `frontend/android/…/release/` | 🟡 **Built & verified standalone** 2026-07-28 — release build, bundle compiled in, launches with Metro stopped and no crash. Universal (4 ABIs, 111 MB). Ships a **placeholder** backend URL; set the real one in Settings → Backend (§7 #33) | Builder 1 |
@@ -402,6 +403,9 @@ Deviations from the original brief, with reasons. Append; don't edit.
 | 39 | Central chat vs business chat are **different routing modes** | Central: naming a business loads that manifest and keeps it for the rest of the chat; naming another switches; naming none asks (**364 ms**, no model call — classifying a five-business catalogue to conclude "I don't know which" cost 38 s and told us nothing the router hadn't). Business chat and WhatsApp are pinned and never route elsewhere. The app marks a chat `scoped` at creation, because a *general* chat also acquires a `businessId` once resolved and must stay switchable |
 | 40 | Confirmation matching is **whole-word**, and a business switch cancels the pending action | `CONFIRM_YES` matched as a substring, so the "ha" inside an ordinary word confirmed a **refund** pending on a *different* business with no yes given — a destructive action executed without consent. Found while testing §7 #39 |
 | 41 | Businesses with no manifest get a **web lookup** (Tavily / Brave / Serper) | Answer usefully rather than flatly, then invite them to onboard — which is the protocol pitch made concrete. Provider inferred from whichever key is set; no key ⇒ feature off and the ordinary "which business?" reply stands. **Untested against a live provider** — no key was available when it was written |
+| 42 | Live voice-call added as a **channel**, not a second brain — the call feeds the same manifest-driven runtime the app and WhatsApp use | A phone call is one more surface over the same resolution, so receipts, memory and rules come for free, and §2 rule 1 ("one place talks to Sarvam") stays literally true |
+| 43 | **Superseded #42's self-hosted pipeline.** Voice-call goes through **managed Sarvam Samvaad**: it owns telephony + STT + TTS + turn-taking, and UCXP is exposed as one Samvaad **Advanced Tool** wrapping `UcxpRuntime.run()` | Samvaad gives sub-500 ms voice, interruption and cross-channel memory for free; rebuilding that is wasted effort. UCXP stays the brain (manifests, resolution, receipts) and becomes "just another compliant client" — the protocol thesis, made literal. Trade-off: no in-app receipt card on a pure phone call, and Samvaad's LLM decides *when* to call the tool. No Sarvam client enters the repo, so §2 rule 1 still holds |
+| 44 | For the **live-call path**, `POST /agent/execute` (per-capability) sits alongside `/agent/resolve`. Samvaad's fast LLM picks business + capability and collects inputs; `/agent/execute` only runs the manifest action and renders the receipt — **no Sarvam reasoning in the loop** | Measured: `/agent/resolve` spends ~20 s in a single `sarvam-105b` classify pass — unusable on a live call. `/agent/execute` returns in ~10 ms local / ~0.7 s through a tunnel because the slow classify moves to Samvaad's sub-500 ms LLM. Cost: UCXP no longer *resolves* which capability on the call path, so the consistency-harness claim covers `/chat`, not the call. It reuses the runtime's executor/renderer/rules unchanged, needs no Sarvam key, and adds no business code |
 
 ---
 
@@ -685,3 +689,120 @@ Status as of 2026-07-28:
 **Not verified:** the APK's UI was not seen rendering — the phone was locked
 (`mWakefulness=Dozing`), so the screenshot was a dark display, not a dark app.
 Unlock and open it to confirm visually.
+
+
+---
+
+## 12. Live voice-call channel — design (Route A: managed Samvaad)
+
+**Status: skeleton built, not yet live.** Nothing here is `DONE` until a real call
+resolves a real job end to end (see §12.6). The self-hosted Pipecat variant (decision
+#42) was superseded by #43 — this section is the live design.
+
+### 12.1 The division of labour
+
+Sarvam **Samvaad** is a managed voice-agent platform: it owns telephony (Twilio/Exotel),
+STT, TTS, turn-taking and barge-in, with sub-500 ms latency and cross-channel memory. We
+do **not** rebuild any of that. We give Samvaad **one Advanced Tool** that reaches UCXP,
+so a call resolves a real job instead of only talking.
+
+```
+  Caller ──▶ Twilio ──▶ Samvaad agent  ── POST /agent/resolve ──▶  UcxpRuntime.run()
+   (voice)   (PSTN)   (STT·LLM·TTS·      (the tool)                manifest → capability
+                       turn-taking)      ◀── { say, receipt } ──   → action → receipt
+```
+
+- **Samvaad owns the voice.** STT, TTS, when to speak, when to listen.
+- **UCXP owns the resolution.** Which business, which capability, slot-filling, rules,
+  the real action, the receipt. Exactly the `/chat` brain — the tool wraps
+  `UcxpRuntime.run(text, conversation_id=…, language=…, user_id=…)`.
+- Samvaad is therefore **just another compliant UCXP client**, alongside the app and
+  WhatsApp. That *is* the protocol thesis, made literal.
+
+### 12.2 Where the code lives (and doesn't)
+
+```
+backend/app/agent_tools/
+  router.py    POST /agent/resolve  — the tool Samvaad calls each turn
+               GET  /agent/tool-spec — the tool definition to paste into the dashboard
+  schemas.py   ResolveRequest (lenient field aliases) · ResolveResponse
+  __init__.py  exports the router
+```
+
+- **No Sarvam client here.** The tool never calls Sarvam — Samvaad already did the STT
+  and will do the TTS. §2 rule 1 holds: a grep for `sarvam`/`api.sarvam.ai` outside
+  `ai_engine/` still returns nothing.
+- **No `if business == …` here.** The tool hands the transcript to `runtime.run()` and
+  returns what to say. §2 rule 2 holds.
+
+### 12.3 The tool contract
+
+`POST /agent/resolve` — Samvaad sends the caller's words, gets back what to say:
+
+```jsonc
+// request  (field names are lenient — message|text|query|utterance all accepted)
+{ "message": "నా Flipkart order ఎక్కడ ఉంది?", "conversation_id": "call-42", "language": "te-IN" }
+
+// response
+{
+  "say": "Your order OD123 is out for delivery and arrives today.",  // agent speaks this
+  "done": true,                        // a job completed (receipt present)
+  "needs_input": null,                 // else the slot name still required
+  "receipt": { "label": "Arriving today", "tone": "success" },
+  "business": "flipkart", "capability": "track_order",
+  "conversation_id": "call-42",        // echo back next turn → memory carries
+  "state": "resolved", "language": "te-IN", "degraded": []
+}
+```
+
+Agent behaviour, encoded in the tool description (`GET /agent/tool-spec` emits it from
+the live manifests): *speak `say`; if `needs_input` is set, ask `say` and call again with
+the same `conversation_id`; when `receipt` is present the job is done.*
+
+### 12.4 Two things this trades away (be honest with judges)
+
+1. **Samvaad's LLM decides *when* to call the tool.** Capability *resolution* still
+   happens inside UCXP, but the first hop — "is this a support request at all?" — is
+   Samvaad's. The consistency harness still measures UCXP's resolver; it does not cover
+   Samvaad's routing. Say that plainly.
+2. **No in-app receipt card on a pure phone call.** A PSTN caller has no screen. The
+   structured `receipt` still returns (and is spoken), and the in-app/web Samvaad
+   channels *can* render it — but the phone call itself is voice-only.
+
+### 12.5 Setup (dashboard + tunnel)
+
+1. Expose the runtime publicly: `ngrok http 8000` → set `UCXP_PUBLIC_BASE_URL` to the
+   https URL so `tool-spec` emits absolute URLs.
+2. In the Samvaad dashboard for the existing `Twilio-…` agent, add an Advanced Tool from
+   `GET /agent/tool-spec` (name, description, `POST {base}/agent/resolve`, parameters).
+3. Optional: set `UCXP_AGENT_TOOL_TOKEN` and configure the same bearer on the Samvaad
+   side, so only your agent can call the tool.
+4. Give the agent a system instruction: reply only via the tool for order/bill/booking
+   requests, and read `say` verbatim.
+
+New config (`.env`, secrets pasted by a human — never committed):
+
+```
+UCXP_PUBLIC_BASE_URL      # https tunnel/host, used to build the tool URL
+UCXP_AGENT_TOOL_TOKEN     # optional shared secret Samvaad sends as Bearer
+```
+
+No new Python dependencies — it's one more router on the existing FastAPI app.
+
+### 12.6 Definition of done for this channel
+
+1. Call the Samvaad agent's number, speak **Telugu**: *"నా Flipkart order ఎక్కడ ఉంది?"*
+2. Hear the order status + ETA **spoken back in Telugu** — a real `track_order` action
+   ran through UCXP (visible in the runtime logs as `agent.resolve … capability=track_order`).
+3. Say **"Cancel it."** — the echoed `conversation_id` lets memory resolve the business
+   and order, exactly as in the §8 text demo.
+
+Testing ladder: offline unit tests over the tool contract (`tests/test_agent_tools.py`,
+runtime faked) → local live with `ngrok` + the Samvaad dashboard → the real phone call.
+
+### 12.7 Explicitly out of scope for this channel
+
+Call recording/storage, IVR menus, DTMF, transfer to a human PBX, concurrent-call
+scaling, voicemail, and re-hosting Samvaad's STT/TTS ourselves. This is one demonstrable
+live channel over the existing brain — not a contact-centre platform. If one of these
+starts getting built, it goes to §9 or gets a decision-log row first.
