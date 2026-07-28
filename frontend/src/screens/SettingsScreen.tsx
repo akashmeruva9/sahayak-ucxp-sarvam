@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useColorScheme } from "nativewind";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -10,6 +10,7 @@ import {
   Globe,
   Info,
   Moon,
+  Server,
   Smartphone,
   Sun,
   X,
@@ -18,6 +19,7 @@ import {
 import type { ThemePreference } from "@/types";
 import { SUPPORTED_LANGUAGES } from "@/constants/theme";
 import { useSettingsStore } from "@/store/useSettingsStore";
+import { COMPILED_BASE_URL, pingBackend } from "@/api/client";
 import { ScreenContainer } from "@/components";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { palette } from "@/constants/theme";
@@ -38,6 +40,38 @@ export function SettingsScreen() {
 
   const [langOpen, setLangOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+
+  const apiOverride = useSettingsStore((s) => s.apiOverride);
+  const apiReady = useSettingsStore((s) => s.apiReady);
+  const saveApiOverride = useSettingsStore((s) => s.saveApiOverride);
+  const [draftUrl, setDraftUrl] = useState(apiOverride ?? "");
+  const [testing, setTesting] = useState(false);
+  const [pingResult, setPingResult] = useState<{ ok: boolean; detail: string } | null>(null);
+
+  // The stored URL is read from disk asynchronously, so seed the field once it lands.
+  useEffect(() => {
+    if (apiReady) setDraftUrl(apiOverride ?? "");
+  }, [apiReady, apiOverride]);
+
+  const handleSave = async () => {
+    Haptics.selectionAsync().catch(() => {});
+    await saveApiOverride(draftUrl.trim() || null);
+    setPingResult(null);
+  };
+
+  const handleReset = async () => {
+    Haptics.selectionAsync().catch(() => {});
+    setDraftUrl("");
+    await saveApiOverride(null);
+    setPingResult(null);
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    // Test what's typed, not what's saved — so a bad URL is caught before saving.
+    setPingResult(await pingBackend(draftUrl.trim() || undefined));
+    setTesting(false);
+  };
 
   const activeLanguage =
     SUPPORTED_LANGUAGES.find((l) => l.code === languageCode) ?? SUPPORTED_LANGUAGES[0];
@@ -100,6 +134,74 @@ export function SettingsScreen() {
             value={activeLanguage.native}
             onPress={() => setLangOpen(true)}
           />
+        </Animated.View>
+
+        {/* Backend — editable at runtime so a shipped build can be repointed */}
+        <Animated.View entering={FadeInDown.delay(120).duration(360)} className="mt-8">
+          <SectionLabel>Backend</SectionLabel>
+          <View className="rounded-2xl border border-hairline/70 bg-elevated p-4 dark:border-hairline-dark/70 dark:bg-elevated-dark">
+            <View className="mb-2 flex-row items-center">
+              <Server size={16} color={colors.textMuted} />
+              <Text className="ml-2 text-[15px] text-ink dark:text-white">Server URL</Text>
+            </View>
+
+            <TextInput
+              value={draftUrl}
+              onChangeText={(text) => {
+                setDraftUrl(text);
+                setPingResult(null);
+              }}
+              placeholder={COMPILED_BASE_URL}
+              placeholderTextColor={colors.textFaint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              inputMode="url"
+              className="rounded-xl border border-hairline/70 px-3 py-3 text-[15px] text-ink dark:border-hairline-dark/70 dark:text-white"
+            />
+
+            <Text className="mt-2 text-[12px] leading-4 text-ink-faint dark:text-white/40">
+              {apiOverride
+                ? "Overriding the URL compiled into this build."
+                : `Using the compiled default: ${COMPILED_BASE_URL}`}
+            </Text>
+
+            <View className="mt-3 flex-row gap-2">
+              <Pressable
+                onPress={handleTest}
+                disabled={testing}
+                className="flex-1 items-center rounded-xl border border-hairline/70 py-3 dark:border-hairline-dark/70"
+              >
+                <Text className="text-[14px] font-semibold text-ink dark:text-white">
+                  {testing ? "Testing…" : "Test"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSave}
+                className="flex-1 items-center rounded-xl bg-accent py-3"
+              >
+                <Text className="text-[14px] font-semibold text-white">Save</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleReset}
+                className="items-center rounded-xl border border-hairline/70 px-4 py-3 dark:border-hairline-dark/70"
+              >
+                <Text className="text-[14px] font-semibold text-ink-muted dark:text-white/50">
+                  Reset
+                </Text>
+              </Pressable>
+            </View>
+
+            {pingResult ? (
+              <Text
+                className={`mt-3 text-[13px] ${
+                  pingResult.ok ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
+                }`}
+              >
+                {pingResult.ok ? `Connected — ${pingResult.detail}` : `Failed — ${pingResult.detail}`}
+              </Text>
+            ) : null}
+          </View>
         </Animated.View>
 
         {/* About */}

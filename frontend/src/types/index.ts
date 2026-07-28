@@ -58,6 +58,13 @@ export interface Conversation {
   id: string;
   title: string;
   businessId?: BusinessId;
+  /**
+   * True when the chat was opened *against* one business (from the directory).
+   * Distinct from `businessId`, which a general chat also acquires once the
+   * runtime resolves one — a general chat must stay able to switch businesses,
+   * so only a scoped chat pins the runtime.
+   */
+  scoped?: boolean;
   createdAt: number;
   updatedAt: number;
   messages: Message[];

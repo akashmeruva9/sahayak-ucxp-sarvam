@@ -55,6 +55,8 @@ class TurnState(TypedDict, total=False):
 
     # -- gather / prepare (LLM 2) ------------------------------------------ #
     missing_input: str | None
+    #: No business in context and none named — ask the customer to name one.
+    needs_business: bool
     missing_prompt: str | None
     knowledge_answer: str | None
 

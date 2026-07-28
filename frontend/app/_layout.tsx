@@ -33,6 +33,13 @@ function ThemeSync() {
 }
 
 export default function RootLayout() {
+  // Read the saved backend URL before anything can issue a request. A shipped
+  // build compiles in a placeholder, so this is what makes it reach a real
+  // backend without a rebuild.
+  useEffect(() => {
+    void useSettingsStore.getState().hydrateApi();
+  }, []);
+
   // `error` matters: if a font asset fails to load, `loaded` never flips true.
   // Ignoring it (the old bug) left the app pinned on the native splash forever.
   const [fontsLoaded, fontError] = useFonts({

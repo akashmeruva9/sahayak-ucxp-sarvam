@@ -33,6 +33,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       id,
       title: "New conversation",
       businessId,
+      scoped: Boolean(businessId && businessId !== "generic"),
       createdAt: now,
       updatedAt: now,
       messages: [],
@@ -57,6 +58,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       id,
       title: `${business.name} support`,
       businessId,
+      scoped: true,
       createdAt: now,
       updatedAt: now,
       messages: [greeting],
@@ -124,7 +126,9 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       const { message } = await sendChat({
         text: trimmed,
         history: conv?.messages,
-        businessId: businessId ?? conv?.businessId,
+        // Pin only a scoped chat. A general chat acquires `businessId` once the
+        // runtime resolves one, but must stay switchable, so it is not sent.
+        businessId: conv?.scoped ? businessId ?? conv?.businessId : undefined,
         // Server-side memory is keyed on this — it's what lets "Cancel it."
         // resolve the business and the order without repeating them.
         conversationId,

@@ -660,10 +660,18 @@ Status as of 2026-07-28:
       stopped, process alive, no `Unable to load script`
 - [x] Web exports clean (10 MB SPA, backend URL inlined)
 - [x] Backend URL changeable at runtime (Settings → Backend, with a Test button)
-- [ ] **Backend deployed** — the blocker; everything below waits on it
-- [ ] Replace the placeholder URL (Settings, or rebuild) and re-verify
-- [ ] Vercel project created and `EXPO_PUBLIC_API_URL` set there
-- [ ] Twilio sandbox webhook repointed off the Cloudflare tunnel
+- [x] **Backend deployed** — `https://sahayak-ucxp-sarvam-production.up.railway.app`, healthy, capabilities execute (real connector data + receipt)
+- [x] Placeholder replaced — APK and web both rebuilt with the live URL and re-verified
+- [x] Web deployed — **https://sahayak-ochre.vercel.app** (public; the deployment-hash URL is SSO-protected, share the alias). CORS from that origin verified against the backend
+- [ ] Twilio sandbox webhook repointed off the Cloudflare tunnel —
+      **Console-only**: no REST API exposes the WhatsApp sandbox webhook
+      (`IncomingPhoneNumbers` is empty on a trial account, `/Sandbox.json` 404s,
+      no Messaging Services). Set it at Console → Messaging → Try it out → Send a
+      WhatsApp message → **Sandbox settings**:
+      `WHEN A MESSAGE COMES IN` = `https://sahayak-ucxp-sarvam-production.up.railway.app/whatsapp/webhook` (POST).
+      Railway already holds the Twilio credentials — verified 2026-07-28, an
+      inbound webhook POST triggered a real outbound send (failed only because
+      the test `To` was a fake number, error 21212)
 - [ ] APK uploaded to GitHub Releases for a permanent link + QR
 - [ ] Pre-warm the backend before presenting — first request pays cold start
       on top of ~5 s reasoning

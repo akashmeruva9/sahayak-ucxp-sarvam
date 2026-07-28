@@ -119,6 +119,51 @@ def _endpoint_url(path: str, business_id: str, data_source: dict[str, Any]) -> s
     return "{{mock_base}}" + templated
 
 
+
+#: Fields worth putting in a spoken sentence, in the order they read naturally.
+#: Keyed on what the published manifest's own `response.example` declares, so
+#: this stays data-driven — no business, and no capability, is named here.
+_SENTENCE_FIELDS: list[tuple[str, str]] = [
+    ("status", "is {{result.status}}"),
+    ("eta", "arriving {{result.eta}}"),
+    ("amount", "for {{result.amount}} {{result.currency}}"),
+    ("eta_days", "and should complete in {{result.eta_days}} days"),
+]
+
+
+def _response_template(cap: dict) -> str:
+    """Build a response template from the capability's declared example fields.
+
+    Published manifests describe their API response shape (`{example, mapping}`)
+    rather than carrying a sentence. Without a template the composer has nothing
+    to say, so it falls through to a full reasoning call on *every* turn — about
+    25-40s with sarvam-105b. Synthesising a sentence from the fields the
+    manifest already declares keeps completed jobs instant and deterministic,
+    and the LLM stays available for the cases with genuinely nothing to render.
+    """
+    response = cap.get("response")
+    example = response.get("example") if isinstance(response, dict) else None
+    if not isinstance(example, dict):
+        return ""
+
+    # The subject: whichever identifier the response echoes back.
+    subject = next(
+        (k for k in ("order_id", "refund_id", "booking_ref", "ticket_id") if k in example),
+        None,
+    )
+    lead = f"Your order {{{{{subject}}}}}" if subject == "order_id" else (
+        f"Your request {{{{result.{subject}}}}}" if subject else "Your request"
+    )
+
+    parts = [
+        phrase
+        for field, phrase in _SENTENCE_FIELDS
+        if field in example and (field != "amount" or "currency" in example)
+    ]
+    if not parts:
+        return ""
+    return f"{lead} {', '.join(parts)}."
+
 def normalize(raw: dict[str, Any]) -> dict[str, Any]:
     """Return an internal-shape manifest dict for :class:`Manifest`."""
     name: str = raw.get("business") if isinstance(raw.get("business"), str) else raw.get("business_id", "Business")
@@ -169,7 +214,7 @@ def normalize(raw: dict[str, Any]) -> dict[str, Any]:
             "rules": [],
             "confirm": any(v in cap_name.lower() for v in _DESTRUCTIVE),
             "action": endpoint_id,
-            "response": "",  # published manifests carry no template → compose with the LLM
+            "response": _response_template(cap),
             "receipt": _receipt_for(cap_name),
         })
 

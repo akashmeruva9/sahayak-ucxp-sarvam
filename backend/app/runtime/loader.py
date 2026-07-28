@@ -95,6 +95,28 @@ class ManifestRegistry:
                         best = (len(needle), manifest.id)
         return best[1] if best else None
 
+    def full_catalogue(self) -> str:
+        """Every business *with its capabilities*, for unscoped conversations.
+
+        The general chat has no business in context, so the classifier must be
+        able to answer "which business AND which capability" from one message.
+        Showing only the business list means it can never return a valid
+        capability id on the first turn, and the request degrades to small talk.
+        """
+        blocks: list[str] = []
+        for manifest in self.all():
+            domains = ", ".join(manifest.routing.domains[:8])
+            header = f'- business_id: "{manifest.id}" — {manifest.business.name} ({manifest.business.category})'
+            if domains:
+                header += f"\n  handles: {domains}"
+            for capability in manifest.capabilities:
+                header += f'\n  · capability_id: "{capability.id}" — {capability.description}'
+                if capability.required_inputs:
+                    names = ", ".join(i.name for i in capability.required_inputs)
+                    header += f" (inputs: {names})"
+            blocks.append(header)
+        return "\n".join(blocks)
+
     def routing_catalogue(self) -> str:
         """Business candidates for the classifier — built from manifest data."""
         lines: list[str] = []

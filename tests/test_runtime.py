@@ -292,7 +292,10 @@ async def test_a_hallucinated_capability_is_rejected():
     runtime = build([classification("flipkart", "delete_the_database", {})])
     final, _ = await runtime.run("Do something to my Flipkart order")
     assert final["capability_id"] is None
-    assert final["status"] == "smalltalk"
+    # "Flipkart" is not a loaded manifest, so the router resolves no business
+    # and the runtime asks the customer to name one rather than guessing —
+    # and never reaches a capability, hallucinated or otherwise.
+    assert final["status"] == "needs_business"
 
 
 async def test_low_confidence_does_not_act():

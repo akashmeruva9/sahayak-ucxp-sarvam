@@ -32,11 +32,20 @@ from .loader import ManifestRegistry, get_registry
 from .renderer import RenderError, RuleError, evaluate_condition, render
 from .state import TurnState
 
-CONFIRM_YES = {"yes", "yeah", "yep", "sure", "ok", "okay", "go ahead", "do it", "please do", "confirm", "haan", "ha"}
-CONFIRM_NO = {"no", "nope", "don't", "dont", "cancel that", "stop", "nahi", "not now"}
+#: Whole-word tokens only — substring matching once let "sri p(ha)rma" confirm
+#: a pending refund. Multi-word phrases are checked separately.
+CONFIRM_YES = {"yes", "yeah", "yep", "yup", "sure", "ok", "okay", "confirm", "confirmed", "haan", "ha", "proceed"}
+CONFIRM_NO = {"no", "nope", "dont", "stop", "nahi", "cancel", "nevermind"}
+CONFIRM_YES_PHRASES = ("go ahead", "do it", "please do", "yes please")
+CONFIRM_NO_PHRASES = ("don't", "not now", "cancel that", "never mind")
 
 #: A token that could plausibly be an identifier, date or amount.
 _VALUE_LIKE = re.compile(r"\d|\b(today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
+
+
+def _friendly_input(name: str) -> str:
+    """`order_number` → `order number`, for use in a sentence."""
+    return name.replace("_", " ").replace("-", " ").strip()
 
 
 def _might_contain_value(text: str) -> bool:
@@ -180,10 +189,26 @@ class UcxpRuntime:
         conversation = self.store.get_or_create(state["conversation_id"])
         manifest: Manifest | None = state.get("manifest")
 
-        # A pending yes/no short-circuits the classifier entirely.
+        # A pending yes/no short-circuits the classifier entirely — but only for
+        # an actual yes/no, and only while the customer is still talking about
+        # the same business.
+        #
+        # This used to substring-match, so a two-letter token like "ha" inside
+        # an ordinary word silently confirmed a *refund* that was pending for a
+        # different business. Confirmation is now whole-word, and naming another
+        # business cancels the pending action rather than inheriting it.
         if conversation.awaiting_confirmation:
             answer = state["english_text"].strip().lower()
-            if any(word in answer for word in CONFIRM_YES):
+            words = set(re.findall(r"[\w']+", answer))
+
+            if state.get("business_source") == "alias" and conversation.business_id and \
+                    state.get("business_id") != conversation.business_id:
+                logger.info(
+                    f"classify.confirmation_abandoned business changed "
+                    f"{conversation.business_id} -> {state.get('business_id')}"
+                )
+                conversation.clear_pending()
+            elif words & CONFIRM_YES or any(p in answer for p in CONFIRM_YES_PHRASES):
                 logger.info("classify confirmation=yes")
                 return {
                     "capability_id": conversation.pending_capability,
@@ -191,7 +216,7 @@ class UcxpRuntime:
                     "confidence": 1.0,
                     "latency": {"classify_ms": 0.0},
                 }
-            if any(word in answer for word in CONFIRM_NO):
+            if words & CONFIRM_NO or any(p in answer for p in CONFIRM_NO_PHRASES):
                 conversation.clear_pending()
                 logger.info("classify confirmation=no")
                 return {
@@ -202,10 +227,36 @@ class UcxpRuntime:
                     "latency": {"classify_ms": 0.0},
                 }
 
+        # The router has already decided the business: pinned to a channel,
+        # named in this message, or carried over from earlier in the chat.
+        resolved = state.get("business_id")
+
+        # No business, and none named in this message. Naming one is the only
+        # way in, so ask — and skip the model entirely. Classifying against a
+        # five-business catalogue to conclude "I don't know which" cost ~38 s
+        # and told us nothing the router hadn't already established.
+        if not resolved:
+            logger.info("classify.no_business asking the customer to name one")
+            return {
+                "capability_id": None,
+                "inputs": {},
+                "confidence": 0.0,
+                "needs_business": True,
+                "latency": {"classify_ms": 0.0},
+            }
+
+        # A business is loaded — pinned, named in this message, or carried over
+        # from earlier in the chat. Either way the conversation belongs to it
+        # until the customer names a different one (which the router catches
+        # before we get here), so classify against that manifest alone: one
+        # small prompt instead of the whole directory.
+        businesses = f'Already resolved: "{resolved}". Use it; do not consider any other business.'
+        capabilities = manifest.capability_catalogue() if manifest else "(none)"
+
         prompt = build_prompt(
             "classify",
-            businesses=self.registry.routing_catalogue(),
-            capabilities=manifest.capability_catalogue() if manifest else "(no business identified yet)",
+            businesses=businesses,
+            capabilities=capabilities,
             history=conversation.history_text(),
             context=conversation.context_text(),
             text=state["english_text"],
@@ -218,14 +269,10 @@ class UcxpRuntime:
         business_id = state.get("business_id")
         manifest_out = manifest
 
-        # The classifier may identify the business when no alias matched.
-        chosen_business = parsed.get("business_id")
-        if not business_id and isinstance(chosen_business, str):
-            candidate = self.registry.get(chosen_business)
-            if candidate:
-                business_id, manifest_out = candidate.id, candidate
-                logger.info(f"classify business={business_id} source=llm")
-
+        # The router owns the business decision now — pinned, named in this
+        # message, or carried over — and we return early when it found none.
+        # Whatever the model echoes back for business_id is ignored, so it can
+        # never route a customer to a store they didn't ask for.
         capability_id = parsed.get("capability_id")
         confidence = float(parsed.get("confidence") or 0.0)
         if capability_id and manifest_out is None:
@@ -415,7 +462,7 @@ class UcxpRuntime:
 
         # A question back to the user is already perfectly worded — don't
         # paraphrase it through a model and risk losing the ask.
-        if status in ("needs_input", "confirm"):
+        if status in ("needs_input", "confirm", "needs_business"):
             return {
                 "reply_en": template,
                 "status": status,
@@ -434,7 +481,10 @@ class UcxpRuntime:
         elif self.compose_with_llm == "never":
             use_llm = False
         else:
-            use_llm = not template or status in ("smalltalk", "escalated")
+            # Only when there is genuinely nothing renderable. Forcing a
+            # reasoning call for small talk cost ~40 s to paraphrase a greeting
+            # we can already write from the manifest.
+            use_llm = not template
 
         reply = template
         if use_llm:
@@ -482,6 +532,17 @@ class UcxpRuntime:
             kind = "confirm" if state["missing_input"] == "__confirm__" else "needs_input"
             return ("A required detail is missing.", "", prompt, kind)
 
+        if state.get("needs_business"):
+            names = [m.business.name for m in self.registry.all()]
+            listed = ", ".join(names[:-1]) + f" and {names[-1]}" if len(names) > 1 else (names[0] if names else "")
+            ask = (
+                f"Which business is this about? I can help with {listed}. "
+                "Tell me the name and I'll pull up your account."
+                if listed
+                else "Which business is this about?"
+            )
+            return ("The customer has not said which business this is about.", "", ask, "needs_business")
+
         if state.get("knowledge_answer"):
             return ("Answered from the business's documented policy.", state["knowledge_answer"], state["knowledge_answer"], "resolved")
 
@@ -508,19 +569,50 @@ class UcxpRuntime:
         # (product, policy, hours). If we know the business, answer in-persona
         # from its documented knowledge rather than deflecting.
         known = manifest.business.name if manifest else "Sahayak"
-        catalogue = (
-            "; ".join(c.description for c in manifest.capabilities) if manifest else ""
-        )
-        template = (
-            f"I can help with {catalogue}" if catalogue else
-            "I can help with orders, connections and appointments. What do you need?"
-        )
+        template = self._welcome(manifest)
         outcome = (
             f"The customer sent a greeting or a general question to {known}. Answer it warmly "
             f"as {known}, using the business's documented policies where relevant, and point "
             f"them to what you can do (order status, refunds)."
         )
         return (outcome, "", template, "smalltalk")
+
+    @staticmethod
+    def _welcome(manifest: Manifest | None) -> str:
+        """A greeting written from the manifest — no model call.
+
+        Small talk is the first thing anyone sends, so it sets the impression.
+        Paraphrasing this through the reasoning model cost ~40 s for a sentence
+        the manifest already contains everything to write.
+        """
+        if manifest is None:
+            return (
+                "Hello! I can reach a range of businesses for you — order status, "
+                "refunds and more. Which one can I help with?"
+            )
+
+        # Capability *ids* read cleanly ("track order", "refund"); published
+        # descriptions are noun-phrases that don't fit a sentence.
+        actions = [_friendly_input(c.id) for c in manifest.capabilities]
+        if len(actions) > 1:
+            offer = ", ".join(actions[:-1]) + f" and {actions[-1]}"
+        elif actions:
+            offer = actions[0]
+        else:
+            offer = "your recent orders"
+
+        asks = [
+            i.name
+            for c in manifest.capabilities
+            for i in c.required_inputs
+            if not i.optional
+        ]
+        hint = (
+            f" Just share your {_friendly_input(asks[0])} whenever you're ready."
+            if asks
+            else ""
+        )
+        return f"Hello! Welcome to {manifest.business.name}. I can help with {offer}.{hint}"
 
     def _receipt(self, capability: Capability | None, state: TurnState) -> dict[str, Any] | None:
         if not capability or not capability.receipt:

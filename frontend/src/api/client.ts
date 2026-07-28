@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
@@ -44,7 +45,77 @@ function resolveBaseUrl(): string {
   return RAW_BASE_URL.replace(/\/+$/, "");
 }
 
-export const API_BASE_URL = resolveBaseUrl();
+/** What was compiled in at build time. */
+export const COMPILED_BASE_URL = resolveBaseUrl();
+
+/**
+ * A backend URL set from Settings, overriding the compiled one.
+ *
+ * `EXPO_PUBLIC_*` is inlined when the bundle is built, so a shipped APK can
+ * otherwise never be repointed — a changed backend means a full rebuild. The
+ * override is read from disk once at startup and kept in memory so request
+ * paths stay synchronous.
+ */
+const OVERRIDE_KEY = "sahayak.apiBaseUrl";
+let overrideUrl: string | null = null;
+
+/** The URL requests actually use. */
+export function getApiBaseUrl(): string {
+  return overrideUrl ?? COMPILED_BASE_URL;
+}
+
+export function getApiOverride(): string | null {
+  return overrideUrl;
+}
+
+function normalizeUrl(raw: string): string {
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+/** Persist an override (or clear it with null/empty). Returns what was stored. */
+export async function setApiOverride(raw: string | null): Promise<string | null> {
+  const url = raw ? normalizeUrl(raw) : "";
+  overrideUrl = url || null;
+  try {
+    if (overrideUrl) await AsyncStorage.setItem(OVERRIDE_KEY, overrideUrl);
+    else await AsyncStorage.removeItem(OVERRIDE_KEY);
+  } catch {
+    // In-memory value still applies for this session.
+  }
+  return overrideUrl;
+}
+
+/** Read the stored override. Call once at app start, before any request. */
+export async function loadApiOverride(): Promise<string | null> {
+  try {
+    const stored = await AsyncStorage.getItem(OVERRIDE_KEY);
+    overrideUrl = stored?.trim() ? stored.trim() : null;
+  } catch {
+    overrideUrl = null;
+  }
+  return overrideUrl;
+}
+
+/** Is the configured backend reachable? Used by the Settings "Test" button. */
+export async function pingBackend(url?: string): Promise<{ ok: boolean; detail: string }> {
+  const target = url ? normalizeUrl(url) : getApiBaseUrl();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`${target}/health`, { signal: controller.signal });
+    if (!response.ok) return { ok: false, detail: `HTTP ${response.status}` };
+    const body = (await response.json()) as { manifests?: string[]; status?: string };
+    const count = body.manifests?.length ?? 0;
+    return { ok: true, detail: `${body.status ?? "ok"} · ${count} manifest${count === 1 ? "" : "s"}` };
+  } catch (err) {
+    const aborted = err instanceof Error && err.name === "AbortError";
+    return { ok: false, detail: aborted ? "timed out" : "could not connect" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** Simulate realistic, slightly variable network latency. */
 export function networkDelay(min = 550, max = 1200): Promise<void> {
@@ -54,7 +125,9 @@ export function networkDelay(min = 550, max = 1200): Promise<void> {
 
 export function isMockMode(): boolean {
   if (process.env.EXPO_PUBLIC_FORCE_MOCK === "1") return true;
-  return !RAW_BASE_URL;
+  // An override makes us live even when nothing was compiled in — that is the
+  // whole point of shipping with a placeholder.
+  return !overrideUrl && !RAW_BASE_URL;
 }
 
 if (__DEV__) {
@@ -63,10 +136,10 @@ if (__DEV__) {
   console.log(
     isMockMode()
       ? "[api] MOCK mode — canned replies. Set EXPO_PUBLIC_API_URL in .env.local and restart expo to go live."
-      : `[api] LIVE mode → ${API_BASE_URL}`
+      : `[api] LIVE mode → ${getApiBaseUrl()}`
   );
   // Announce ourselves to the engine log so the session is identifiable there.
-  setTimeout(() => reportDiag("app.boot", { platform: Platform.OS, base: API_BASE_URL }), 0);
+  setTimeout(() => reportDiag("app.boot", { platform: Platform.OS, base: getApiBaseUrl() }), 0);
 }
 
 /** A failure from the backend, carrying the engine's structured error code. */
@@ -128,7 +201,7 @@ async function send<T extends EngineEnvelope>(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetch(`${getApiBaseUrl()}${path}`, {
       ...init,
       signal: controller.signal,
     });
@@ -143,7 +216,7 @@ async function send<T extends EngineEnvelope>(
 
     if (__DEV__) {
       console.error(
-        `[api] FAIL ${init.method ?? "GET"} ${API_BASE_URL}${path} :: ${failure.message}` +
+        `[api] FAIL ${init.method ?? "GET"} ${getApiBaseUrl()}${path} :: ${failure.message}` +
           `${failure.status ? ` (http ${failure.status})` : ""}` +
           `${failure.code ? ` code=${failure.code}` : ""}`
       );
@@ -162,7 +235,7 @@ export async function getJson<T>(path: string, timeoutMs = 10_000): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, { signal: controller.signal });
+    const response = await fetch(`${getApiBaseUrl()}${path}`, { signal: controller.signal });
     if (!response.ok) {
       throw new ApiError(`Request failed (HTTP ${response.status})`, response.status);
     }
@@ -174,7 +247,7 @@ export async function getJson<T>(path: string, timeoutMs = 10_000): Promise<T> {
         : err instanceof Error && err.name === "AbortError"
           ? new ApiError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`)
           : new ApiError(err instanceof Error ? err.message : "Could not reach the backend");
-    if (__DEV__) console.error(`[api] FAIL GET ${API_BASE_URL}${path} :: ${failure.message}`);
+    if (__DEV__) console.error(`[api] FAIL GET ${getApiBaseUrl()}${path} :: ${failure.message}`);
     throw failure;
   } finally {
     clearTimeout(timer);
@@ -205,7 +278,7 @@ export function postJson<T extends EngineEnvelope>(
  */
 export function reportDiag(event: string, data: Record<string, unknown> = {}): void {
   if (!__DEV__ || isMockMode()) return;
-  fetch(`${API_BASE_URL}/v1/_diag`, {
+  fetch(`${getApiBaseUrl()}/v1/_diag`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ event, ...data }),
@@ -229,7 +302,7 @@ export function postForm<T extends EngineEnvelope>(
   form: FormData,
   timeoutMs = 60_000
 ): Promise<T> {
-  const url = `${API_BASE_URL}${path}`;
+  const url = `${getApiBaseUrl()}${path}`;
 
   return new Promise<T>((resolve, reject) => {
     const fail = (error: ApiError) => {
