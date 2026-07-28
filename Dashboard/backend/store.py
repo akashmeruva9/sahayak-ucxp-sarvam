@@ -88,9 +88,18 @@ def _create_schema(conn):
             kind        TEXT NOT NULL DEFAULT 'shopify_admin_token',
             updated_at  TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS users (
+            email         TEXT PRIMARY KEY,
+            name          TEXT NOT NULL DEFAULT '',
+            picture       TEXT NOT NULL DEFAULT '',
+            first_seen    TEXT NOT NULL,
+            last_seen     TEXT NOT NULL,
+            sign_in_count INTEGER NOT NULL DEFAULT 0
+        );
         CREATE INDEX IF NOT EXISTS idx_sections_business ON sections(business_id);
         CREATE INDEX IF NOT EXISTS idx_businesses_status ON businesses(status);
         CREATE INDEX IF NOT EXISTS idx_businesses_created ON businesses(created_at);
+        CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen DESC);
     """)
     _migrate(conn)
     conn.commit()
@@ -294,6 +303,74 @@ def list_businesses(owner_email=None):
         biz = get_business(bid)
         if biz:
             out.append(summarize(biz))
+    return out
+
+
+# --------------------------------------------------------------------------
+# People
+# --------------------------------------------------------------------------
+def record_sign_in(email, name="", picture=""):
+    """Note that somebody signed in, and return their row.
+
+    Until this existed the dashboard remembered nothing about people: someone
+    could sign in, create nothing, and leave no trace anywhere reachable.
+    Google keeps no per-app record either, so if we do not write it down it is
+    simply not knowable.
+
+    Deliberately not stored: whether they are an admin. That is read from
+    UCXP_ADMIN_EMAILS on every request so revoking it takes effect at once, and
+    a stale copy in here would be a second answer to the same question.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return None
+    conn = connect()
+    stamp = _now()
+    conn.execute(
+        "INSERT INTO users (email, name, picture, first_seen, last_seen, sign_in_count) "
+        "VALUES (?, ?, ?, ?, ?, 1) "
+        "ON CONFLICT(email) DO UPDATE SET "
+        # A later sign-in may carry a changed display name or a new avatar, but
+        # first_seen is the one column that must never move.
+        "  name = excluded.name, picture = excluded.picture, "
+        "  last_seen = excluded.last_seen, sign_in_count = users.sign_in_count + 1",
+        (email, name or "", picture or "", stamp, stamp))
+    conn.commit()
+    return get_user(email)
+
+
+def get_user(email):
+    row = connect().execute(
+        "SELECT * FROM users WHERE email = ?", ((email or "").strip().lower(),)).fetchone()
+    return None if row is None else dict(row)
+
+
+def list_users():
+    """Everyone we know about, most recently seen first.
+
+    Includes people who own a business but have no users row -- that is anyone
+    who signed in during the window between ownership shipping and this table
+    existing. They show a null first_seen rather than being invisible.
+    """
+    conn = connect()
+    counts = {}
+    for row in conn.execute(
+            "SELECT owner_email, COUNT(*) AS n FROM businesses "
+            "WHERE owner_email != '' GROUP BY owner_email"):
+        counts[row["owner_email"]] = row["n"]
+
+    out = []
+    seen = set()
+    for row in conn.execute("SELECT * FROM users ORDER BY last_seen DESC, email ASC"):
+        user = dict(row)
+        user["businesses"] = counts.get(user["email"], 0)
+        seen.add(user["email"])
+        out.append(user)
+
+    for email in sorted(set(counts) - seen):
+        out.append({"email": email, "name": "", "picture": "",
+                    "first_seen": None, "last_seen": None,
+                    "sign_in_count": 0, "businesses": counts[email]})
     return out
 
 

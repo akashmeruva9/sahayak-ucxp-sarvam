@@ -28,7 +28,7 @@ from . import envfile
 envfile.load()
 
 from . import (auth, constants, manifest as manifest_mod, scraper,  # noqa: E402
-               shopify_client, store, vault)
+               shopify_client, store, supabase, vault)
 
 log = logging.getLogger("ucxp")
 
@@ -97,6 +97,33 @@ def _republish(biz):
         _write_manifest_files(biz["id"], built)
     except OSError:
         log.warning("could not republish manifest for %s", biz["id"])
+    _sync_manifest(biz, built)
+
+
+def _sync_manifest(biz, built):
+    """Mirror a published manifest into Supabase, where the runtime reads it.
+
+    Best effort on purpose. The runtime layers database rows on top of the
+    committed manifests/*.json, so a failed write here means a stale row rather
+    than a merchant who cannot activate -- and the merchant is not the person
+    who can fix a database outage. The outcome is returned for the caller to
+    report, and logged either way.
+    """
+    if not supabase.enabled():
+        # Not an error, and not the merchant's problem -- `configured: false`
+        # already says it, and a sentence here would show up in their UI.
+        return {"ok": False, "skipped": True, "error": ""}
+    profile = biz["sections"].get("1") or {}
+    result = supabase.publish_manifest(
+        business_id=biz["id"],
+        manifest=built,
+        version=(biz["sections"].get("7") or {}).get("version") or 1,
+        status="active",
+        name=profile.get("name") or biz.get("name") or "",
+        category=profile.get("category") or "")
+    if result["ok"]:
+        log.info("published %s to Supabase", biz["id"])
+    return result
 
 
 @asynccontextmanager
@@ -298,7 +325,18 @@ def auth_callback(request: Request, code: str = "", state: str = "", error: str 
         log.exception("Google sign-in failed")
         return back("We couldn't complete that sign-in. Please try again.")
 
-    log.info("signed in: %s (admin=%s)", profile["email"], auth.is_admin(profile["email"]))
+    is_admin = auth.is_admin(profile["email"])
+    log.info("signed in: %s (admin=%s)", profile["email"], is_admin)
+    # Nobody was writing people down, so someone could sign in, create nothing,
+    # and be invisible everywhere -- Google keeps no per-app record either.
+    try:
+        user = store.record_sign_in(profile["email"], profile.get("name"),
+                                    profile.get("picture"))
+        if user:
+            supabase.record_user_in_background(dict(user, is_admin=is_admin))
+    except Exception:  # noqa: BLE001 -- bookkeeping must never cost someone their sign-in
+        log.exception("could not record sign-in for %s", profile["email"])
+
     response = RedirectResponse(next_path, status_code=302)
     auth.set_session_cookie(response, request, auth.make_session(profile))
     auth.clear_state_cookie(response)
@@ -391,6 +429,9 @@ def delete_business(request: Request, business_id: str):
             pass
         except OSError:
             log.warning("could not remove manifest %s", path)
+    # Same reasoning one level up: a row for a business that no longer exists
+    # would keep serving in the runtime, and could never be corrected from here.
+    supabase.unpublish_manifest(business_id)
     return {"ok": True, "files_removed": removed}
 
 
@@ -480,6 +521,7 @@ def activate(request: Request, business_id: str):
                 "errors": errors}
 
     flat_path, protocol_path = _write_manifest_files(business_id, built)
+    published = _sync_manifest(biz, built)
 
     return {
         "ok": True,
@@ -487,6 +529,11 @@ def activate(request: Request, business_id: str):
         "version": activation["version"],
         "activated_at": activation["activatedAt"],
         "manifest_url": "{}/manifests/{}.json".format(PUBLIC_BASE_URL, business_id),
+        # The activation itself succeeded regardless; this only says whether the
+        # runtime's copy is current, so it is reported rather than raised.
+        "database": {"ok": bool(published.get("ok")),
+                     "configured": supabase.enabled(),
+                     "error": published.get("error") or ""},
         # Relative to the repo when the manifests live inside it; on a mounted
         # volume that would render as a run of "../", so fall back to the name.
         "files": [_display_path(flat_path), _display_path(protocol_path)],
@@ -646,6 +693,24 @@ def admin_merchants(request: Request):
             "drafts": sum(1 for m in merchants if m["status"] == "Draft"),
             "shopify": sum(1 for m in merchants if m["data_source"] == "shopify"),
         },
+    }
+
+
+@app.get("/api/admin/users")
+def admin_users(request: Request):
+    """Who has signed in, and how much of the dashboard they own."""
+    _require_admin(request)
+    users = [dict(u, is_admin=auth.is_admin(u["email"])) for u in store.list_users()]
+    return {
+        "users": users,
+        "stats": {
+            "total": len(users),
+            "admins": sum(1 for u in users if u["is_admin"]),
+            "merchants": sum(1 for u in users if not u["is_admin"]),
+            "with_businesses": sum(1 for u in users if u["businesses"]),
+        },
+        # So the screen can say where the mirror is going, or that it is not.
+        "database": {"configured": supabase.enabled()},
     }
 
 

@@ -46,7 +46,10 @@ or — importantly — tracked by git.
 
 ## Gate status
 
-**Backend — all green.** `./venv/bin/python -m pytest tests/backend -v` → 22 passed, 1 skipped.
+**All green in one run.**
+
+- `./venv/bin/python -m pytest tests/backend -q` → **129 passed, 1 skipped**
+- `npx playwright test` → **26 passed**
 
 | Gate | Status |
 |---|---|
@@ -56,62 +59,46 @@ or — importantly — tracked by git.
 | B4 manifest validates, has credential_ref, no `shpat_` | PASS |
 | B5 activate writes both files, reloads, idempotent | PASS |
 | B6 200 businesses create and list | PASS |
-
-**Frontend — 7 of 11 verified.** `npx playwright test`
-
-| Gate | Status |
-|---|---|
+| B8 Google sign-in, roles, and the default-deny gate | PASS |
+| B9 Supabase mirror: manifests on activate, users on sign-in | PASS |
 | F1 every screen renders, zero console errors | PASS |
+| F2 all 7 sections save and reload | PASS |
+| F3 custom REST fully editable | PASS |
 | F4 Shopify Customize unlocks all / Reset restores | PASS |
 | F5 13 languages native script, no clipped matras | PASS |
 | F6 preview byte-identical to download | PASS |
 | F7 spinner + disabled button on async | PASS |
+| F8 friendly inline errors | PASS |
+| F9 responsive at 375px | PASS |
 | F10 no dead buttons | PASS |
 | F11 layout matches the design reference | PASS |
-| F2 all 7 sections save and reload | **fix applied, NOT re-verified** |
-| F3 custom REST fully editable | **fix applied, NOT re-verified** |
-| F8 friendly inline errors | **fix applied, NOT re-verified** |
-| F9 responsive at 375px | **never run** |
-| E1 Ravi Electronics end to end ×3 | **never run** |
-| E2 custom REST end to end ×3 | **never run** |
+| F12 the sign-in gate in the React app | PASS |
+| F13 the admin Users tab | PASS |
+| E1 Ravi Electronics end to end ×3 | PASS |
+| E2 custom REST end to end ×3 | PASS |
 
-## The three fixes that are applied but unverified
+The one skip is B1's live-Shopify case when no token is present in the
+environment; it runs on any machine that has `.env`.
 
-1. **F2/F3 root cause — autosave signal.** The header reads "All changes saved"
-   in the idle state as well as the saved state, so the test helper's
-   `waitForSave` returned before anything had been queued; the test then reloaded
-   and the pending edit was lost. Fixed by adding real dirty-tracking in
-   `frontend/src/state/useBusiness.js` (a `dirty` flag set on every queued edit,
-   cleared only when every queued section has come back from the server),
-   surfaced as `data-dirty` on the `save-state` element, and `waitForSave` in
-   `tests/e2e/helpers.js` now waits past the 600ms debounce and then for
-   `data-dirty="false"`.
-2. **F8 — test strictness only.** Two error panels legitimately render (one in the
-   consent dialog, one on the section behind it); the assertion is now scoped to
-   the dialog.
-3. Also fixed earlier and already verified: `.ucxp-native` set `line-height` in
-   Tailwind's components layer, where the `text-base` utility overrode it. Native
-   leading is now an explicit `leading-[1.9]` utility at each call site.
+## The Supabase mirror
 
-## Exactly what is left
+SQLite stays the source of truth. Supabase is a copy, written best-effort:
+`Dashboard/backend/supabase.py` never raises and never blocks a request, so the
+dashboard works unchanged when the project is unreachable or unconfigured.
 
-```bash
-# 1. re-verify the three fixed gates
-npx playwright test --project=desktop -g "F2 |F3 |F8 "
+- **Manifests** — `ucxp_manifests` (schema on `main`, `db/schema.sql`). Written
+  on activate *and* on every later edit of an active business, upserted on
+  `business_id`. Drafts are never published. Deleting a business deletes the row.
+- **Users** — `ucxp_dashboard_users` (`db/dashboard-users.sql`, run it once in
+  the Supabase SQL editor). Written on sign-in, on a background thread.
 
-# 2. the responsive gate
-npx playwright test --project=mobile
+Both need `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the environment.
+Without them `supabase.enabled()` is false, the activate response says
+`database.configured: false`, and nothing is sent anywhere.
 
-# 3. the journeys, 3 runs each (they hit the real Shopify store)
-npx playwright test --project=desktop -g "E1 |E2 "
-
-# 4. full suite, must be green in one run
-./venv/bin/python -m pytest tests/backend -v
-npx playwright test
-```
-
-Loop on any failure: fix → re-run the **full** suite, not just the failing gate.
-Then report a final table of all 19 gates with PASS/FAIL.
+Permission is never read from either table. It is decided per request from
+`UCXP_ADMIN_EMAILS`, so removing someone takes effect on their next click rather
+than whenever their session expires.
 
 Two things are known-unbuilt and were agreed out of scope: the playground /
 "Send to UCXP runtime" screens (in the old spec, absent from the approved design
@@ -121,8 +108,10 @@ and from the brief's screen list).
 
 ```
 backend/     constants.py  manifest.py  shopify_client.py  vault.py  store.py  main.py
+             auth.py  envfile.py  supabase.py
 frontend/    src/{routes,sections,components,state,lib}  tailwind.config.js
-tests/       backend/test_backend.py   e2e/{gates,responsive,e2e}.spec.js  e2e/helpers.js
+tests/       backend/*.py   e2e/{gates,responsive,e2e,auth}.spec.js  e2e/helpers.js
+db/          dashboard-users.sql — run once in the Supabase SQL editor
 manifests/   activation writes <id>.json and <id>.protocol.json here
 run.sh       preflight + both servers
 ```

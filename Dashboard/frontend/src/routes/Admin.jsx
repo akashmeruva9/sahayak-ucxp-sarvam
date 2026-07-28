@@ -17,6 +17,7 @@ const SOURCE_FILTERS = [
 ];
 
 const GRID = '180px 1.3fr 1.5fr 1fr 110px 150px 90px 110px';
+const USER_GRID = '1.6fr 1.2fr 90px 100px 90px 120px 150px';
 
 function Chip({ selected, children, onClick }) {
   return (
@@ -32,11 +33,43 @@ function Chip({ selected, children, onClick }) {
   );
 }
 
+function TabBar({ tab, onChange }) {
+  return (
+    <div className="mb-5 flex gap-1 border-b border-line" role="tablist">
+      {[['merchants', 'Merchants'], ['users', 'Users']].map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          role="tab"
+          aria-selected={tab === value}
+          data-testid={`admin-tab-${value}`}
+          onClick={() => onChange(value)}
+          className={`ucxp-press -mb-px border-b-2 px-3.5 py-2 text-[13px] font-medium
+                      transition-colors
+                      ${tab === value
+                        ? 'border-ink text-ink'
+                        : 'border-transparent text-ink-muted hover:text-ink'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function Admin() {
+  const [tab, setTab] = useState('merchants');
+
   const [merchants, setMerchants] = useState([]);
   const [stats, setStats] = useState({ total: 0, active: 0, drafts: 0, shopify: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const [users, setUsers] = useState([]);
+  const [userStats, setUserStats] = useState({ total: 0, admins: 0, merchants: 0 });
+  const [mirrored, setMirrored] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState('');
 
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -62,9 +95,32 @@ export default function Admin() {
     setLoading(false);
   };
 
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    const result = await api.adminUsers();
+    if (result.error) {
+      setUsersError(result.error);
+      setUsersLoading(false);
+      return;
+    }
+    setUsersError('');
+    setUsers(result.users || []);
+    setUserStats(result.stats || {});
+    setMirrored(Boolean(result.database?.configured));
+    setUsersLoading(false);
+  };
+
   useEffect(() => {
     load();
   }, []);
+
+  // Fetched the first time the tab is opened, not on mount: most visits here
+  // are about merchants, and this list is the one screen that reads people's
+  // email addresses.
+  useEffect(() => {
+    if (tab === 'users' && !users.length && !usersError) loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const categories = useMemo(
     () => ['All', ...Array.from(new Set(merchants.map((m) => m.category).filter(Boolean))).sort()],
@@ -124,6 +180,17 @@ export default function Admin() {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return '—';
     return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  // Sign-ins happen several times a day, so the date alone would make two
+  // different visits look like the same one.
+  const formatDateTime = (iso) => {
+    if (!iso) return '—';
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString('en-GB', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+    });
   };
 
   /* ------------------------- detail view ------------------------- */
@@ -198,6 +265,123 @@ export default function Admin() {
     );
   }
 
+  /* ------------------------- users view ------------------------- */
+  if (tab === 'users') {
+    return (
+      <div className="min-h-screen">
+        <AppHeader
+          context="Admin console"
+          maxWidth={1360}
+          right={
+            <Link to="/" className="text-[13px] text-ink-muted no-underline hover:text-ink">
+              Exit
+            </Link>
+          }
+        />
+
+        <main className="mx-auto max-w-[1360px] px-6 pb-16 pt-7">
+          <TabBar tab={tab} onChange={setTab} />
+
+          <h1 className="mb-1 text-xl font-semibold tracking-tight">Users</h1>
+          <p className="mb-5 text-[13px] text-ink-muted">
+            Everyone who has signed into the dashboard.{' '}
+            {mirrored
+              ? 'Also mirrored to the shared database.'
+              : 'Kept here only — the shared database is not configured.'}
+          </p>
+
+          {usersError && (
+            <div className="mb-5">
+              <ErrorPanel onRetry={loadUsers}>{usersError}</ErrorPanel>
+            </div>
+          )}
+
+          <div
+            className="mb-5 grid gap-3"
+            style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}
+            data-testid="admin-user-stats"
+          >
+            {[
+              ['People', userStats.total],
+              ['Admins', userStats.admins],
+              ['Merchants', userStats.merchants],
+              ['Own a business', userStats.with_businesses],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-card border border-line bg-canvas px-4 py-3.5">
+                <div className="text-[22px] font-semibold tracking-tight">{value ?? 0}</div>
+                <div className="mt-0.5 text-xs text-ink-muted">{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-x-auto rounded-card border border-line bg-canvas">
+            <div style={{ minWidth: 900 }}>
+              <div className="grid border-b border-line" style={{ gridTemplateColumns: USER_GRID }}>
+                {['Email', 'Name', 'Role', 'Businesses', 'Sign-ins', 'First seen', 'Last seen']
+                  .map((label) => (
+                    <div
+                      key={label}
+                      className="px-3.5 py-2.5 text-[10.5px] font-semibold uppercase
+                                 tracking-[0.05em] text-ink-muted"
+                    >
+                      {label}
+                    </div>
+                  ))}
+              </div>
+
+              {usersLoading ? (
+                <div className="flex items-center gap-3 px-3.5 py-12 text-ink-muted">
+                  <Spinner /> Loading users…
+                </div>
+              ) : users.length === 0 ? (
+                <div className="px-6 py-12 text-center" data-testid="admin-users-empty">
+                  <div className="mb-1 text-sm font-semibold">Nobody has signed in yet</div>
+                  <div className="text-[12.5px] text-ink-muted">
+                    People appear here the first time they sign in with Google.
+                  </div>
+                </div>
+              ) : (
+                users.map((user) => (
+                  <div
+                    key={user.email}
+                    data-testid={`admin-user-${user.email}`}
+                    className="grid items-center border-b border-line-soft"
+                    style={{ gridTemplateColumns: USER_GRID }}
+                  >
+                    <div className="truncate px-3.5 py-3 text-[12.5px]">{user.email}</div>
+                    <div className="truncate px-3.5 py-3 text-[12.5px] text-ink-muted">
+                      {user.name || '—'}
+                    </div>
+                    <div className="px-3.5 py-3">
+                      <span className="ucxp-chip">{user.is_admin ? 'Admin' : 'Merchant'}</span>
+                    </div>
+                    <div className="px-3.5 py-3 text-[12.5px] text-ink-muted">
+                      {user.businesses}
+                    </div>
+                    <div className="px-3.5 py-3 text-[12.5px] text-ink-muted">
+                      {user.sign_in_count}
+                    </div>
+                    <div className="whitespace-nowrap px-3.5 py-3 text-xs text-ink-muted">
+                      {formatDate(user.first_seen)}
+                    </div>
+                    <div className="whitespace-nowrap px-3.5 py-3 text-xs text-ink-muted">
+                      {formatDateTime(user.last_seen)}
+                    </div>
+                  </div>
+                ))
+              )}
+
+              <div className="border-t border-line-soft px-3.5 py-2.5 text-xs text-ink-muted">
+                {users.length} {users.length === 1 ? 'person' : 'people'} · a dash means they
+                owned a business before we started recording sign-ins
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   /* ------------------------- list view ------------------------- */
   return (
     <div className="min-h-screen">
@@ -212,6 +396,8 @@ export default function Admin() {
       />
 
       <main className="mx-auto max-w-[1360px] px-6 pb-16 pt-7">
+        <TabBar tab={tab} onChange={setTab} />
+
         <h1 className="mb-1 text-xl font-semibold tracking-tight">Merchants</h1>
         <p className="mb-5 text-[13px] text-ink-muted">
           Every business onboarding or live on Sahayak.

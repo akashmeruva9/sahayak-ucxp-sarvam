@@ -100,6 +100,7 @@ export const api = {
     }),
 
   adminMerchants: () => request('/admin/merchants'),
+  adminUsers: () => request('/admin/users'),
   adminManifest: (id) => request(`/admin/merchant/${id}/manifest`),
 };
 
