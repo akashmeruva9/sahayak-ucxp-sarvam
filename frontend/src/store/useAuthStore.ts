@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { create } from "zustand";
 import { authConfigured, supabase } from "@/lib/supabase";
 import { setAuthToken } from "@/api/client";
@@ -17,6 +18,8 @@ interface AuthState {
   hydrate: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string) => Promise<boolean>;
+  /** Google via Supabase OAuth. **Web only** — see the implementation. */
+  signInWithGoogle: () => Promise<boolean>;
   signOut: () => Promise<void>;
   clearError: () => void;
 }
@@ -106,6 +109,48 @@ export const useAuthStore = create<AuthState>((set) => ({
       return false;
     }
     set({ busy: false });
+    return true;
+  },
+
+  /**
+   * Google sign-in through Supabase OAuth — **web only**.
+   *
+   * On the web this is a plain redirect: Supabase sends the browser to Google
+   * and back to `redirectTo`, where `detectSessionInUrl` (see lib/supabase.ts)
+   * picks the tokens out of the URL and `onAuthStateChange` does the rest.
+   * Nothing to parse by hand, and no native module.
+   *
+   * The native flow was deliberately dropped: it needed `expo-web-browser` and
+   * `expo-linking` to run an in-app browser session and hand-parse the returned
+   * fragment, which is a lot of surface area for a button the installed app no
+   * longer shows. Restoring it means restoring that code — see git history.
+   *
+   * **`redirectTo` must be allow-listed in Supabase** (Auth → URL
+   * Configuration → Redirect URLs). Supabase silently falls back to the
+   * project's Site URL when it is not, which looks like a working sign-in that
+   * lands on the wrong host (PLAN.md §7 #47).
+   */
+  signInWithGoogle: async () => {
+    if (Platform.OS !== "web") {
+      set({ error: "Google sign-in is available on the web." });
+      return false;
+    }
+    if (!supabase) {
+      set({ error: "Sign-in isn't configured in this build." });
+      return false;
+    }
+
+    set({ busy: true, error: null });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) {
+      set({ busy: false, error: friendly(error.message) });
+      return false;
+    }
+    // The browser is already navigating to Google; leave `busy` set so the
+    // form stays disabled for the moment the page is still on screen.
     return true;
   },
 
