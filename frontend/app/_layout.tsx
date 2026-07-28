@@ -16,6 +16,8 @@ import {
 } from "@expo-google-fonts/inter";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { authConfigured } from "@/lib/supabase";
+import { SignInScreen } from "@/screens/SignInScreen";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -64,7 +66,19 @@ export default function RootLayout() {
     return () => clearTimeout(t);
   }, []);
 
-  const ready = fontsLoaded || !!fontError || timedOut;
+  const fontsReady = fontsLoaded || !!fontError || timedOut;
+
+  // Sign-in is compulsory, so nothing renders until the stored session has
+  // been read. Deciding before `authReady` would flash the sign-in screen at
+  // an already-signed-in customer on every cold start.
+  const authReady = useAuthStore((s) => s.ready);
+  const user = useAuthStore((s) => s.user);
+
+  // A build without Supabase config cannot sign anyone in; gating it would
+  // brick the app entirely, so the gate only applies when auth is available.
+  const mustSignIn = authConfigured && !user;
+
+  const ready = fontsReady && (authReady || !authConfigured);
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
@@ -77,6 +91,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <ThemeSync />
+          {mustSignIn ? (
+            <SignInScreen />
+          ) : (
           <Stack
             screenOptions={{
               headerShown: false,
@@ -92,6 +109,7 @@ export default function RootLayout() {
               options={{ animation: "slide_from_bottom" }}
             />
           </Stack>
+          )}
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

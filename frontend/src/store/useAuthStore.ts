@@ -52,13 +52,23 @@ export const useAuthStore = create<AuthState>((set) => ({
       return;
     }
 
-    const { data } = await supabase.auth.getSession();
-    const session = data.session;
-    setAuthToken(session?.access_token ?? null);
-    set({
-      user: session?.user ? { id: session.user.id, email: session.user.email ?? "" } : null,
-      ready: true,
-    });
+    // `ready` gates the entire app now that sign-in is compulsory, so it must
+    // be set on every path. If this threw, the app would sit on a blank screen
+    // forever with no way back — worse than showing the sign-in form.
+    try {
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
+      setAuthToken(session?.access_token ?? null);
+      set({
+        user: session?.user ? { id: session.user.id, email: session.user.email ?? "" } : null,
+      });
+    } catch (err) {
+      if (__DEV__) console.warn(`[auth] session restore failed: ${String(err)}`);
+      setAuthToken(null);
+      set({ user: null });
+    } finally {
+      set({ ready: true });
+    }
 
     // Token refreshes and sign-outs both land here, so the header can never
     // go stale mid-session.

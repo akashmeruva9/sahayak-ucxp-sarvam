@@ -10,6 +10,15 @@ interface ScreenContainerProps {
   className?: string;
 }
 
+/**
+ * Widest the content column is allowed to get.
+ *
+ * The app is phone-first, so without a cap every screen stretches edge to edge
+ * on a desktop browser — inputs a metre wide, a chat bubble spanning the whole
+ * monitor. Below this width the cap does nothing, so phones are unaffected.
+ */
+const MAX_CONTENT_WIDTH = 640;
+
 /** App-wide screen shell: themed background, safe area, correct status bar. */
 export function ScreenContainer({
   children,
@@ -21,7 +30,12 @@ export function ScreenContainer({
     <View className="flex-1 bg-canvas dark:bg-canvas-dark">
       <StatusBar style={isDark ? "light" : "dark"} />
       <SafeAreaView edges={edges} className={`flex-1 ${className ?? ""}`}>
-        {children}
+        <View
+          className="flex-1 w-full self-center"
+          style={{ maxWidth: MAX_CONTENT_WIDTH }}
+        >
+          {children}
+        </View>
       </SafeAreaView>
     </View>
   );

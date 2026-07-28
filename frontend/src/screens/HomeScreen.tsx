@@ -9,8 +9,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import type { BusinessId, ConversationSummary, SuggestedAction } from "@/types";
-import { suggestionsFor } from "@/constants/suggestions";
+import type { BusinessId, ConversationSummary } from "@/types";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useSendMessage } from "@/hooks/useChat";
@@ -19,7 +18,6 @@ import {
   ConversationCard,
   LanguageMarquee,
   ScreenContainer,
-  SuggestedActionCard,
   VoiceButton,
   VoiceOverlay,
 } from "@/components";
@@ -36,9 +34,8 @@ export function HomeScreen() {
   const conversations = useConversationStore((s) => s.conversations);
   const createConversation = useConversationStore((s) => s.createConversation);
   const { mutate: send } = useSendMessage();
-  // Loads + caches the business directory app-wide, and drives suggestions.
-  const { data: businesses = [] } = useBusinesses();
-  const suggestions = useMemo(() => suggestionsFor(businesses), [businesses]);
+  // Loads + caches the business directory app-wide.
+  useBusinesses();
 
   const recent: ConversationSummary[] = useMemo(
     () =>
@@ -63,9 +60,6 @@ export function HomeScreen() {
     router.push(`/conversation/${id}`);
     send({ conversationId: id, text, businessId });
   };
-
-  const handleSuggestion = (action: SuggestedAction) =>
-    openConversation(action.prompt, action.businessId);
 
   const handleSend = () => {
     if (!draft.trim()) return;
@@ -123,19 +117,6 @@ export function HomeScreen() {
             </View>
           ) : null}
 
-          {/* Suggested actions — derived from the live business directory */}
-          {suggestions.length > 0 ? (
-            <View className="mt-8">
-              <SectionLabel>Suggested for you</SectionLabel>
-              <View className="flex-row flex-wrap gap-3">
-                {suggestions.map((action, i) => (
-                  <View key={action.id} style={{ width: "47.5%" }} className="grow">
-                    <SuggestedActionCard action={action} index={i} onPress={handleSuggestion} />
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : null}
 
         </ScrollView>
 
