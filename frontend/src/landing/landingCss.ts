@@ -180,7 +180,11 @@ html.dark .lp .page-aurora i{opacity:.13}
 .lp .proof{margin-top:30px;display:flex;align-items:center;gap:14px;color:var(--ink-muted);font-size:13.5px}
 .lp .avatars{display:flex}
 .lp .avatars span{width:30px;height:30px;border-radius:50%;border:2px solid var(--canvas);margin-left:-9px;
-  background:var(--accent);display:grid;place-items:center;color:#fff;font-size:12px;font-weight:700}
+  /* Outlined, not filled. Four solid accent discs stacked together sat right
+     under the primary CTA and out-shouted it — the glyphs are supporting
+     detail, so they carry the accent in the type, not the fill. */
+  background:var(--elevated);box-shadow:inset 0 0 0 1px var(--hairline);
+  display:grid;place-items:center;color:var(--accent);font-size:12px;font-weight:700}
 .lp .avatars span:first-child{margin-left:0}
 
 /* device */
