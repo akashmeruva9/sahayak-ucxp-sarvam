@@ -71,10 +71,19 @@ def load_seeded_tokens():
     Returns {subdomain: token}. Missing or unreadable file is not an error --
     the dashboard simply has no pre-seeded stores.
     """
+    # A hosted deployment has no checked-in secrets file, so the same JSON can
+    # arrive as an environment variable instead. The file wins when both exist,
+    # which keeps local development behaving exactly as it always has.
+    raw = None
     try:
-        with open(STORES_JSON, "r", encoding="utf-8") as handle:
-            data = json.load(handle)
-    except (OSError, ValueError):
+        with open(os.environ.get("UCXP_STORES_JSON") or STORES_JSON,
+                  "r", encoding="utf-8") as handle:
+            raw = handle.read()
+    except OSError:
+        raw = os.environ.get("UCXP_STORES_JSON_CONTENT") or ""
+    try:
+        data = json.loads(raw) if raw else {}
+    except ValueError:
         return {}
     return {k: v for k, v in data.items() if isinstance(v, str)} if isinstance(data, dict) else {}
 

@@ -6,10 +6,12 @@ a bad Shopify token is a 200 with {"ok": false, "error": ...}, not a 500, becaus
 the merchant needs to see the message inline rather than hit an error screen.
 """
 
+import asyncio
 import json
 import logging
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
 
@@ -18,19 +20,40 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from . import constants, manifest as manifest_mod, shopify_client, store, vault
+from . import constants, manifest as manifest_mod, scraper, shopify_client, store, vault
 
 log = logging.getLogger("ucxp")
 
 # backend lives at <repo>/Dashboard/backend, so the repo root is three levels up.
-# manifests/, stores.json and ucxp.db all stay at the repo root.
+# Locally, manifests/, stores.json and ucxp.db all sit at the repo root. On a
+# host with an ephemeral filesystem every one of those has to move onto a
+# mounted volume, so each is overridable by environment.
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MANIFEST_DIR = os.path.join(ROOT, "manifests")
+MANIFEST_DIR = os.environ.get("UCXP_MANIFEST_DIR") or os.path.join(ROOT, "manifests")
 
+# Where a published manifest can be fetched. Defaults to the aspirational domain
+# the design used; set UCXP_PUBLIC_BASE_URL to whatever actually serves this app.
+PUBLIC_BASE_URL = (os.environ.get("UCXP_PUBLIC_BASE_URL") or "https://api.ucxp.in").rstrip("/")
+
+# Same-origin deployments never consult this -- the frontend is served by this
+# app and calls a relative /api. It matters only when the two are split apart.
 ALLOWED_ORIGINS = [
-    "http://localhost:5173", "http://127.0.0.1:5173",
-    "http://localhost:4173", "http://127.0.0.1:4173",
+    origin.strip()
+    for origin in (os.environ.get("UCXP_ALLOWED_ORIGINS") or
+                   "http://localhost:5173,http://127.0.0.1:5173,"
+                   "http://localhost:4173,http://127.0.0.1:4173").split(",")
+    if origin.strip()
 ]
+
+# The built frontend, when this app is also serving it (single-service hosting).
+FRONTEND_DIST = os.environ.get("UCXP_FRONTEND_DIST") or os.path.join(
+    ROOT, "Dashboard", "frontend", "dist")
+
+def _display_path(path):
+    """A path a human can read, whether or not it sits inside the repo."""
+    relative = os.path.relpath(path, ROOT)
+    return os.path.basename(path) if relative.startswith("..") else relative
+
 
 @asynccontextmanager
 async def lifespan(_app):
@@ -101,6 +124,8 @@ class CustomConnect(BaseModel):
 
 class ScrapeRequest(BaseModel):
     url: str = ""
+    # Questions already on the merchant's list, so an import never duplicates them.
+    existing_questions: list[str] = []
 
 
 # --------------------------------------------------------------------------
@@ -161,7 +186,20 @@ def get_business(business_id: str):
 def delete_business(business_id: str):
     if not store.delete_business(business_id):
         raise FriendlyError("That business has already been removed.", status=404)
-    return {"ok": True}
+    # The published files are the merchant's public artifact. Leaving them on
+    # disk means a deleted business stays published, and a later business that
+    # adopts the same slug inherits a stranger's manifest.
+    removed = []
+    for name in ("{}.json".format(business_id), "{}.protocol.json".format(business_id)):
+        path = os.path.join(MANIFEST_DIR, name)
+        try:
+            os.remove(path)
+            removed.append(name)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            log.warning("could not remove manifest %s", path)
+    return {"ok": True, "files_removed": removed}
 
 
 @app.put("/api/business/{business_id}/section/{section}")
@@ -256,9 +294,10 @@ def activate(business_id: str):
         "manifest": built,
         "version": activation["version"],
         "activated_at": activation["activatedAt"],
-        "manifest_url": "https://api.ucxp.in/manifests/{}.json".format(business_id),
-        "files": [os.path.relpath(flat_path, ROOT),
-                  os.path.relpath(protocol_path, ROOT)],
+        "manifest_url": "{}/manifests/{}.json".format(PUBLIC_BASE_URL, business_id),
+        # Relative to the repo when the manifests live inside it; on a mounted
+        # volume that would render as a run of "../", so fall back to the name.
+        "files": [_display_path(flat_path), _display_path(protocol_path)],
     }
 
 
@@ -316,6 +355,14 @@ def connect_custom(payload: CustomConnect):
         return {"ok": False, "reachable": False,
                 "error": "Include https:// at the start of your base URL."}
 
+    # The merchant controls this URL, so it is reached only after the host has
+    # been resolved and shown to be public -- otherwise this endpoint is a probe
+    # for anything the server itself can reach, including cloud metadata.
+    try:
+        scraper.assert_public_host(urllib.parse.urlsplit(base).hostname)
+    except scraper.Blocked as exc:
+        return {"ok": False, "reachable": False, "error": str(exc)}
+
     reachable = False
     detail = ""
     last_error = ""
@@ -354,29 +401,28 @@ def connect_custom(payload: CustomConnect):
 
 
 @app.post("/api/scrape-faq")
-def scrape_faq(payload: ScrapeRequest):
-    """Stub FAQ drafter. Returns three editable drafts for the merchant to review."""
-    url = (payload.url or "").strip()
-    if not url.startswith(("http://", "https://")) or "." not in url:
+async def scrape_faq(payload: ScrapeRequest):
+    """Draft a knowledge base from the merchant's own website.
+
+    Never a 500 and never blocking: the merchant can always type Section 5 by
+    hand, so every failure here is a 200 carrying one actionable sentence.
+    """
+    try:
+        return await asyncio.wait_for(
+            scraper.scrape(payload.url, payload.existing_questions),
+            timeout=scraper.TOTAL_BUDGET_S,
+        )
+    except scraper.Blocked as exc:
+        return {"ok": False, "error": str(exc)}
+    except asyncio.TimeoutError:
         return {"ok": False,
-                "error": "Enter a full URL, e.g. https://meenakshisilks.in/help"}
-    return {
-        "ok": True,
-        "source": url,
-        "faqs": [
-            {"q": "What is your refund timeline?",
-             "a": "Refunds reach your original payment method within 5–7 business "
-                  "days of pickup.",
-             "draft": True},
-            {"q": "Can I exchange a saree for a different colour?",
-             "a": "Yes — exchanges are free within 7 days if the piece is unworn "
-                  "with tags intact.",
-             "draft": True},
-            {"q": "How do I care for Kanchipuram silk?",
-             "a": "Dry-clean only. Store folded in muslin and re-fold every few months.",
-             "draft": True},
-        ],
-    }
+                "error": "That site is taking too long to read. Try a single page, "
+                         "like your FAQ page."}
+    except Exception:
+        log.exception("scrape-faq failed for %r", payload.url)
+        return {"ok": False,
+                "error": "We couldn't read that site just now. Please try again, "
+                         "or add your FAQs below."}
 
 
 # --------------------------------------------------------------------------
@@ -405,3 +451,40 @@ def admin_manifest(business_id: str):
     built = manifest_mod.assemble(biz["id"], biz["sections"],
                                  created_at=biz["created_at"])
     return {"manifest": built, "summary": store.summarize(biz)}
+
+
+# --------------------------------------------------------------------------
+# Static frontend -- mounted last so it can never shadow an /api route.
+#
+# Only active when a build exists at FRONTEND_DIST. Locally that directory is
+# usually absent and Vite serves the app instead, so this is a no-op in dev.
+# Serving the SPA from the same origin as the API is what lets the frontend keep
+# calling a relative /api with no CORS involved at all.
+# --------------------------------------------------------------------------
+if os.path.isdir(FRONTEND_DIST):
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/assets",
+              StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")),
+              name="assets")
+
+    _INDEX = os.path.join(FRONTEND_DIST, "index.html")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str):
+        """Serve the built app, falling back to index.html for client routes.
+
+        The app uses BrowserRouter, so a hard refresh on /admin or
+        /business/<id> arrives here as a real request for a path that has no
+        file. Returning index.html lets the router resolve it in the browser.
+        """
+        if full_path.startswith("api/"):
+            raise FriendlyError("Not found.", status=404)
+        candidate = os.path.normpath(os.path.join(FRONTEND_DIST, full_path))
+        # normpath collapses "..", so this rejects any attempt to escape the dir.
+        if candidate.startswith(FRONTEND_DIST) and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        return FileResponse(_INDEX)
+
+    log.info("serving frontend from %s", FRONTEND_DIST)
