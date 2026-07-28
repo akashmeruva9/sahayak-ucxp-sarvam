@@ -91,9 +91,18 @@ def _extract(payload, status=200):
 def test_extraction_runs_on_the_smaller_model():
     """Eight fields from two sentences is not flagship work, and the merchant
     is watching a spinner while it happens."""
+    assert voice.CHAT_MODEL == "sarvam-30b", "the default stays the fast one"
     _, fake = _extract({"choices": [{"finish_reason": "stop",
                                      "message": {"content": "{}"}}]})
-    assert fake.last["json"]["model"] == "sarvam-30b"
+    assert fake.last["json"]["model"] == voice.CHAT_MODEL
+
+
+def test_the_model_can_be_switched_without_a_deploy(monkeypatch):
+    """Tier availability varies; UCXP_VOICE_MODEL is the escape hatch."""
+    monkeypatch.setattr(voice, "CHAT_MODEL", "sarvam-105b")
+    _, fake = _extract({"choices": [{"finish_reason": "stop",
+                                     "message": {"content": "{}"}}]})
+    assert fake.last["json"]["model"] == "sarvam-105b"
 
 
 def test_a_truncated_answer_is_discarded_not_repaired():

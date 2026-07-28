@@ -33,6 +33,7 @@ underneath is always still typeable by hand.
 import asyncio
 import json
 import logging
+import os
 
 import httpx
 
@@ -50,7 +51,11 @@ STT_MODE = "translate"
 STT_AUTODETECT = "unknown"
 
 CHAT_URL = "https://api.sarvam.ai/v1/chat/completions"
-CHAT_MODEL = "sarvam-30b"
+# Overridable because model availability varies by tier, and a model this
+# account cannot call answers 400 -- which reads to the merchant as "we couldn't
+# fill the form from that" rather than as a configuration problem. Setting
+# UCXP_VOICE_MODEL=sarvam-105b is then a variable change, not a deploy.
+CHAT_MODEL = (os.environ.get("UCXP_VOICE_MODEL") or "sarvam-30b").strip()
 CHAT_MAX_TOKENS = 2048
 
 # A spoken sentence is short, so both calls are quick. The ceiling exists to stop
