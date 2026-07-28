@@ -36,6 +36,16 @@ KEYS=(
   SHOPIFY_TOKEN_LAKSHMI_FASHION
   SHOPIFY_TOKEN_SRI_PHARMA
   SHOPIFY_TOKEN_ANNA_GROCERIES
+  # Published manifests + (soon) conversation history. SERVICE key, not anon:
+  # the runtime reads every row and writes history, so it must bypass RLS.
+  # It must never reach the app — server env only.
+  SUPABASE_URL
+  SUPABASE_SERVICE_KEY
+  # Web lookup for businesses with no manifest. Set whichever one you have;
+  # the provider is inferred from it (PLAN.md §7 #41).
+  TAVILY_API_KEY
+  BRAVE_API_KEY
+  SERPER_API_KEY
 )
 
 if [ ! -f "$ENV_FILE" ]; then
