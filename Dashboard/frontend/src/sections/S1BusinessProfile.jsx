@@ -1,9 +1,25 @@
 import { useState } from 'react';
 import { CATEGORIES } from '../lib/contract';
-import { Field } from '../components/Primitives';
+import { Field, InlineError } from '../components/Primitives';
+import MicButton from '../components/MicButton';
+import { api } from '../lib/api';
 import SectionCard from './SectionCard';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
+
+// What the backend calls a field, and what this section calls it. Only `desc`
+// differs, but the map is worth having explicitly -- a silent mismatch here
+// looks exactly like the model having failed to hear something.
+const VOICE_FIELDS = {
+  name: 'name',
+  tagline: 'tagline',
+  description: 'desc',
+  category: 'category',
+  city: 'city',
+  email: 'email',
+  phone: 'phone',
+  hours: 'hours',
+};
 
 // A logo is stored inline as base64, not uploaded, so it rides along in every
 // business list response and in the published manifest -- and base64 inflates a
@@ -20,6 +36,52 @@ export default function S1BusinessProfile({ sections, updateSection, slug }) {
     p.email && !EMAIL_RE.test(p.email) ? 'That does not look like a valid email' : '';
   const websiteError =
     p.website && !/^https?:\/\//.test(p.website) ? 'Include https:// at the start' : '';
+
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
+  const [heard, setHeard] = useState('');
+
+  /** Fill from one recording, without ever overwriting what they typed.
+   *
+   * Only blank fields are filled. A merchant who records twice is correcting
+   * themselves, not asking us to discard the edits they made in between -- and
+   * a spoken word is the least reliable input in the product, so it loses every
+   * tie against something they actually typed.
+   */
+  const onVoice = async (blob, filename) => {
+    setVoiceBusy(true);
+    setVoiceError('');
+    setHeard('');
+
+    const result = await api.voiceOnboard(blob, filename);
+    setVoiceBusy(false);
+
+    if (result.error && !result.heard) {
+      setVoiceError(result.error);
+      return;
+    }
+    setHeard(result.heard || '');
+    if (result.error) setVoiceError(result.error);
+
+    const fields = result.fields || {};
+    const patch = {};
+    Object.entries(VOICE_FIELDS).forEach(([from, to]) => {
+      if (fields[from] && !String(p[to] || '').trim()) patch[to] = fields[from];
+    });
+    // Deliberately neither immediate nor slug-committing. Committing the slug
+    // re-keys the business, and section 4 below is saved under its own timer --
+    // an immediate commit here renames the business out from under that request
+    // and it 404s. The slug still adopts the moment the merchant blurs the name
+    // field, which is the same path a typed name takes.
+    if (Object.keys(patch).length) updateSection(1, patch);
+
+    // Section 4 gets the languages, again only if the merchant hasn't chosen.
+    const spoken = fields.languages || [];
+    const chosen = sections['4']?.selected || [];
+    if (spoken.length && chosen.length === 0) {
+      updateSection(4, { selected: spoken, primary: spoken[0] });
+    }
+  };
 
   const onLogo = (event) => {
     const file = event.target.files?.[0];
@@ -41,6 +103,31 @@ export default function S1BusinessProfile({ sections, updateSection, slug }) {
       title="Business profile"
       subtitle="What customers see when your assistant introduces itself."
     >
+      {/* Speak-to-fill. Deliberately above the form: a merchant who cannot
+          complete an English form needs to meet this before the fields, not
+          after giving up on them. */}
+      <div className="mb-5 rounded-input border border-dashed border-line-dashed p-3.5">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[13px] font-medium">Fill this in by talking</p>
+          <span className="text-xs text-ink-faint">తెలుగు · हिंदी · தமிழ் · and 10 more</span>
+        </div>
+        <MicButton
+          label="Hold to speak"
+          busy={voiceBusy}
+          onResult={onVoice}
+        />
+        <p className="mt-2 text-xs text-ink-faint">
+          Say your shop’s name, where it is, and what you sell. We only fill blank
+          boxes — anything you have already typed stays as it is.
+        </p>
+        {heard && (
+          <p className="mt-2 text-xs text-ink-muted" data-testid="voice-heard">
+            <span className="text-ink-faint">Heard:</span> “{heard}”
+          </p>
+        )}
+        <InlineError>{voiceError}</InlineError>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Business name" required className="sm:col-span-2">
           <input

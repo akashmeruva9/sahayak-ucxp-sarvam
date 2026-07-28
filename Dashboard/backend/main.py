@@ -15,7 +15,7 @@ import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -28,7 +28,7 @@ from . import envfile
 envfile.load()
 
 from . import (auth, constants, manifest as manifest_mod, scraper,  # noqa: E402
-               shopify_client, store, supabase, vault)
+               shopify_client, store, supabase, vault, voice)
 
 log = logging.getLogger("ucxp")
 
@@ -676,6 +676,41 @@ async def scrape_faq(payload: ScrapeRequest):
         return {"ok": False,
                 "error": "We couldn't read that site just now. Please try again, "
                          "or add your FAQs below."}
+
+
+@app.post("/api/voice-onboard")
+async def voice_onboard(audio: UploadFile = File(...)):
+    """Fill Section 1 and Section 4 from one spoken sentence.
+
+    Same contract as scrape-faq: never a 500, never blocking. The form is
+    always still typeable, so every failure is a 200 carrying one sentence the
+    merchant can act on.
+    """
+    try:
+        payload = await audio.read()
+    except Exception:
+        log.exception("voice-onboard could not read the upload")
+        return {"ok": False, "fields": {}, "heard": "", "language": "",
+                "error": "That recording didn't upload. Please try again."}
+
+    try:
+        return await asyncio.wait_for(
+            voice.onboard(payload, audio.filename or "speech.webm",
+                          audio.content_type),
+            timeout=voice.TOTAL_BUDGET_S,
+        )
+    except scraper.Blocked as exc:
+        return {"ok": False, "fields": {}, "heard": "", "language": "",
+                "error": str(exc)}
+    except asyncio.TimeoutError:
+        return {"ok": False, "fields": {}, "heard": "", "language": "",
+                "error": "That took too long to process. Try a shorter "
+                         "recording, or type your details in below."}
+    except Exception:
+        log.exception("voice-onboard failed")
+        return {"ok": False, "fields": {}, "heard": "", "language": "",
+                "error": "We couldn't process that recording just now. Please "
+                         "try again, or type your details in below."}
 
 
 # --------------------------------------------------------------------------
