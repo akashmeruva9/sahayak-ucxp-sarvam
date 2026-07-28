@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
@@ -28,9 +29,12 @@ export const supabase: SupabaseClient | null = authConfigured
         // Keep the user signed in across restarts; refresh silently.
         persistSession: true,
         autoRefreshToken: true,
-        // No URL-based session detection: there is no OAuth redirect to parse,
-        // and on web this would try to read a hash fragment that never exists.
-        detectSessionInUrl: false,
+        // Google sign-in returns through a redirect. On web that lands back on
+        // this page with the tokens in the URL, so Supabase must read them; on
+        // native the deep link is parsed by hand (see signInWithGoogle), and
+        // leaving this on would make it hunt for a hash fragment that is
+        // never there.
+        detectSessionInUrl: Platform.OS === "web",
       },
     })
   : null;
