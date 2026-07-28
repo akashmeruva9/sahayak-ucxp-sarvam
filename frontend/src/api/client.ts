@@ -349,13 +349,11 @@ export function postForm<T extends EngineEnvelope>(
         return;
       }
       if (xhr.status >= 400 || payload?.success === false) {
-        fail(
-          new ApiError(
-            payload?.error?.message ?? `Request failed (HTTP ${xhr.status})`,
-            xhr.status,
-            payload?.error?.code
-          )
-        );
+        // Use the same extractor `parse()` does. This path previously read only
+        // `error.message` (the engine's shape) and dropped FastAPI's `detail`,
+        // so every runtime error arrived as a bare "Request failed (HTTP 404)"
+        // — which is precisely the information needed to diagnose it.
+        fail(new ApiError(errorMessage(payload, xhr.status), xhr.status, payload?.error?.code));
         return;
       }
       resolve(payload);

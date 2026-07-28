@@ -157,7 +157,22 @@ export async function sendDocument(req: DocumentRequest): Promise<{ message: Mes
 
   reportDiag("document.uploading", { name: req.file.name, type: req.file.type, size: req.file.size });
 
-  const data = await postForm<RuntimeDocumentResponse>("/document", form, DOCUMENT_TIMEOUT_MS);
+  let data: RuntimeDocumentResponse;
+  try {
+    data = await postForm<RuntimeDocumentResponse>("/document", form, DOCUMENT_TIMEOUT_MS);
+  } catch (err) {
+    // A 404 here is unambiguous: the runtime this build points at is older than
+    // the app and has no /document route. Say that, rather than letting it read
+    // as a broken file or a network fault.
+    if (err instanceof ApiError && err.status === 404) {
+      throw new ApiError(
+        "This backend doesn't support document upload yet — it needs to be redeployed with the /document endpoint.",
+        404,
+        "document_endpoint_missing"
+      );
+    }
+    throw err;
+  }
 
   const action: BusinessAction | undefined = data.receipt
     ? { label: data.receipt.label, tone: data.receipt.tone ?? "info" }

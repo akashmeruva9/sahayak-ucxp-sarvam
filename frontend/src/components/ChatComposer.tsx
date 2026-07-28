@@ -1,4 +1,5 @@
-import { Pressable, TextInput, View } from "react-native";
+import { Platform, Pressable, TextInput, View } from "react-native";
+import type { NativeSyntheticEvent, TextInputKeyPressEventData } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -37,6 +38,25 @@ export function ChatComposer({
   const { colors } = useThemeColors();
   const canSend = value.trim().length > 0;
 
+  /**
+   * Enter sends, Shift+Enter breaks the line — the convention every assistant
+   * on the web already trained people on.
+   *
+   * `onSubmitEditing` can't do this: a multiline TextInput on web is a
+   * <textarea>, where Enter is a newline and the submit event never fires. On
+   * the phone the return key is a newline key and that's the right behaviour,
+   * so this is deliberately web-only.
+   */
+  const onKeyPress =
+    Platform.OS === "web"
+      ? (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+          const ev = e as unknown as { shiftKey?: boolean; preventDefault?: () => void };
+          if (e.nativeEvent.key !== "Enter" || ev.shiftKey) return;
+          ev.preventDefault?.();
+          if (canSend) onSend();
+        }
+      : undefined;
+
   const sendStyle = useAnimatedStyle(() => ({
     opacity: withTiming(canSend ? 1 : 0, { duration: 160 }),
     transform: [{ scale: withTiming(canSend ? 1 : 0.6, { duration: 160 }) }],
@@ -70,6 +90,7 @@ export function ChatComposer({
         autoFocus={autoFocus}
         multiline
         onSubmitEditing={() => canSend && onSend()}
+        onKeyPress={onKeyPress}
         className="max-h-28 flex-1 px-3 py-2 text-[16px] text-ink dark:text-white"
         style={{ lineHeight: 21 }}
       />

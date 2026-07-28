@@ -1,13 +1,19 @@
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import { ArrowUpRight, Search, Store, X } from "lucide-react-native";
 import type { Business } from "@/types";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { palette } from "@/constants/theme";
+
+/**
+ * Reanimated `entering` animations stall on web: elements stay at their initial
+ * opacity until something forces a repaint, so the page reads as half-loaded
+ * until the user scrolls. The web screens therefore render statically — the
+ * native screens keep their entrance animations.
+ */
 
 /**
  * Companies, desktop edition. Web only.
@@ -85,9 +91,8 @@ export function CompaniesScreen() {
         ) : (
           <View className="mt-8 flex-row flex-wrap gap-4">
             {matches.map((b, i) => (
-              <Animated.View
+              <View
                 key={b.id}
-                entering={FadeInDown.delay(i * 45).duration(360)}
                 className="grow"
                 style={{ minWidth: 250, maxWidth: 330 }}
               >
@@ -125,7 +130,7 @@ export function CompaniesScreen() {
                     </View>
                   ) : null}
                 </Pressable>
-              </Animated.View>
+              </View>
             ))}
           </View>
         )}

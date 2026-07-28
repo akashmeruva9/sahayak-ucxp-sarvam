@@ -1,11 +1,18 @@
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import { Phone } from "lucide-react-native";
+import { GRADIENT } from "@/constants/theme";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useSendMessage } from "@/hooks/useChat";
-import { ChatComposer, LanguageMarquee, VoiceButton } from "@/components";
+import { BrandGradient, ChatComposer, LanguageMarquee } from "@/components";
+
+/**
+ * Reanimated `entering` animations stall on web: elements stay at their initial
+ * opacity until something forces a repaint, so the page reads as half-loaded
+ * until the user scrolls. The web screens therefore render statically — the
+ * native screens keep their entrance animations.
+ */
 
 /**
  * Home, desktop edition. Web only — Metro resolves this instead of
@@ -46,8 +53,7 @@ export function HomeScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.View
-          entering={FadeInDown.duration(420)}
+        <View
           className="w-full items-center"
           style={{ maxWidth: MEASURE }}
         >
@@ -58,31 +64,48 @@ export function HomeScreen() {
             Ask in your own language and the job actually gets done — tracked,
             refunded, resolved. Name the business and I'll take it from there.
           </Text>
-        </Animated.View>
+        </View>
       </ScrollView>
 
       {/* Docked composer — fixed at the bottom, like every assistant. */}
       <View className="w-full items-center border-t border-hairline/60 px-10 pb-8 pt-5 dark:border-hairline-dark/60">
         <View className="w-full" style={{ maxWidth: MEASURE }}>
-          {/* The same signature button the app uses — gradient, halo, phone
-              glyph — so the voice line looks identical on both surfaces. */}
-          <View className="mb-4 items-center">
-            <VoiceButton
+          {/* Composer and call sit on one row. A floating circle above the
+              input is a phone pattern — on a wide canvas the two ways to start
+              belong side by side, at the same height, both obviously clickable. */}
+          <View className="flex-row items-end gap-3">
+            <View className="flex-1">
+              <ChatComposer
+                value={draft}
+                onChangeText={setDraft}
+                onSend={start}
+                onMic={() => router.push("/call/general")}
+              />
+            </View>
+
+            <Pressable
               onPress={() => router.push("/call/general")}
-              size={56}
-              icon={Phone}
+              accessibilityRole="button"
               accessibilityLabel="Start a voice call"
-            />
-            <Text className="-mt-0.5 text-[13px] font-medium text-ink-muted dark:text-white/50">
-              Tap to call
-            </Text>
+              className="h-[52px] flex-row items-center overflow-hidden rounded-2xl px-5"
+              style={{
+                shadowColor: GRADIENT.to,
+                shadowOpacity: 0.35,
+                shadowRadius: 14,
+                shadowOffset: { width: 0, height: 6 },
+              }}
+            >
+              <BrandGradient />
+              <View className="flex-row items-center" style={{ zIndex: 1 }}>
+                <Phone size={17} color="#FFFFFF" strokeWidth={2.4} />
+                <Text className="ml-2 text-[14.5px] font-semibold text-white">Call</Text>
+              </View>
+            </Pressable>
           </View>
-          <ChatComposer
-            value={draft}
-            onChangeText={setDraft}
-            onSend={start}
-            onMic={() => router.push("/call/general")}
-          />
+
+          <Text className="mt-2.5 text-center text-[12.5px] text-ink-faint dark:text-white/35">
+            Type, or call and speak in any language
+          </Text>
         </View>
       </View>
     </View>

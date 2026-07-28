@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import { ChevronRight, MessagesSquare } from "lucide-react-native";
 import type { ConversationSummary } from "@/types";
 import { bucketFor, type DateBucket } from "@/utils/time";
@@ -9,6 +8,13 @@ import { useHistory } from "@/hooks/useHistory";
 import { getBusiness } from "@/constants/businesses";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { palette } from "@/constants/theme";
+
+/**
+ * Reanimated `entering` animations stall on web: elements stay at their initial
+ * opacity until something forces a repaint, so the page reads as half-loaded
+ * until the user scrolls. The web screens therefore render statically — the
+ * native screens keep their entrance animations.
+ */
 
 /**
  * History, desktop edition. Web only.
@@ -71,9 +77,8 @@ export function HistoryScreen() {
         </Text>
 
         {sections.map((section, si) => (
-          <Animated.View
+          <View
             key={section.title}
-            entering={FadeInDown.delay(si * 60).duration(360)}
             className="mt-10"
           >
             <Text className="mb-3 text-[12px] font-semibold uppercase tracking-[2px] text-ink-faint dark:text-white/40">
@@ -124,7 +129,7 @@ export function HistoryScreen() {
                 );
               })}
             </View>
-          </Animated.View>
+          </View>
         ))}
       </View>
     </ScrollView>

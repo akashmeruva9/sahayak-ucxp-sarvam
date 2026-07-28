@@ -10,12 +10,10 @@ import {
 import { useRouter } from "expo-router";
 import { ChevronLeft, Phone } from "lucide-react-native";
 import type { Message } from "@/types";
-import { getBusiness } from "@/constants/businesses";
 import { pickDocument } from "@/api/documents";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useSendMessage } from "@/hooks/useChat";
 import {
-  BusinessBadge,
   ChatBubble,
   ChatComposer,
   ScreenContainer,
@@ -38,7 +36,6 @@ export function ConversationScreen({ id }: { id: string }) {
   const { mutate: send } = useSendMessage();
 
   const messages = conversation?.messages ?? [];
-  const business = getBusiness(conversation?.businessId);
 
   useEffect(() => {
     setActive(id);
@@ -107,19 +104,11 @@ export function ConversationScreen({ id }: { id: string }) {
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Call instead"
-          className="mr-2 h-9 w-9 items-center justify-center rounded-full"
+          className="h-9 w-9 items-center justify-center rounded-full"
           style={{ backgroundColor: "#0EA66E14" }}
         >
           <Phone size={17} color="#0EA66E" />
         </Pressable>
-
-        {conversation?.businessId ? (
-          <BusinessBadge businessId={conversation.businessId} size="sm" />
-        ) : (
-          <Text className="text-[13px] font-medium text-ink-muted dark:text-white/40">
-            {business.name}
-          </Text>
-        )}
       </View>
 
       <KeyboardAvoidingView
