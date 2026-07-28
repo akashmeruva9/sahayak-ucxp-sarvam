@@ -538,6 +538,35 @@ def _looks_password_gated(pages):
     return False
 
 
+# Signatures of the interstitial a bot wall serves instead of the page. Each of
+# these vendors answers a non-browser with a small HTML stub whose only job is to
+# run a challenge script -- so it arrives as a 200 (Zepto's AWS WAF even uses
+# 202) carrying no readable text, which is indistinguishable from a JS-rendered
+# page unless we look for the vendor's own markers.
+_BOT_WALL_MARKERS = (
+    "awswafintegration",       # AWS WAF
+    "challenge-container",     # AWS WAF
+    "cf-browser-verification",  # Cloudflare
+    "__cf_chl",                # Cloudflare
+    "_incapsula_resource",     # Imperva
+    "datadome",                # DataDome
+    "px-captcha",              # PerimeterX
+)
+
+
+def _looks_bot_walled(pages):
+    """True when a page arrived but is a bot-wall challenge, not the content.
+
+    Only consulted once no page yielded text: a real page that happens to
+    mention one of these vendors is never reached by this check.
+    """
+    for page in pages.values():
+        html = (page.get("html") or "").lower()
+        if any(marker in html for marker in _BOT_WALL_MARKERS):
+            return True
+    return False
+
+
 async def scrape(url, existing_questions=()):
     """Read a merchant site and draft their knowledge base.
 
@@ -610,6 +639,14 @@ async def scrape(url, existing_questions=()):
             raise Blocked(
                 "That store isn't public yet — remove the storefront password "
                 "in Shopify (Online Store → Preferences), or paste your FAQs below."
+            )
+        # Same reasoning as the password screen: a merchant told their own site
+        # "loads with JavaScript" goes and inspects a site that is working fine.
+        # The site is refusing us, and no amount of editing it will change that.
+        if _looks_bot_walled(pages):
+            raise Blocked(
+                "That site blocks automated readers, so it won't show us the page. "
+                "Type your FAQs below instead."
             )
         raise Blocked(
             "We couldn't read any text on that page — it may load its content with "

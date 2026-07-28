@@ -111,6 +111,32 @@ def test_js_shell_yields_nothing():
     assert len(scraper.extract_text(html)) < scraper.MIN_TEXT_CHARS
 
 
+# The real thing zepto.com returns to a non-browser: HTTP 202, ~2KB, no text.
+# A bot wall and a JS-rendered page look identical from the outside, so the
+# merchant is told to fix the wrong thing unless the vendor marker is spotted.
+AWS_WAF_CHALLENGE = (
+    '<html><head><title></title>'
+    '<script>window.awsWafCookieDomainList = [\'zepto.com\'];</script>'
+    '<script src="https://x.token.awswaf.com/challenge.js"></script></head>'
+    '<body><div id="challenge-container"></div>'
+    '<script>AwsWafIntegration.saveReferrer();</script></body></html>'
+)
+
+
+def test_a_bot_wall_is_not_reported_as_a_javascript_page():
+    pages = {"https://www.zepto.com/s/customer-support": {
+        "html": AWS_WAF_CHALLENGE, "final_url": "https://www.zepto.com/s/customer-support",
+        "status": 202,
+    }}
+    assert scraper.extract_text(AWS_WAF_CHALLENGE) == ""
+    assert scraper._looks_bot_walled(pages)
+
+
+def test_an_ordinary_page_is_never_called_a_bot_wall():
+    html = '<html><body><p>' + 'Our refund policy runs 30 days. ' * 20 + '</p></body></html>'
+    assert not scraper._looks_bot_walled({"u": {"html": html, "final_url": "u", "status": 200}})
+
+
 def test_jsonld_faqs_are_read_without_the_model():
     payload = {
         "@type": "FAQPage",
