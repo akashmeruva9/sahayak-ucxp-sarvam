@@ -82,6 +82,18 @@ class RuntimeSettings(BaseModel):
     #: Resolved in from_env(): tavily | brave | serper | none
     search_provider: str = "none"
 
+    # --- Supabase: published manifests + conversation history ---------------
+    #: Service-role key on the server (the runtime writes history and must see
+    #: every row); the app uses the anon key with RLS.
+    supabase_url: str = ""
+    supabase_key: str = ""
+    manifest_table: str = "ucxp_manifests"
+    supabase_timeout_s: float = 10.0
+
+    @property
+    def supabase_configured(self) -> bool:
+        return bool(self.supabase_url and self.supabase_key)
+
     log_level: str = "INFO"
 
     # --- WhatsApp transport (Twilio sandbox). Generic messaging config, not
@@ -126,6 +138,10 @@ class RuntimeSettings(BaseModel):
             serper_api_key=_env("SERPER_API_KEY", ""),
             search_timeout_s=float(_env("UCXP_SEARCH_TIMEOUT", "10")),
             search_provider=_resolve_search_provider(),
+            supabase_url=_env("SUPABASE_URL", ""),
+            supabase_key=_env("SUPABASE_SERVICE_KEY", "") or _env("SUPABASE_KEY", ""),
+            manifest_table=_env("UCXP_MANIFEST_TABLE", "ucxp_manifests"),
+            supabase_timeout_s=float(_env("UCXP_SUPABASE_TIMEOUT", "10")),
             log_level=_env("UCXP_LOG_LEVEL", "INFO"),
             twilio_account_sid=_env("TWILIO_ACCOUNT_SID", ""),
             twilio_auth_token=_env("TWILIO_AUTH_TOKEN", ""),

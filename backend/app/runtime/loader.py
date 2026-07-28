@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from ..config import RuntimeSettings, get_settings
 from ..schemas.manifest import Manifest
+from .manifest_store import ManifestStoreUnavailable, fetch_manifests
 from .normalize import is_published_shape, normalize
 
 
@@ -60,6 +61,43 @@ class ManifestRegistry:
             f"manifests.loaded count={len(loaded)} ids={sorted(loaded)} "
             f"capabilities={sum(len(m.capabilities) for m in loaded.values())}"
         )
+
+    async def refresh_from_store(self) -> int:
+        """Layer Supabase-published manifests over the local files.
+
+        Local files are loaded first and kept as the floor, so an unreachable
+        database degrades to the committed demo set rather than an empty
+        directory. A published row replaces the file of the same id.
+
+        Returns the number of manifests taken from the database.
+        """
+        self.reload()  # local files first — they are the fallback
+
+        try:
+            documents = await fetch_manifests(self.settings)
+        except ManifestStoreUnavailable as exc:
+            logger.info(f"manifests.store_skipped reason={exc} using={len(self._manifests)} local")
+            return 0
+
+        adopted = 0
+        for raw in documents:
+            try:
+                payload = normalize(raw) if is_published_shape(raw) else raw
+                manifest = Manifest.model_validate(payload)
+            except ValidationError as exc:
+                logger.error(
+                    f"manifests.store_invalid business={raw.get('business_id')} errors={exc.error_count()}"
+                )
+                continue
+            self._manifests[manifest.id] = manifest
+            self._raw[manifest.id] = raw
+            adopted += 1
+
+        logger.info(
+            f"manifests.store_loaded adopted={adopted} total={len(self._manifests)} "
+            f"ids={sorted(self._manifests)}"
+        )
+        return adopted
 
     # -- access ---------------------------------------------------------- #
     def ids(self) -> list[str]:

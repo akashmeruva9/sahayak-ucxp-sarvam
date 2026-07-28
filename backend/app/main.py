@@ -52,6 +52,9 @@ def get_runtime() -> UcxpRuntime:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     runtime = get_runtime()
+    # Pull published manifests before serving. Falls back to the local files
+    # when Supabase is unset or unreachable, so startup never depends on it.
+    await runtime.registry.refresh_from_store()
     logger.info(
         f"runtime.startup manifests={runtime.registry.ids()} mock_base={settings.mock_base_url}"
     )
@@ -235,8 +238,8 @@ async def manifest(business_id: str) -> dict[str, Any]:
 async def reload_manifests() -> dict[str, Any]:
     """Add a business without restarting — the protocol claim, made tangible."""
     registry = get_registry()
-    registry.reload()
-    return {"loaded": registry.ids()}
+    adopted = await registry.refresh_from_store()
+    return {"loaded": registry.ids(), "from_database": adopted}
 
 
 @app.get("/history", tags=["conversation"])
