@@ -127,6 +127,18 @@ export function LandingPage() {
   }, [router, signedIn]);
 
   /**
+   * Merchant onboarding — the dashboard, where a business connects its store
+   * and publishes a manifest.
+   *
+   * A full page load, not `router.push`: /dashboard is a separate Vite app
+   * served as a static folder on the same origin, so Expo Router has no route
+   * for it and pushing would land on the not-found screen.
+   */
+  const openDashboard = useCallback(() => {
+    window.location.href = "/dashboard";
+  }, []);
+
+  /**
    * Keep `html.dark` in sync with the store.
    *
    * NativeWind's ThemeSync already does this for the app's own classes, but the
@@ -375,6 +387,7 @@ export function LandingPage() {
             <a href="#protocol" onClick={jump("protocol")}>UCXP</a>
             <a href="#demo" onClick={jump("demo")}>Demo</a>
             <a href="#roadmap" onClick={jump("roadmap")}>Roadmap</a>
+            <a href="/dashboard">For businesses</a>
           </div>
           <div className="navright">
             <button
@@ -417,7 +430,6 @@ export function LandingPage() {
           <div className="wrap">
             <div className="hero-grid">
               <div>
-                <span className="pill"><span className="pdot" /> Live on 5 real Shopify stores</span>
                 <h1>Customer support that <span className="flow">speaks every Indian language</span>.</h1>
                 <p className="sub">
                   <b>Sahayak</b> is the UPI movement for customer support — the customer just
@@ -494,7 +506,6 @@ export function LandingPage() {
                 <p>Track, refund, cancel, book — real actions against real business APIs, ending in a receipt the customer can trust.</p>
               </div>
               <div className="card c3"><div className="ic">🗣️</div><h3>Voice-first &amp; vernacular</h3><p>Speak Telugu, get Telugu back. Switch to Hindi mid-call — no menus, no “press 1”.</p></div>
-              <div className="card c3"><div className="ic">⏱️</div><h3>Never silent</h3><p>“Let me check…” while the agent works — narrated progress, zero dead air.</p></div>
               <div className="card c2"><div className="stat accent">1</div><h3>manifest to onboard</h3><p>Publish one file. That&apos;s the integration.</p></div>
               <div className="card c2"><div className="stat accent">24×7</div><h3>always on</h3><p>Every hour, every language.</p></div>
               <div className="card c2"><div className="ic">🧠</div><h3>Memory across the call</h3><p>“Cancel that order” just works.</p></div>
@@ -592,6 +603,11 @@ export function LandingPage() {
                   <li><Tick />Validated before publish</li>
                   <li><Tick />Live on real merchant data</li>
                 </ul>
+                <div className="cta-row">
+                  <button className="btn primary arrow" onClick={openDashboard}>
+                    Merchant onboarding <Arrow />
+                  </button>
+                </div>
               </div>
               <div className="visual dash">
                 <h4>Resolutions this week</h4>
@@ -741,7 +757,7 @@ export function LandingPage() {
               <p>UPI unified payments. Sahayak unifies customer experience — by voice, in every language.</p>
               <div className="cta-row" style={{ justifyContent: "center" }}>
                 <button className="btn white arrow" onClick={enterApp}>{ctaLabel} <Arrow /></button>
-                <a className="btn ghost" href="#protocol" onClick={jump("protocol")}>Read the UCXP spec</a>
+                <a className="btn ghost" href="/dashboard">Merchant onboarding</a>
               </div>
             </div>
           </div>

@@ -6,7 +6,11 @@
   "framework": null,
   "rewrites": [
     {
-      "source": "/((?!_expo|assets|favicon|.*\\.[a-zA-Z0-9]+$).*)",
+      "source": "/dashboard/:path*",
+      "destination": "/dashboard/index.html"
+    },
+    {
+      "source": "/((?!_expo|assets|favicon|dashboard|.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/"
     }
   ],
@@ -14,7 +18,10 @@
     {
       "source": "/_expo/static/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     }
   ]

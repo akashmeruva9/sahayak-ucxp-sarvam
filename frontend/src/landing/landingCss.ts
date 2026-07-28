@@ -252,7 +252,11 @@ html.dark .lp .receipt{color:#34d399}
 .lp .card.c3{grid-column:span 3}.lp .card.c2{grid-column:span 2}.lp .card.c4{grid-column:span 4}
 /* The feature card earns its hierarchy from size and a warm accent wash, not
    from a saturated full-bleed gradient panel. */
-.lp .card.feat{grid-column:span 3;grid-row:span 2;background:var(--surface);border:1px solid var(--hairline);
+/* One row, not two: the bento tiles exactly, so the card count and the row
+   spans have to agree. Five cards on a six-column grid = feature + one wide
+   beside it, then three halves underneath. Restore span 2 only if a second
+   wide card comes back. */
+.lp .card.feat{grid-column:span 3;background:var(--surface);border:1px solid var(--hairline);
   display:flex;flex-direction:column;justify-content:flex-end;box-shadow:var(--sh-1);position:relative}
 .lp .card.feat::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
   background:radial-gradient(120% 90% at 12% 8%,var(--accent-muted),transparent 62%)}
