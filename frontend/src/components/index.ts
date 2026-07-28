@@ -14,3 +14,4 @@ export { ConversationCard } from "./ConversationCard";
 export { CompanyRow } from "./CompanyRow";
 export { Navbar } from "./Navbar";
 export { ScreenContainer } from "./ScreenContainer";
+export { MAX_CONTENT_WIDTH } from "./ScreenContainer";

@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { Check, Info, TriangleAlert } from "lucide-react-native";
+import { Check, FileText, Image as ImageIcon, Info, Paperclip, TriangleAlert } from "lucide-react-native";
 import type { Message } from "@/types";
 import { formatClock } from "@/utils/time";
 import { BusinessBadge } from "./BusinessBadge";
@@ -17,10 +17,32 @@ export function ChatBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
 
   if (isUser) {
+    // A file the customer sent: show the filename, not the extracted text.
+    const attachment = message.attachment;
+    const AttachIcon =
+      attachment?.kind === "pdf" ? FileText : attachment?.kind === "image" ? ImageIcon : Paperclip;
+
     return (
       <Animated.View entering={FadeInDown.duration(260)} className="mb-3 items-end">
         <View className="max-w-[82%] rounded-card rounded-br-md bg-accent px-4 py-3">
-          <Text className="text-[15px] leading-[21px] text-white">{message.text}</Text>
+          {attachment ? (
+            <View
+              className={`flex-row items-center rounded-xl bg-white/20 px-2.5 py-2 ${
+                message.text ? "mb-2" : ""
+              }`}
+            >
+              <AttachIcon size={15} color="#FFFFFF" />
+              <Text
+                className="ml-2 flex-shrink text-[13px] font-medium text-white"
+                numberOfLines={1}
+              >
+                {attachment.name}
+              </Text>
+            </View>
+          ) : null}
+          {message.text ? (
+            <Text className="text-[15px] leading-[21px] text-white">{message.text}</Text>
+          ) : null}
         </View>
         <Text className="mr-1 mt-1 text-[11px] text-ink-faint dark:text-white/30">
           {formatClock(message.createdAt)}

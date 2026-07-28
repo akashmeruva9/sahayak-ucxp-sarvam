@@ -17,6 +17,7 @@ import {
   ChatComposer,
   ConversationCard,
   LanguageMarquee,
+  MAX_CONTENT_WIDTH,
   ScreenContainer,
   VoiceButton,
   VoiceOverlay,
@@ -69,7 +70,7 @@ export function HomeScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer capped={false}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         className="flex-1"
@@ -77,31 +78,45 @@ export function HomeScreen() {
       >
         <ScrollView
           className="flex-1"
-          contentContainerClassName="px-5 pb-4 pt-2"
+          // grow + centre so the hero sits optically centred and an empty Home
+          // reads as composed rather than as a screen with a hole in it.
+          contentContainerClassName={`pb-4 pt-2 flex-grow items-center ${
+            recent.length === 0 ? "justify-center" : ""
+          }`}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
-          <Animated.View entering={FadeInDown.duration(400)}>
-            <Text className="text-[32px] font-bold tracking-tight text-ink dark:text-white">
-              Sahayak
+          {/* Hero — centred, narrow measure. */}
+          <Animated.View
+            entering={FadeInDown.duration(400)}
+            className="w-full self-center items-center px-6"
+            style={{ maxWidth: MAX_CONTENT_WIDTH }}
+          >
+            <Text className="text-[13px] font-semibold uppercase tracking-[2px] text-accent">
+              Speak in your language
             </Text>
-            <Text className="mt-1 text-[16px] text-ink-muted dark:text-white/50">
-              Talk to any business.
+            <Text className="mt-4 text-center text-[40px] font-bold leading-[46px] tracking-tight text-ink dark:text-white">
+              Talk to any business
+            </Text>
+            <Text className="mt-3 text-center text-[16px] leading-6 text-ink-muted dark:text-white/50">
+              One place for every company. Ask in your own language and the job
+              gets done — tracked, refunded, resolved.
             </Text>
           </Animated.View>
 
-          {/* Language showcase — Sarvam-style multilingual strip */}
-          <View className="mt-6 -mx-5">
-            <Text className="mb-2.5 px-5 text-[13px] font-semibold uppercase tracking-wider text-ink-faint dark:text-white/40">
-              Speak in your language
-            </Text>
+          {/* Full-bleed language band. Escaping the centred column is what
+              stops the strip wrapping into two static rows inside a narrow
+              measure — and it reads as a band, like Sarvam's logo strip. */}
+          <View className="mt-9 w-full">
             <LanguageMarquee />
           </View>
 
           {/* Recent conversations */}
           {recent.length > 0 ? (
-            <View className="mt-8">
+            <View
+              className="mt-10 w-full self-center px-5"
+              style={{ maxWidth: MAX_CONTENT_WIDTH }}
+            >
               <SectionLabel>Recent</SectionLabel>
               <View className="gap-2.5">
                 {recent.map((c, i) => (
@@ -117,13 +132,12 @@ export function HomeScreen() {
             </View>
           ) : null}
 
-
         </ScrollView>
 
         {/* Input dock: large mic + composer, seated above the floating tab bar */}
         <View
-          className="px-5 pt-1"
-          style={{ paddingBottom: tabBarClearance }}
+          className="w-full self-center px-5 pt-1"
+          style={{ maxWidth: MAX_CONTENT_WIDTH, paddingBottom: tabBarClearance }}
         >
           <Animated.View
             entering={FadeInDown.delay(200).duration(420)}

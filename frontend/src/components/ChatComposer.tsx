@@ -4,7 +4,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { ArrowUp, Mic } from "lucide-react-native";
+import { ArrowUp, Mic, Paperclip } from "lucide-react-native";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { BrandGradient } from "./BrandGradient";
 
@@ -13,6 +13,10 @@ interface ChatComposerProps {
   onChangeText: (text: string) => void;
   onSend: () => void;
   onMic: () => void;
+  /** Attach a PDF or photo. Omit to hide the button (screens without upload). */
+  onAttach?: () => void;
+  /** Disables attach while an upload is in flight. */
+  attaching?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
 }
@@ -25,6 +29,8 @@ export function ChatComposer({
   onChangeText,
   onSend,
   onMic,
+  onAttach,
+  attaching = false,
   placeholder = "Ask anything…",
   autoFocus = false,
 }: ChatComposerProps) {
@@ -42,6 +48,20 @@ export function ChatComposer({
 
   return (
     <View className="flex-row items-end rounded-3xl border border-hairline bg-surface px-2 py-2 dark:border-hairline-dark dark:bg-elevated-dark">
+      {onAttach ? (
+        <Pressable
+          onPress={onAttach}
+          disabled={attaching}
+          hitSlop={6}
+          accessibilityLabel="Attach a PDF or photo"
+          accessibilityRole="button"
+          className="h-10 w-10 items-center justify-center rounded-full"
+          style={{ opacity: attaching ? 0.4 : 1 }}
+        >
+          <Paperclip size={21} color={colors.textMuted} />
+        </Pressable>
+      ) : null}
+
       <TextInput
         value={value}
         onChangeText={onChangeText}

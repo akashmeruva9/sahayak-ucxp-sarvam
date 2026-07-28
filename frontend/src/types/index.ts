@@ -40,6 +40,12 @@ export interface BusinessAction {
   tone?: "info" | "success" | "warning";
 }
 
+/** A file the customer attached to a turn, shown as a chip in their bubble. */
+export interface MessageAttachment {
+  name: string;
+  kind: "pdf" | "image" | "other";
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
@@ -52,6 +58,11 @@ export interface Message {
   action?: BusinessAction;
   /** Flags a placeholder bubble that should render the typing animation. */
   pending?: boolean;
+  /**
+   * Set on a user turn that was a file upload. The bubble shows the filename,
+   * not the extracted text — a wall of OCR output helps nobody read the chat.
+   */
+  attachment?: MessageAttachment;
 }
 
 export interface Conversation {

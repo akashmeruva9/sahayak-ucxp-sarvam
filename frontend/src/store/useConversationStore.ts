@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { BusinessId, Conversation, Message } from "@/types";
 import { deriveTitle, sendChat } from "@/api/chat";
+import { fileKind, sendDocument as postDocument, type PickedFile } from "@/api/documents";
 import { getBusiness } from "@/constants/businesses";
 import { uid } from "@/utils/id";
 
@@ -17,6 +18,77 @@ interface ConversationState {
   setSelectedBusiness: (id?: BusinessId) => void;
   /** Optimistically append the user turn + a pending assistant turn, then resolve via the API. */
   sendMessage: (conversationId: string, text: string, businessId?: BusinessId) => Promise<void>;
+  /**
+   * Same turn shape as `sendMessage`, but the user's half is an uploaded file.
+   * The runtime reads it and resolves a capability from what it finds.
+   */
+  sendDocument: (
+    conversationId: string,
+    file: PickedFile,
+    caption?: string,
+    businessId?: BusinessId
+  ) => Promise<void>;
+}
+
+type SetState = (partial: (state: ConversationState) => Partial<ConversationState>) => void;
+
+/**
+ * Append the customer's turn plus a typing bubble, and return the patcher that
+ * resolves that bubble once the runtime answers.
+ *
+ * Shared by the text and document paths so both behave identically — same
+ * optimistic append, same title derivation, same failure shape. They diverge
+ * only in what they send.
+ */
+function beginTurn(
+  set: SetState,
+  conversationId: string,
+  userMsg: Message,
+  businessId?: BusinessId
+): (patch: Partial<Message>) => void {
+  const pendingId = uid("msg");
+  const pendingMsg: Message = {
+    id: pendingId,
+    role: "assistant",
+    text: "",
+    createdAt: Date.now(),
+    pending: true,
+  };
+
+  set((s) => ({
+    conversations: s.conversations.map((c) =>
+      c.id === conversationId
+        ? {
+            ...c,
+            // An upload with no caption has no text to title the chat with, so
+            // fall back to the filename.
+            title:
+              c.messages.length === 0
+                ? deriveTitle(userMsg.text || userMsg.attachment?.name || "Document")
+                : c.title,
+            businessId: c.businessId ?? businessId,
+            updatedAt: Date.now(),
+            messages: [...c.messages, userMsg, pendingMsg],
+          }
+        : c
+    ),
+  }));
+
+  return (patch: Partial<Message>) =>
+    set((s) => ({
+      conversations: s.conversations.map((c) =>
+        c.id === conversationId
+          ? {
+              ...c,
+              updatedAt: Date.now(),
+              businessId: c.businessId ?? patch.businessId ?? businessId,
+              messages: c.messages.map((m) =>
+                m.id === pendingId ? { ...m, ...patch, pending: false } : m
+              ),
+            }
+          : c
+      ),
+    }));
 }
 
 export const useConversationStore = create<ConversationState>((set, get) => ({
@@ -74,52 +146,12 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    const userMsg: Message = {
-      id: uid("msg"),
-      role: "user",
-      text: trimmed,
-      createdAt: Date.now(),
-      status: "sent",
-    };
-    const pendingId = uid("msg");
-    const pendingMsg: Message = {
-      id: pendingId,
-      role: "assistant",
-      text: "",
-      createdAt: Date.now(),
-      pending: true,
-    };
-
-    // Optimistic update: user turn + typing bubble.
-    set((s) => ({
-      conversations: s.conversations.map((c) =>
-        c.id === conversationId
-          ? {
-              ...c,
-              title: c.messages.length === 0 ? deriveTitle(trimmed) : c.title,
-              businessId: c.businessId ?? businessId,
-              updatedAt: Date.now(),
-              messages: [...c.messages, userMsg, pendingMsg],
-            }
-          : c
-      ),
-    }));
-
-    const applyAssistant = (patch: Partial<Message>) =>
-      set((s) => ({
-        conversations: s.conversations.map((c) =>
-          c.id === conversationId
-            ? {
-                ...c,
-                updatedAt: Date.now(),
-                businessId: c.businessId ?? patch.businessId ?? businessId,
-                messages: c.messages.map((m) =>
-                  m.id === pendingId ? { ...m, ...patch, pending: false } : m
-                ),
-              }
-            : c
-        ),
-      }));
+    const applyAssistant = beginTurn(
+      set,
+      conversationId,
+      { id: uid("msg"), role: "user", text: trimmed, createdAt: Date.now(), status: "sent" },
+      businessId
+    );
 
     try {
       const conv = get().getConversation(conversationId);
@@ -142,6 +174,52 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     } catch {
       applyAssistant({
         text: "Something went wrong reaching that business. Please try again.",
+        status: "error",
+      });
+    }
+  },
+
+  sendDocument: async (conversationId, file, caption, businessId) => {
+    const trimmed = (caption ?? "").trim();
+
+    // The user's bubble shows the filename and their caption — never the
+    // extracted text, which is long, noisy, and not something they wrote.
+    const applyAssistant = beginTurn(
+      set,
+      conversationId,
+      {
+        id: uid("msg"),
+        role: "user",
+        text: trimmed,
+        createdAt: Date.now(),
+        status: "sent",
+        attachment: { name: file.name, kind: fileKind(file) },
+      },
+      businessId
+    );
+
+    try {
+      const conv = get().getConversation(conversationId);
+      const { message } = await postDocument({
+        file,
+        caption: trimmed,
+        businessId: conv?.scoped ? businessId ?? conv?.businessId : undefined,
+        conversationId,
+      });
+      applyAssistant({
+        text: message.text,
+        status: message.status,
+        businessId: message.businessId,
+        action: message.action,
+      });
+    } catch (err) {
+      // A rejected file (too large, unreadable) has a message worth showing —
+      // it tells the customer what to do differently.
+      applyAssistant({
+        text:
+          err instanceof Error && err.message
+            ? err.message
+            : "I couldn't read that file. Please try another, or type the details.",
         status: "error",
       });
     }

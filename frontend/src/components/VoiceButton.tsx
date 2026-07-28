@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -88,7 +88,18 @@ export function VoiceButton({ onPress, size = 76, pulse = true }: VoiceButtonPro
         className="items-center justify-center"
       >
         <BrandGradient />
-        <Mic size={size * 0.4} color="#FFFFFF" strokeWidth={2.2} />
+        {/* The gradient is an absolutely-positioned SVG that stacked over the
+            icon on web, leaving a plain coloured disc. Overlay the icon on the
+            same footprint so it is both above the fill and centred in it. */}
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            { alignItems: "center", justifyContent: "center", zIndex: 1 },
+          ]}
+        >
+          <Mic size={size * 0.4} color="#FFFFFF" strokeWidth={2.2} />
+        </View>
       </AnimatedPressable>
     </View>
   );

@@ -35,24 +35,37 @@ export function LanguageMarquee() {
 
   return (
     <View className="overflow-hidden">
-      <Animated.View className="flex-row" style={style}>
+      <Animated.View
+        className="flex-row"
+        // nowrap explicitly: on web the duplicated strip wrapped onto a second
+        // line, showing the same chips twice instead of scrolling as one row.
+        style={[{ flexWrap: "nowrap" }, style]}
+      >
+        {/* The list twice in ONE row: translating by a single list-width then
+            wraps seamlessly. Two sibling rows wrapped onto a second line. */}
         <Chips onMeasure={setWidth} />
-        {/* Duplicate for a seamless wrap. */}
-        <Chips />
       </Animated.View>
     </View>
   );
 }
 
 function Chips({ onMeasure }: { onMeasure?: (w: number) => void }) {
+  // Half the rendered width = one copy of the list = the loop distance.
   const handleLayout = onMeasure
-    ? (e: LayoutChangeEvent) => onMeasure(e.nativeEvent.layout.width)
+    ? (e: LayoutChangeEvent) => onMeasure(e.nativeEvent.layout.width / 2)
     : undefined;
   return (
-    <View className="flex-row" onLayout={handleLayout}>
-      {LANGUAGE_GREETINGS.map((g) => (
+    <View
+      className="flex-row"
+      // nowrap + no shrink: inside a width-capped column the strip otherwise
+      // wraps onto a second line and the "scrolling" row becomes two static ones.
+      style={{ flexWrap: "nowrap", flexShrink: 0 }}
+      onLayout={handleLayout}
+    >
+      {[...LANGUAGE_GREETINGS, ...LANGUAGE_GREETINGS].map((g, i) => (
         <View
-          key={g.code}
+          key={`${g.code}-${i}`}
+          style={{ flexShrink: 0 }}
           className="mr-2.5 flex-row items-center rounded-full border border-hairline bg-elevated px-4 py-2 dark:border-hairline-dark dark:bg-elevated-dark"
         >
           <Text className="text-[15px] font-semibold text-ink dark:text-white">{g.hello}</Text>

@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
 import type { Message } from "@/types";
 import { getBusiness } from "@/constants/businesses";
+import { pickDocument } from "@/api/documents";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useSendMessage } from "@/hooks/useChat";
 import {
@@ -29,8 +30,11 @@ export function ConversationScreen({ id }: { id: string }) {
   const [draft, setDraft] = useState("");
   const [voiceOpen, setVoiceOpen] = useState(false);
 
+  const [attaching, setAttaching] = useState(false);
+
   const conversation = useConversationStore((s) => s.getConversation(id));
   const setActive = useConversationStore((s) => s.setActive);
+  const sendDocument = useConversationStore((s) => s.sendDocument);
   const { mutate: send } = useSendMessage();
 
   const messages = conversation?.messages ?? [];
@@ -55,6 +59,25 @@ export function ConversationScreen({ id }: { id: string }) {
     setDraft("");
     send({ conversationId: id, text });
   };
+
+  /**
+   * Attach a PDF or photo. Whatever is already typed rides along as the
+   * caption — it's the customer's stated intent for the file, and the runtime
+   * leads with it instead of guessing.
+   */
+  const handleAttach = useCallback(async () => {
+    if (attaching) return;
+    setAttaching(true);
+    try {
+      const file = await pickDocument();
+      if (!file) return; // cancelled — not an error
+      const caption = draft.trim();
+      setDraft("");
+      await sendDocument(id, file, caption, conversation?.businessId);
+    } finally {
+      setAttaching(false);
+    }
+  }, [attaching, draft, id, sendDocument, conversation?.businessId]);
 
   return (
     <ScreenContainer>
@@ -113,6 +136,8 @@ export function ConversationScreen({ id }: { id: string }) {
             onChangeText={setDraft}
             onSend={handleSend}
             onMic={() => setVoiceOpen(true)}
+            onAttach={handleAttach}
+            attaching={attaching}
           />
         </View>
       </KeyboardAvoidingView>
