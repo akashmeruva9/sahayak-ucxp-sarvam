@@ -104,7 +104,8 @@ STT → reasoning → TTS as one experience, never presented as four API calls.
 | WhatsApp | `backend/app/api/whatsapp.py` | 🟢 **LIVE over Twilio sandbox** — `POST /whatsapp/webhook` reuses `runtime.run`, keyed on the sender's number for memory. Text · voice-note (transcribe) · PDF (pypdf) · image (Tesseract OCR) in; async reply out via Twilio REST (see §7 #19). Verified end-to-end 2026-07-26: real inbound text + voice note, outbound reply delivered+read. Cloudflare tunnel for the webhook | Builder 3 |
 | Voice-call channel | `backend/app/agent_tools/` | 🟡 **Built + verified over the tunnel** — Route A: Samvaad owns the call; UCXP is its Advanced Tool. Live-call path `POST /agent/execute` (~0.7 s through tunnel); `/agent/resolve` kept for the full-reasoning path. Not yet dialled from a real Samvaad agent. See §12 | — |
 | Consistency harness | `backend/app/harness/` | ⬜ Not started | Builder 3 |
-| Frontend ↔ Runtime wiring | `frontend/src/api/` | 🟡 **Wired to the runtime** — `/chat` + `/transcribe`, receipts render as action cards, conversation id carries memory. Voice transcription proven on-device; the chat path is not yet | Builder 1 |
+| Frontend ↔ Runtime wiring | `frontend/src/api/` | 🟡 **Wired to the runtime** — `/chat` + `/transcribe` + `/document`, receipts render as action cards, conversation id carries memory. Voice transcription proven on-device; the chat and document paths are not yet | Builder 1 |
+| Document reading | `backend/app/documents.py` | 🟡 **Shared by all three channels** — PDF (pypdf) + image OCR (Tesseract), extraction and framing verified by 19 offline tests incl. every failure path. WhatsApp re-wired onto it; `POST /document` added for app + web with an attach button in the composer. **Not yet exercised against the hosted runtime**, and Android needs an APK rebuild for the new picker (§7 #42) | — |
 | Android APK | `frontend/android/…/release/` | 🟡 **Built & verified standalone** 2026-07-28 — release build, bundle compiled in, launches with Metro stopped and no crash. Universal (4 ABIs, 111 MB). Ships a **placeholder** backend URL; set the real one in Settings → Backend (§7 #33) | Builder 1 |
 | Web (Vercel) | `frontend/dist` | 🟡 **Exports clean** — `expo export -p web` produces a 10 MB SPA, backend URL inlined, `vercel.json` written. **Not yet deployed** (needs the hosted backend + a Vercel project) | Builder 1 |
 
@@ -332,6 +333,9 @@ POST /chat                 { conversation_id?, text, language?, user_id? }
                             receipt?, needs?, state, degraded[] }
 POST /voice                multipart: file (≤30 s of audio), conversation_id?
                         → chat response + { transcript, detected_language, audio_base64, latency }
+POST /document             multipart: file (PDF/image, ≤10 MB), caption?, conversation_id?,
+                           business_id?, language?
+                        → chat response + { document_kind, extracted_chars }
 POST /whatsapp/webhook     Twilio sandbox form-encoded → TwiML/text
 GET  /businesses           directory (from manifests, not hardcoded)
 GET  /manifests/{id}       raw manifest — judges will ask to see one
@@ -342,6 +346,13 @@ GET  /health
 
 `needs` is how the runtime asks for a missing slot — the client just renders
 `reply_text`; `needs` exists so the UI can show a targeted input if it wants.
+
+`POST /document` answers **200 even when the file is unreadable**, with
+`state="failed"` and the reason in `reply_text` (`document_kind` says which:
+`pdf_empty` · `image_empty` · `too_large` · `unsupported` · `extract_failed`).
+A 4xx would reach the client as a generic network error; the customer needs to
+be told to send a photo instead of a scan, in the same place every other reply
+appears.
 
 ### Frontend ↔ Runtime
 
@@ -403,9 +414,13 @@ Deviations from the original brief, with reasons. Append; don't edit.
 | 39 | Central chat vs business chat are **different routing modes** | Central: naming a business loads that manifest and keeps it for the rest of the chat; naming another switches; naming none asks (**364 ms**, no model call — classifying a five-business catalogue to conclude "I don't know which" cost 38 s and told us nothing the router hadn't). Business chat and WhatsApp are pinned and never route elsewhere. The app marks a chat `scoped` at creation, because a *general* chat also acquires a `businessId` once resolved and must stay switchable |
 | 40 | Confirmation matching is **whole-word**, and a business switch cancels the pending action | `CONFIRM_YES` matched as a substring, so the "ha" inside an ordinary word confirmed a **refund** pending on a *different* business with no yes given — a destructive action executed without consent. Found while testing §7 #39 |
 | 41 | Businesses with no manifest get a **web lookup** (Tavily / Brave / Serper) | Answer usefully rather than flatly, then invite them to onboard — which is the protocol pitch made concrete. Provider inferred from whichever key is set; no key ⇒ feature off and the ordinary "which business?" reply stands. **Untested against a live provider** — no key was available when it was written |
+| 42 | Document reading is **channel-agnostic** (`backend/app/documents.py`) and reachable from the app and web via `POST /document` | PDF/OCR lived inside `whatsapp.py`, so only WhatsApp could read a file — the app and web had no attach path at all. Two copies would have drifted the moment one got a fix, so extraction moved to one module all three channels call, and the framing that turns OCR noise into reference material (rather than a user utterance) is now shared. An upload runs the same `runtime.run` a typed turn does, so a photographed order produces a real receipt. **Costs a native dependency** (`expo-document-picker`) ⇒ the shipped APK must be rebuilt before attach works on Android; web export re-verified clean |
+| 43 | `scripts/android-patches.sh` **written** — #34 described it but it was never in the repo | The 15 hand-patched `node_modules` files had no backup, so installing `expo-document-picker` risked the Android build with nothing to restore from. `save` refuses to write an empty backup, and `restore` works from a recorded manifest rather than a live search — after an install the `NODE_EXECUTABLE` marker is gone, so there is nothing left to find |
 | 42 | Live voice-call added as a **channel**, not a second brain — the call feeds the same manifest-driven runtime the app and WhatsApp use | A phone call is one more surface over the same resolution, so receipts, memory and rules come for free, and §2 rule 1 ("one place talks to Sarvam") stays literally true |
 | 43 | **Superseded #42's self-hosted pipeline.** Voice-call goes through **managed Sarvam Samvaad**: it owns telephony + STT + TTS + turn-taking, and UCXP is exposed as one Samvaad **Advanced Tool** wrapping `UcxpRuntime.run()` | Samvaad gives sub-500 ms voice, interruption and cross-channel memory for free; rebuilding that is wasted effort. UCXP stays the brain (manifests, resolution, receipts) and becomes "just another compliant client" — the protocol thesis, made literal. Trade-off: no in-app receipt card on a pure phone call, and Samvaad's LLM decides *when* to call the tool. No Sarvam client enters the repo, so §2 rule 1 still holds |
 | 44 | For the **live-call path**, `POST /agent/execute` (per-capability) sits alongside `/agent/resolve`. Samvaad's fast LLM picks business + capability and collects inputs; `/agent/execute` only runs the manifest action and renders the receipt — **no Sarvam reasoning in the loop** | Measured: `/agent/resolve` spends ~20 s in a single `sarvam-105b` classify pass — unusable on a live call. `/agent/execute` returns in ~10 ms local / ~0.7 s through a tunnel because the slow classify moves to Samvaad's sub-500 ms LLM. Cost: UCXP no longer *resolves* which capability on the call path, so the consistency-harness claim covers `/chat`, not the call. It reuses the runtime's executor/renderer/rules unchanged, needs no Sarvam key, and adds no business code |
+| 45 | A **Call** option in the app and web, scoped by the same rule as chat | A business screen calls that merchant (`/call/<id>`, `business_id` pinned through `POST /voice` → `force_business_id`); Home calls the central line (`/call/general`) where the runtime routes from what's said. One turn = one `/voice`: speech in → the same manifest-driven resolution → the answer spoken back, so a call returns the identical receipt the chat does. Web shows the mic limitation plainly rather than faking a recording (§7 #27) |
+| 46 | Deploy-blocking bug: `main.py` imported `backend/app/documents.py` and a `DocumentResponse` schema that were **never committed** | Railway builds from git, not the working tree, so the container died at import with `ModuleNotFoundError` while everything ran locally — `/health` unreachable, no logs, and the CLI kept showing the *last successful* deployment, which hid the real cause for ~20 minutes. Same shape as #28 (undeclared deps). **Before any deploy, verify the committed tree, not the working tree:** `git archive HEAD \| tar -x -C /tmp/x && (cd /tmp/x && python -c 'import backend.app.main')` |
 
 ---
 
