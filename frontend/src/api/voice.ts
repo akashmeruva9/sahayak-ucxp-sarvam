@@ -1,7 +1,7 @@
-import { ApiError, isMockMode, networkDelay, postForm, reportDiag } from "./client";
+import { ApiError, isMockMode, postForm, reportDiag } from "./client";
 
 export interface VoiceRequest {
-  /** Local file URI produced by the recorder (or null in mock mode). */
+  /** Local file URI produced by the recorder; null when capture failed. */
   uri: string | null;
   durationMs: number;
   /** Why `uri` is null, when the recorder couldn't capture. Diagnostics only. */
@@ -14,28 +14,11 @@ export interface VoiceResponse {
 }
 
 /**
- * Generic fallback transcripts used only when no backend is configured
- * (mock mode). Live voice always uses the real transcription endpoint.
- */
-const MOCK_TRANSCRIPTS = [
-  "Where is my order?",
-  "I'd like a refund for my order",
-  "What's the status of order 1001?",
-  "Can I cancel my order?",
-];
-
-/**
  * Sarvam's realtime speech-to-text hard-caps at 30 s — longer audio needs their
  * batch API — so an over-long recording is rejected here instead of after a
  * wasted upload. See PLAN.md §3.1.
  */
 const MAX_CLIP_MS = 30_000;
-
-function mockTranscript(): VoiceResponse {
-  return {
-    transcript: MOCK_TRANSCRIPTS[Math.floor(Math.random() * MOCK_TRANSCRIPTS.length)],
-  };
-}
 
 /**
  * expo-audio yields .m4a on Android and iOS. Sarvam accepts it (verified
@@ -80,9 +63,14 @@ export async function transcribeVoice(req: VoiceRequest): Promise<VoiceResponse>
     issue: req.issue ?? "none",
   });
 
+  // No backend: say so. Returning a canned transcript here used to make a
+  // broken mic look like a working demo, which cost real debugging time.
   if (isMockMode()) {
-    await networkDelay(700, 1400);
-    return mockTranscript();
+    throw new ApiError(
+      "Voice needs the backend. Set it in Settings → Server, then try again.",
+      undefined,
+      "no_backend"
+    );
   }
 
   // Live, but the recorder produced no file: it fell back to a simulated

@@ -1,6 +1,6 @@
 import type { BusinessId, ConversationSummary } from "@/types";
 import { useConversationStore } from "@/store/useConversationStore";
-import { getJson, isMockMode, networkDelay } from "./client";
+import { getJson, isMockMode } from "./client";
 
 /**
  * GET /history — past conversations.
@@ -62,8 +62,9 @@ function fromRuntime(row: RuntimeHistoryRow): ConversationSummary {
 }
 
 export async function fetchHistory(): Promise<ConversationSummary[]> {
+  // These are the user's own conversations held on the device, not fixtures —
+  // with no backend configured they are all there is to show.
   if (isMockMode()) {
-    await networkDelay(300, 700);
     return localSummaries().sort((a, b) => b.updatedAt - a.updatedAt);
   }
 

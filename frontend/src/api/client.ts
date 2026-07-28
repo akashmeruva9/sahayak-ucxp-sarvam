@@ -133,11 +133,6 @@ function authHeaders(): Record<string, string> {
   return authToken ? { Authorization: `Bearer ${authToken}` } : {};
 }
 
-/** Simulate realistic, slightly variable network latency. */
-export function networkDelay(min = 550, max = 1200): Promise<void> {
-  const ms = min + Math.random() * (max - min);
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export function isMockMode(): boolean {
   if (process.env.EXPO_PUBLIC_FORCE_MOCK === "1") return true;

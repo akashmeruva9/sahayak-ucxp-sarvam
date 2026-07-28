@@ -9,7 +9,6 @@ export { LoadingDots } from "./LoadingDots";
 export { Waveform } from "./Waveform";
 export { VoiceButton } from "./VoiceButton";
 export { VoiceOverlay } from "./VoiceOverlay";
-export { SuggestedActionCard } from "./SuggestedActionCard";
 export { ConversationCard } from "./ConversationCard";
 export { CompanyRow } from "./CompanyRow";
 export { Navbar } from "./Navbar";

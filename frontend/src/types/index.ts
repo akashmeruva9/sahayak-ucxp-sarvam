@@ -90,14 +90,6 @@ export interface ConversationSummary {
   updatedAt: number;
 }
 
-export interface SuggestedAction {
-  id: string;
-  title: string;
-  subtitle: string;
-  businessId: BusinessId;
-  prompt: string;
-}
-
 export type ThemePreference = "system" | "light" | "dark";
 
 export interface Language {
