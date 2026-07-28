@@ -48,6 +48,13 @@ def connect():
     and scripts that import the store directly get a working DB too.
     """
     if getattr(_local, "conn", None) is None or getattr(_local, "path", None) != _db_path:
+        # A hosted deployment points UCXP_DB at a mounted volume, and sqlite3
+        # will not create missing parent directories -- it just raises "unable to
+        # open database file", which reads like a permissions problem rather
+        # than a missing folder.
+        parent = os.path.dirname(os.path.abspath(_db_path))
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         conn = sqlite3.connect(_db_path, timeout=15)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")

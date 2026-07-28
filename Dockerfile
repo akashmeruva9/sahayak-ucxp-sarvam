@@ -48,12 +48,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY Dashboard/backend/ ./Dashboard/backend/
 COPY --from=frontend /build/dist/ ./Dashboard/frontend/dist/
 
-# State lives on a mounted volume, not in the image. Without this a redeploy
-# silently discards every merchant and every published manifest, because the
-# container filesystem is replaced on each deploy.
+# State lives on a mounted volume, not in the image. Without a volume here a
+# redeploy silently discards every merchant and every published manifest,
+# because the container filesystem is replaced on each deploy.
+#
+# /data is deliberately NOT created here. A host that will mount a volume over
+# this path can refuse to do so when the image already has a non-empty
+# directory there, and the refusal surfaces as an unexplained rejection of the
+# mount path. Both directories are created at runtime instead -- the store
+# makes the database's parent, and activation makes the manifests folder -- so
+# an empty mount point is all this needs.
 ENV UCXP_DB=/data/ucxp.db \
     UCXP_MANIFEST_DIR=/data/manifests
-RUN mkdir -p /data/manifests
 
 EXPOSE 8000
 
