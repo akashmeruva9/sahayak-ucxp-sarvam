@@ -23,6 +23,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState('');
   const [subdomain, setSubdomain] = useState(d.store?.replace('.myshopify.com', '') || '');
+  const [token, setToken] = useState('');
   const [linkBusy, setLinkBusy] = useState(false);
   const [reachBusy, setReachBusy] = useState(false);
   const [reachMessage, setReachMessage] = useState('');
@@ -36,10 +37,20 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
   const credEmail = profile.email || 'your support email';
 
   /* ---- Shopify ---------------------------------------------------------- */
+  // A store the operator has pre-seeded connects with one click, because the
+  // token is already held server-side. Any other store has to supply its own,
+  // so ask for it rather than failing with "we couldn't reach Shopify".
+  const isSeeded = seeded.some((s) => s.subdomain === subdomain);
+  const needsToken = Boolean(subdomain) && !isSeeded;
+
   const approve = async () => {
     setConnecting(true);
     setConnectError('');
-    const result = await api.connectShopify({ subdomain, business_id: businessId });
+    const result = await api.connectShopify({
+      subdomain,
+      business_id: businessId,
+      ...(needsToken ? { token: token.trim() } : {}),
+    });
     setConnecting(false);
 
     if (result.error || result.ok === false) {
@@ -48,6 +59,7 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
     }
 
     setModalOpen(false);
+    setToken('');   // vaulted server-side now; no reason to keep a copy in the page
     set({
       type: 'shopify',
       connected: true,
@@ -474,9 +486,39 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
             ))}
           </div>
 
-          <p className="mb-4 text-[11.5px] leading-relaxed text-ink-muted">
-            Sahayak never sees your password. You can revoke this access in Shopify at any time.
-          </p>
+          {needsToken && (
+            <div className="mb-4">
+              <Field label="Admin API access token" className="w-full">
+                <input
+                  className="ucxp-input-mono"
+                  data-testid="shopify-token"
+                  type="password"
+                  autoComplete="off"
+                  spellCheck="false"
+                  placeholder="shpat_…"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                />
+              </Field>
+              <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-muted">
+                In Shopify: <strong>Settings → Apps and sales channels → Develop apps</strong> →
+                create an app, grant <code className="rounded bg-surface px-1 font-mono text-[11px]">read_orders</code> and{' '}
+                <code className="rounded bg-surface px-1 font-mono text-[11px]">read_products</code>, then install it and copy the
+                Admin API access token.
+              </p>
+              <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-muted">
+                The token goes straight into the vault and is never written to your manifest —
+                that carries only a <code className="rounded bg-surface px-1 font-mono text-[11px]">credential_ref</code>. You can
+                revoke it in Shopify at any time.
+              </p>
+            </div>
+          )}
+
+          {!needsToken && (
+            <p className="mb-4 text-[11.5px] leading-relaxed text-ink-muted">
+              Sahayak never sees your password. You can revoke this access in Shopify at any time.
+            </p>
+          )}
 
           {connectError && (
             <div className="mb-4">
@@ -497,7 +539,9 @@ export default function S2DataSource({ sections, updateSection, businessId, slug
               type="button"
               data-testid="oauth-approve"
               onClick={approve}
-              disabled={connecting}
+              disabled={connecting || (needsToken && !token.trim())}
+              title={needsToken && !token.trim()
+                ? 'Paste your Admin API access token first' : undefined}
               className="ucxp-btn ucxp-press border-ok bg-ok text-white hover:bg-ok-deep"
             >
               {connecting && <Spinner light />}

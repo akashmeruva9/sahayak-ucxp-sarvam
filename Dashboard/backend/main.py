@@ -350,6 +350,14 @@ def connect_shopify(payload: ShopifyConnect):
     # which is the point -- merchants never handle raw secrets.
     if not token:
         token = vault.token_for_subdomain(subdomain) or ""
+    if not token:
+        # Without this the request reaches Shopify with an empty token and comes
+        # back as a generic auth failure, which reads like the store is broken
+        # rather than like nothing was supplied for it.
+        return {"ok": False,
+                "error": "That store isn't pre-configured here, so it needs its own "
+                         "Admin API access token. Create one in Shopify under "
+                         "Settings → Apps and sales channels → Develop apps."}
 
     try:
         result = shopify_client.verify_connection(subdomain, token)

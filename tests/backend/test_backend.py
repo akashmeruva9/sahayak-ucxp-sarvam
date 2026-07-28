@@ -531,3 +531,35 @@ def test_editing_a_draft_publishes_nothing(client, tmp_path, monkeypatch):
         "city": "Bengaluru", "email": "care@draft.in"}})
 
     assert not list(tmp_path.glob("*.json")), "a draft should publish nothing"
+
+
+def test_unknown_store_without_a_token_says_what_is_missing(client):
+    """A store nobody pre-seeded needs its own token.
+
+    Sending an empty one to Shopify returns a generic auth failure, which reads
+    as though the store is broken rather than as though nothing was supplied.
+    """
+    body = client.post("/api/connect/shopify", json={
+        "subdomain": "some-strangers-shop", "business_id": ""}).json()
+    assert body["ok"] is False
+    assert "access token" in body["error"].lower()
+    assert "Traceback" not in body["error"]
+
+
+def test_a_merchant_supplied_token_is_vaulted_not_echoed(client, monkeypatch):
+    """The token the merchant pastes must reach the vault and stop there."""
+    from Dashboard.backend import shopify_client as sc
+    monkeypatch.setattr(sc, "verify_connection", lambda sub, tok: {
+        "subdomain": sub, "shop_name": "Stranger's Shop",
+        "product_count": 2, "order_count": 1, "currency": "INR"})
+
+    business_id = store.create_business(name="Stranger Co")
+    body = client.post("/api/connect/shopify", json={
+        "subdomain": "strangers-shop",
+        "token": "shpat_merchant_supplied_secret",
+        "business_id": business_id}).json()
+
+    assert body["ok"] is True
+    assert body["credential_ref"] == "vault://{}".format(business_id)
+    assert "shpat_" not in json.dumps(body), "the pasted token came back in the response"
+    assert vault.get(business_id) == "shpat_merchant_supplied_secret"
