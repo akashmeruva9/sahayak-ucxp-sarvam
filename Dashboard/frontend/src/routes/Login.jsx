@@ -35,9 +35,14 @@ export default function Login() {
   }, []);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-canvas px-6">
-      <div className="w-full max-w-[380px]" data-testid="login-screen">
-        <div className="flex items-center gap-2.5">
+    // The page is tinted one step so the card can be the canvas colour and read
+    // as raised. Everywhere else in the product the card is white on a white
+    // page and only its border separates it, which works inside a populated
+    // layout -- but this screen is one small panel in an otherwise empty
+    // viewport, and a hairline alone leaves it looking dropped there.
+    <main className="flex min-h-screen items-center justify-center bg-surface px-6 py-10">
+      <div className="w-full max-w-[400px]" data-testid="login-screen">
+        <div className="mb-6 flex items-center justify-center gap-2.5">
           <Logo className="h-8 w-8" />
           <span className="flex items-baseline gap-1.5">
             <span className="text-[17px] font-semibold tracking-tight text-ink">Sahayak</span>
@@ -50,35 +55,38 @@ export default function Login() {
           </span>
         </div>
 
-        <h1 className="mt-7 text-[22px] font-semibold tracking-tight text-ink">
-          Sign in to continue
-        </h1>
-        <p className="mt-2 text-[13.5px] leading-relaxed text-ink-muted">
-          Your businesses, their connected stores and their published manifests are
-          tied to your Google account.
-        </p>
+        <div className="ucxp-rise ucxp-card p-8">
+          <h1 className="text-[22px] font-semibold tracking-tight text-ink">
+            Sign in to continue
+          </h1>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-ink-muted">
+            Your businesses, their connected stores and their published manifests are
+            tied to your Google account.
+          </p>
 
-        {error && (
-          <div className="mt-5">
-            <ErrorPanel>{error}</ErrorPanel>
-          </div>
-        )}
+          {error && (
+            <div className="mt-5">
+              <ErrorPanel>{error}</ErrorPanel>
+            </div>
+          )}
 
-        <button
-          type="button"
-          onClick={() => startGoogleSignIn('/')}
-          data-testid="google-signin"
-          className="ucxp-btn ucxp-press mt-6 w-full justify-center gap-2.5 border
-                     border-line bg-canvas text-ink hover:bg-surface"
-        >
-          <GoogleMark />
-          Sign in with Google
-        </button>
+          <button
+            type="button"
+            onClick={() => startGoogleSignIn('/')}
+            data-testid="google-signin"
+            className="ucxp-btn ucxp-press mt-6 w-full justify-center gap-2.5 border
+                       border-line bg-canvas text-ink hover:bg-surface"
+          >
+            <GoogleMark />
+            Sign in with Google
+          </button>
 
-        <p className="mt-5 text-[12px] leading-relaxed text-ink-faint">
-          We only ever read your name, email address and profile picture. Sahayak
-          never sees your Google password.
-        </p>
+          <p className="mt-6 border-t border-line-soft pt-4 text-[12px] leading-relaxed
+                        text-ink-faint">
+            We only ever read your name, email address and profile picture. Sahayak
+            never sees your Google password.
+          </p>
+        </div>
       </div>
     </main>
   );
