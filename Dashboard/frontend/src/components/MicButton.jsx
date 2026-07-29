@@ -5,6 +5,8 @@ import { Spinner } from './Primitives';
 const MIN_MS = 900;
 /** Nobody means to record for a minute. Stop rather than upload a huge file. */
 const MAX_MS = 60_000;
+/** Peak level below which the track carried no voice, only a noise floor. */
+const SILENCE = 0.02;
 
 /** Records one answer, hands the audio up, and gets out of the way.
  *
@@ -34,6 +36,11 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
   const ticker = useRef(0);
   const autoStop = useRef(0);
   const starting = useRef(false);
+  // Loudest thing the microphone heard this recording. A track that stays at
+  // zero is a device problem, and it is worth saying so rather than sending
+  // silence to Saaras and reporting back whatever it guesses from nothing.
+  const peak = useRef(0);
+  const metered = useRef(false);
 
   // A merchant who navigates away mid-sentence must not leave the browser's
   // recording indicator lit. Every exit path -- stop, error, unmount -- comes
@@ -88,6 +95,8 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
 
     stream.current = media;
     chunks.current = [];
+    peak.current = 0;
+    metered.current = false;
 
     // A level meter, not a waveform: the merchant needs to see that we can hear
     // them. Silence that looks identical to speech is the fastest way to lose
@@ -100,15 +109,21 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
       const data = new Uint8Array(analyser.frequencyBinCount);
       audioCtx.current = ctx;
 
+      metered.current = true;
       const tick = () => {
         analyser.getByteFrequencyData(data);
         const mean = data.reduce((sum, v) => sum + v, 0) / data.length;
-        setLevel(Math.min(1, mean / 90));
+        const now = Math.min(1, mean / 90);
+        if (now > peak.current) peak.current = now;
+        setLevel(now);
         frame.current = requestAnimationFrame(tick);
       };
       tick();
     } catch {
-      // Metering is a nicety. Losing it must not cost the merchant the feature.
+      // Metering is a nicety, and without it we simply cannot make the silence
+      // claim below -- so record that, rather than reporting a silent mic on a
+      // browser where we never measured one.
+      metered.current = false;
     }
 
     const mime = ['audio/webm', 'audio/mp4'].find(
@@ -136,6 +151,17 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
       // quieter room to fix a problem that was never about noise.
       if (held < MIN_MS || !blob.size) {
         setError('That was too short. Click Start, say your sentence, then click Stop.');
+        return;
+      }
+
+      // The track ran, and never rose above the noise floor. Uploading this
+      // wastes a round trip and comes back as "we couldn't make out any
+      // speech", which sends the merchant to find a quieter room -- when the
+      // truth is their browser is listening to the wrong device, or to one that
+      // is muted. Name that instead.
+      if (metered.current && peak.current < SILENCE) {
+        setError('We could not hear your microphone. Check the input device in your '
+                 + 'browser — click the 🎙 icon in the address bar — then try again.');
         return;
       }
       onResult(blob, isMp4 ? 'speech.mp4' : 'speech.webm');
