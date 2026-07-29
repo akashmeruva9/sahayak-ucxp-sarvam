@@ -26,6 +26,10 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
   const [level, setLevel] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState('');
+  // What the last recording actually contained. Shown because "it didn't work"
+  // is unactionable: a loud recording that yields no transcript is a different
+  // problem from one that captured a whisper, and only this tells them apart.
+  const [reading, setReading] = useState(null);
 
   const recorder = useRef(null);
   const chunks = useRef([]);
@@ -97,6 +101,7 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
     chunks.current = [];
     peak.current = 0;
     metered.current = false;
+    setReading(null);
 
     // A level meter, not a waveform: the merchant needs to see that we can hear
     // them. Silence that looks identical to speech is the fastest way to lose
@@ -144,6 +149,12 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
       teardown();
       setRecording(false);
       setSeconds(0);
+      setReading({
+        secs: (held / 1000).toFixed(1),
+        peak: Math.round(peak.current * 100),
+        kb: Math.round(blob.size / 1024),
+        metered: metered.current,
+      });
 
       // Stopping straight away yields a container header and no speech. That is
       // several hundred bytes, so it would upload happily, and Saaras would
@@ -215,6 +226,19 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
           </>
         )}
       </div>
+
+      {reading && !recording && (
+        <p className="text-xs text-ink-faint" data-testid="mic-reading">
+          Recorded {reading.secs}s · {reading.kb} KB ·{' '}
+          {reading.metered ? `loudest ${reading.peak}%` : 'level not measurable'}
+          {reading.metered && reading.peak < 15 && (
+            <span className="text-err">
+              {' '}— that is very quiet. Your browser is probably listening to the
+              wrong microphone.
+            </span>
+          )}
+        </p>
+      )}
 
       {error && (
         <p className="text-xs text-err" data-testid="mic-error" role="alert">
