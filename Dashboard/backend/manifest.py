@@ -28,6 +28,7 @@ from .constants import (
     DEFAULT_ERRORS,
     DEFAULT_FIRST_RESPONSE_HOURS,
     DEFAULT_RESOLUTION_DAYS,
+    EMITTED_LANGUAGES,
     INVALID_JSON_SENTINEL,
     LANGUAGE_CODES,
     SHOPIFY_SCOPES,
@@ -570,8 +571,12 @@ def validate(manifest):
     if manifest.get("identify_by") and manifest["identify_by"] != "order_number":
         errors.append("identify_by must be 'order_number' (Shopify Basic blocks customer PII).")
 
+    # Compare against the codes we actually emit, rather than splitting the
+    # locale off and checking the prefix. Odia is the reason: we key on the ISO
+    # 'or' internally but write Sarvam's 'od-IN', so a prefix check looked for
+    # 'od' in a list that has 'or' and rejected every manifest offering Odia.
     for code in manifest.get("languages") or []:
-        if code.split("-")[0] not in LANGUAGE_CODES:
+        if code not in EMITTED_LANGUAGES:
             errors.append("Unsupported language code: {}".format(code))
     primary = manifest.get("primary_language")
     if primary and primary not in (manifest.get("languages") or []):

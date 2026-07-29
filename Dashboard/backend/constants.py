@@ -43,6 +43,13 @@ def to_bcp47(code):
     return "{}-IN".format(BCP47_OVERRIDES.get(code, code))
 
 
+# Every code a manifest may legitimately carry, in the spelling we emit. Anything
+# validating a manifest must compare against this rather than splitting the
+# locale off and checking the prefix -- Odia goes out as 'od-IN' and is keyed
+# internally as 'or', so a prefix check rejects the very code we just wrote.
+EMITTED_LANGUAGES = frozenset(to_bcp47(code) for code in LANGUAGE_CODES)
+
+
 # --- Categories (Section 1 dropdown) ---------------------------------------
 CATEGORIES = [
     "Apparel & Textiles",

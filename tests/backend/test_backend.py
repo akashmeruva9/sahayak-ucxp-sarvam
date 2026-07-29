@@ -407,6 +407,28 @@ def test_every_other_language_keeps_its_own_code():
         assert constants.to_bcp47(code) == "{}-IN".format(code)
 
 
+def test_every_language_we_emit_also_validates():
+    """Odia goes out as 'od-IN' and is keyed internally as 'or'.
+
+    A validator that split the locale off looked for 'od' in a list holding
+    'or', so selecting Odia failed activation with "Unsupported language code"
+    and nothing published -- on a manifest this same code had just written.
+    """
+    from Dashboard.backend import constants, manifest as manifest_mod
+
+    every = [constants.to_bcp47(code) for code in constants.LANGUAGE_CODES]
+    assert "od-IN" in every and "or-IN" not in every
+
+    _ok, errors = manifest_mod.validate({
+        "ucxp_version": "0.1", "business": "All Languages", "business_id": "all-languages",
+        "category": "Electronics", "primary_language": "od-IN", "languages": every,
+        "identify_by": "order_number",
+        "data_source": {"type": "none", "pii_available": False},
+    })
+    language_errors = [e for e in errors if "language" in e.lower()]
+    assert language_errors == [], language_errors
+
+
 def test_only_bulbuls_eleven_languages_are_marked_voice():
     """Bulbul v3 speaks 11: bn en gu hi kn ml mr od pa ta te."""
     from Dashboard.backend import constants
