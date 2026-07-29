@@ -44,7 +44,16 @@ function reply(page, body) {
                     body: JSON.stringify(body) }));
 }
 
+/** Hold long enough to clear MIN_HOLD_MS, then release. */
 async function speak(page) {
+  const mic = page.getByTestId('mic-button');
+  await mic.dispatchEvent('pointerdown');
+  await page.waitForTimeout(1100);
+  await mic.dispatchEvent('pointerup');
+}
+
+/** Press and release immediately — what a merchant does the first time. */
+async function tap(page) {
   const mic = page.getByTestId('mic-button');
   await mic.dispatchEvent('pointerdown');
   await mic.dispatchEvent('pointerup');
@@ -117,6 +126,25 @@ test('a failure says so inline and leaves the form typeable', async ({ page }) =
   // The point of the whole feature: the form still works by hand.
   await page.getByTestId('field-name').fill('Typed By Hand');
   await expect(page.getByTestId('field-name')).toHaveValue('Typed By Hand');
+});
+
+test('a tap is caught here, not blamed on the room being noisy', async ({ page }) => {
+  await stubMicrophone(page);
+  let called = false;
+  await page.route('**/api/voice-onboard', (route) => {
+    called = true;
+    return route.fulfill({ status: 200, contentType: 'application/json',
+                           body: JSON.stringify({ ok: true, fields: {}, heard: '',
+                                                  language: '', error: '' }) });
+  });
+
+  await createBusiness(page);
+  await tap(page);
+
+  // A tap yields a container header with no speech. Saaras would answer with an
+  // empty transcript and the merchant would be told to find a quieter room.
+  await expect(page.getByTestId('mic-error')).toContainText('Hold the button down');
+  expect(called, 'a tap must not reach the server at all').toBe(false);
 });
 
 test('Assamese and Urdu are marked text-only in Section 4', async ({ page }) => {

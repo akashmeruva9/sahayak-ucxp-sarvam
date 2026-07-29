@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Spinner } from './Primitives';
 
+/** Below this, a hold is a tap: a container header with no speech inside it. */
+const MIN_HOLD_MS = 900;
+
 /** Records one answer, hands the audio up, and gets out of the way.
  *
  * Press and hold to talk, release to send — the same gesture as a voice note,
@@ -22,6 +25,9 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
   const stream = useRef(null);
   const audioCtx = useRef(null);
   const frame = useRef(0);
+  const startedAt = useRef(0);
+  const starting = useRef(false);
+  const pendingStop = useRef(false);
 
   // A merchant who navigates away mid-sentence must not leave the browser's
   // recording indicator lit. This is the only place the tracks are stopped, so
@@ -42,7 +48,7 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
   useEffect(() => teardown, []);
 
   const start = async () => {
-    if (recording || busy || disabled) return;
+    if (recording || busy || disabled || starting.current) return;
     setError('');
 
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
@@ -50,10 +56,14 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
       return;
     }
 
+    starting.current = true;
+    pendingStop.current = false;
+
     let media;
     try {
       media = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
+      starting.current = false;
       // Denied, dismissed, or no microphone at all. Each needs a different
       // sentence, because "allow the microphone" is useless advice to someone
       // who does not have one.
@@ -102,23 +112,52 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
       if (event.data?.size) chunks.current.push(event.data);
     };
     rec.onstop = () => {
-      const blob = new Blob(chunks.current, { type: rec.mimeType || 'audio/webm' });
+      const held = Date.now() - startedAt.current;
+      // Sarvam accepts "audio/webm"; it does not need the ";codecs=opus" that
+      // MediaRecorder appends, and the bare type is what its docs list.
+      const isMp4 = rec.mimeType?.includes('mp4');
+      const blob = new Blob(chunks.current, { type: isMp4 ? 'audio/mp4' : 'audio/webm' });
       teardown();
       setRecording(false);
-      if (blob.size) {
-        onResult(blob, rec.mimeType?.includes('mp4') ? 'speech.mp4' : 'speech.webm');
+
+      // A tap produces a container header and no audio. That is several hundred
+      // bytes -- large enough to reach Saaras, which then hears nothing and
+      // answers with an empty transcript. The merchant is told "we couldn't
+      // make out any speech", goes somewhere quieter, and taps again. Catch it
+      // here, where we still know the real cause.
+      if (held < MIN_HOLD_MS || !blob.size) {
+        setError('Hold the button down while you speak, then let go.');
+        return;
       }
+      onResult(blob, isMp4 ? 'speech.mp4' : 'speech.webm');
     };
 
-    rec.start();
+    // A timeslice makes ondataavailable fire while recording rather than only
+    // at stop, so a short hold still yields real audio frames.
+    rec.start(250);
+    startedAt.current = Date.now();
+    starting.current = false;
     setRecording(true);
+
+    // The merchant may have pressed and released during the permission prompt
+    // or device setup above, all of which is async. Without this the release
+    // was dropped and the recorder ran on with nobody to stop it.
+    if (pendingStop.current) {
+      pendingStop.current = false;
+      // Give the timeslice one tick to produce a frame, so the release still
+      // yields audio rather than an empty container.
+      setTimeout(stop, MIN_HOLD_MS);
+    }
   };
 
   const stop = () => {
-    if (recorder.current?.state === 'recording') recorder.current.stop();
+    if (recorder.current?.state === 'recording') {
+      recorder.current.stop();
+      return;
+    }
+    // Released before the recorder existed: remember it, and start() will honour it.
+    if (starting.current) pendingStop.current = true;
   };
-
-  const active = recording || busy;
 
   return (
     <div className="flex flex-col gap-1.5">
