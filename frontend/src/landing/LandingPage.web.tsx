@@ -448,7 +448,7 @@ export function LandingPage() {
                   <b>UCXP</b> &amp; <b>Sarvam AI</b>.
                 </p>
                 <div className="cta-row">
-                  <button className="btn primary arrow" onClick={enterApp}>
+                  <button className="btn primary arrow hero" onClick={enterApp}>
                     {ctaLabel} <Arrow />
                   </button>
                   <a className="btn ghost" href="#how" onClick={jump("how")}>How it works</a>

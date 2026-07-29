@@ -141,6 +141,27 @@ html.dark .lp{
 .lp .btn.ghost.onboard:hover{border-color:var(--accent);background:var(--accent-muted)}
 .lp .btn.arrow svg{transition:transform .19s cubic-bezier(.2,.8,.25,1)}
 .lp .btn.arrow:hover svg{transform:translateX(3px)}
+
+/* The primary action, given the weight of one. It is the only thing on the page
+   we actually want pressed, and at the same size as "How it works" beside it,
+   it read as one of two equal options. Larger, and the label is the widest
+   thing in it — the padding is generous rather than the text small. */
+.lp .btn.primary.hero{font-size:16.5px;padding:15px 30px;letter-spacing:-.01em}
+.lp .btn.primary.hero svg{width:17px;height:17px}
+
+/* A sheen that crosses on hover. The gradient alone is static, so nothing about
+   the button says it responds to a pointer until it has already moved. Clipped
+   to the button, and behind the label. */
+.lp .btn.primary{position:relative;overflow:hidden;isolation:isolate}
+.lp .btn.primary>*{position:relative;z-index:1}
+.lp .btn.primary::after{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.28) 50%,transparent 62%);
+  transform:translateX(-130%);transition:transform .62s cubic-bezier(.2,.75,.3,1)}
+.lp .btn.primary:hover::after{transform:translateX(130%)}
+
+/* Keyboard users had the browser default, which is invisible on a gradient. */
+.lp .btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--canvas),0 0 0 4.5px var(--accent)}
 /* A hover lift on a touch screen sticks after the tap — there is no pointer to
    leave, so the button stays raised until something else is touched. */
 @media(hover:none){
@@ -419,6 +440,7 @@ html.dark .lp .receipt{color:#34d399}
   .lp .node .nm{display:none}.lp .node .g{width:40px;height:40px;font-size:19px}
   .lp .cta-row .btn{flex:1}
   .lp .btn{padding:12px 16px}
+  .lp .btn.primary.hero{font-size:15.5px;padding:14px 22px;width:100%}
   /* Phone nav has room for the brand, the theme toggle and one action. The
      merchant entrance stays reachable from the closing CTA. */
   .lp .btn.ghost.onboard{display:none}
@@ -428,6 +450,7 @@ html.dark .lp .receipt{color:#34d399}
   /* Transitions are not animations — the hover lift survives the rule above. */
   .lp .btn,.lp .btn.arrow svg{transition:none}
   .lp .btn:hover{transform:none}
+  .lp .btn.primary::after{display:none}
   .lp .reveal{opacity:1;transform:none;transition:none}
   .lp .msg{opacity:1;transform:none}
   .lp .node{opacity:1}

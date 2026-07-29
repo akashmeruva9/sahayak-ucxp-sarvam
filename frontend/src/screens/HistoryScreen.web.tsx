@@ -93,7 +93,7 @@ export function HistoryScreen() {
                   <Pressable
                     key={c.id}
                     onPress={() => router.push(`/conversation/${c.id}`)}
-                    className="mb-2 flex-row items-center rounded-xl px-3 py-3.5 hover:bg-elevated dark:hover:bg-elevated-dark"
+                    className="mb-2 flex-row items-center rounded-xl px-3 py-3.5 transition duration-150 hover:bg-elevated active:scale-[0.995] dark:hover:bg-elevated-dark"
                   >
                     {business ? (
                       <View

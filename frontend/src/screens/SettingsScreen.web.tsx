@@ -119,10 +119,10 @@ export function SettingsScreen() {
                       setTheme(opt.value);
                       setColorScheme(opt.value);
                     }}
-                    className={`flex-1 flex-row items-center justify-center rounded-xl py-3 ${
+                    className={`flex-1 flex-row items-center justify-center rounded-xl py-3 transition duration-150 active:scale-[0.97] ${
                       active
                         ? "bg-accent"
-                        : "border border-hairline/70 dark:border-hairline-dark/70"
+                        : "border border-hairline/70 hover:border-accent/50 hover:bg-accent/5 dark:border-hairline-dark/70"
                     }`}
                   >
                     <Icon size={16} color={active ? "#FFFFFF" : colors.textMuted} />
@@ -149,7 +149,7 @@ export function SettingsScreen() {
                 </Text>
                 <Pressable
                   onPress={() => void signOut()}
-                  className="mt-4 items-center rounded-xl border border-hairline/70 py-3 dark:border-hairline-dark/70"
+                  className="mt-4 items-center rounded-xl border border-hairline/70 py-3 transition duration-150 hover:border-rose-500/50 hover:bg-rose-500/5 active:scale-[0.98] dark:border-hairline-dark/70"
                 >
                   <Text className="text-[14px] font-semibold text-rose-500">Sign out</Text>
                 </Pressable>
@@ -192,7 +192,7 @@ export function SettingsScreen() {
                   setPing(await pingBackend(draftUrl.trim() || undefined));
                   setTesting(false);
                 }}
-                className="flex-1 items-center rounded-xl border border-hairline/70 py-2.5 dark:border-hairline-dark/70"
+                className="flex-1 items-center rounded-xl border border-hairline/70 py-2.5 transition duration-150 hover:border-accent/50 hover:bg-accent/5 active:scale-[0.97] dark:border-hairline-dark/70"
               >
                 <Text className="text-[13.5px] font-semibold text-ink dark:text-white">
                   {testing ? "Testing…" : "Test"}
@@ -200,7 +200,7 @@ export function SettingsScreen() {
               </Pressable>
               <Pressable
                 onPress={() => void saveApiOverride(draftUrl.trim() || null)}
-                className="flex-1 items-center rounded-xl bg-accent py-2.5"
+                className="flex-1 items-center rounded-xl bg-accent py-2.5 transition duration-150 hover:brightness-110 active:scale-[0.97]"
               >
                 <Text className="text-[13.5px] font-semibold text-white">Save</Text>
               </Pressable>
@@ -210,7 +210,7 @@ export function SettingsScreen() {
                   void saveApiOverride(null);
                   setPing(null);
                 }}
-                className="items-center rounded-xl border border-hairline/70 px-4 py-2.5 dark:border-hairline-dark/70"
+                className="items-center rounded-xl border border-hairline/70 px-4 py-2.5 transition duration-150 hover:border-accent/50 hover:bg-accent/5 active:scale-[0.97] dark:border-hairline-dark/70"
               >
                 <Text className="text-[13.5px] font-semibold text-ink-muted dark:text-white/50">
                   Reset

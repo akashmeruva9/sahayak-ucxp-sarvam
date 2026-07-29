@@ -87,7 +87,7 @@ export function HomeScreen() {
               onPress={() => router.push("/call/general")}
               accessibilityRole="button"
               accessibilityLabel="Start a voice call"
-              className="h-[52px] flex-row items-center overflow-hidden rounded-2xl px-5"
+              className="h-[52px] flex-row items-center overflow-hidden rounded-2xl px-5 transition duration-150 hover:brightness-110 active:scale-[0.97]"
               style={{
                 shadowColor: GRADIENT.to,
                 shadowOpacity: 0.35,

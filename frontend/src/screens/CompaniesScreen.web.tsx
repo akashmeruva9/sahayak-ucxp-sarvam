@@ -98,7 +98,7 @@ export function CompaniesScreen() {
               >
                 <Pressable
                   onPress={() => open(b)}
-                  className="h-full rounded-2xl border border-hairline/70 bg-elevated p-5 dark:border-hairline-dark/70 dark:bg-elevated-dark"
+                  className="h-full rounded-2xl border border-hairline/70 bg-elevated p-5 transition duration-150 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-lg active:translate-y-0 active:scale-[0.995] dark:border-hairline-dark/70 dark:bg-elevated-dark dark:hover:border-accent/40"
                 >
                   <View className="flex-row items-center justify-between">
                     <View
