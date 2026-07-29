@@ -34,6 +34,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 
 import httpx
 
@@ -56,7 +57,14 @@ CHAT_URL = "https://api.sarvam.ai/v1/chat/completions"
 # fill the form from that" rather than as a configuration problem. Setting
 # UCXP_VOICE_MODEL=sarvam-105b is then a variable change, not a deploy.
 CHAT_MODEL = (os.environ.get("UCXP_VOICE_MODEL") or "sarvam-30b").strip()
-CHAT_MAX_TOKENS = 2048
+# Reasoning cannot be switched off and is billed as output, so it is spent
+# before any content appears -- a real answer measured 1,855 completion tokens
+# against a 2,048 ceiling, i.e. it fit by 193. Anything the merchant said that
+# was slightly longer truncated, and a truncated structured response is
+# discarded rather than repaired, so it reached them as "we couldn't fill the
+# form from it". 4096 is the starter-tier ceiling; 8000 is a 400, not a slower
+# request, so this is as much headroom as there is to take.
+CHAT_MAX_TOKENS = 4096
 
 # A spoken sentence is short, so both calls are quick. The ceiling exists to stop
 # a hung socket holding a worker, not because we expect to approach it.
@@ -69,6 +77,10 @@ TOTAL_BUDGET_S = 90.0
 # uploading a hundred megabytes, not a limit a real answer will meet.
 MAX_AUDIO_BYTES = 12 * 1024 * 1024
 MIN_AUDIO_BYTES = 512
+
+# Matches S1BusinessProfile.jsx, so voice cannot fill a value the form would
+# immediately flag back at the merchant as invalid.
+EMAIL_RE = re.compile(r"^\S+@\S+\.\S+$")
 
 # Every field is required so the schema can stay strict; the model returns "" for
 # anything it did not hear. An empty field is a correct answer here -- it leaves
@@ -252,6 +264,15 @@ def clean(raw, detected):
         value = raw.get(key)
         if isinstance(value, str) and value.strip():
             fields[key] = value.strip()
+
+    # Spoken email addresses arrive as "siri pharma at the rate of gmail dot com",
+    # and the model reassembles them with mixed success -- one real answer gave
+    # back a bare "gmail.com". Support email is required to activate, so a value
+    # that is not an address is worse than none: it looks filled in, and the
+    # merchant has no reason to look at it again.
+    if "email" in fields and not EMAIL_RE.match(fields["email"]):
+        log.info("voice.email_discarded")
+        fields.pop("email")
 
     category = raw.get("category")
     if category in CATEGORIES:

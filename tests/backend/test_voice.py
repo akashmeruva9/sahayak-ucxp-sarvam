@@ -131,6 +131,23 @@ def test_blank_fields_are_dropped_so_the_form_stays_empty():
     assert "city" not in fields and "tagline" not in fields and "hours" not in fields
 
 
+def test_a_spoken_email_that_is_not_an_address_is_dropped():
+    """"support at the rate of gmail.com" came back as a bare "gmail.com".
+
+    Support email is required to activate, so a non-address is worse than a
+    blank: it looks filled in and never gets a second look.
+    """
+    assert "email" not in voice.clean({"email": "gmail.com"}, "")
+    assert "email" not in voice.clean({"email": "siri pharma at gmail"}, "")
+    assert voice.clean({"email": "siri@pharma.com"}, "")["email"] == "siri@pharma.com"
+
+
+def test_the_token_budget_leaves_room_for_reasoning():
+    """Reasoning is billed as output and spent before any content appears; a
+    real answer used 1,855 of 2,048. 4096 is the starter-tier ceiling."""
+    assert voice.CHAT_MAX_TOKENS == 4096
+
+
 def test_a_category_outside_the_vocabulary_is_refused():
     assert "category" not in voice.clean({"category": "Spaceships"}, "")
     assert voice.clean({"category": "Electronics"}, "")["category"] == "Electronics"
