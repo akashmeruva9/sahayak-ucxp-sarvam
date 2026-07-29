@@ -142,6 +142,15 @@ def test_a_spoken_email_that_is_not_an_address_is_dropped():
     assert voice.clean({"email": "siri@pharma.com"}, "")["email"] == "siri@pharma.com"
 
 
+def test_the_prompt_teaches_the_spoken_email_conventions():
+    """Without these spelled out, "manideep dot karalapati at the rate of gmail
+    dot com" came back empty while the plain "at" form worked."""
+    for convention in ("at the rate of", "dot", "underscore", "hyphen"):
+        assert convention in voice.ONBOARD_SYSTEM, (
+            "the prompt no longer explains '{}'".format(convention))
+    assert "manideep.karalapati@gmail.com" in voice.ONBOARD_SYSTEM, "worked example dropped"
+
+
 def test_the_token_budget_leaves_room_for_reasoning():
     """Reasoning is billed as output and spent before any content appears; a
     real answer used 1,855 of 2,048. 4096 is the starter-tier ceiling."""
