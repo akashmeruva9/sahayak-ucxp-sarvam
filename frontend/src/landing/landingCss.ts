@@ -192,9 +192,13 @@ html.dark .lp .glow{opacity:.30}
    charcoal (#232019); against the app's true canvas (#12100C) the same blobs
    read as a saturated wash rather than depth, and washed the type. */
 .lp .page-aurora i{position:absolute;display:block;border-radius:50%;filter:blur(90px);opacity:.20;will-change:transform}
-html.dark .lp .page-aurora i{opacity:.13}
+html.dark .lp .page-aurora i{opacity:.10}
 .lp .page-aurora .p1{width:52vw;height:52vw;top:4%;left:-12%;background:radial-gradient(circle,var(--g-blue),transparent 60%);animation:lpAurA 30s ease-in-out infinite alternate}
-.lp .page-aurora .p2{width:46vw;height:46vw;top:48%;right:-14%;background:radial-gradient(circle,var(--g-orange),transparent 60%);animation:lpAurB 36s ease-in-out infinite alternate}
+/* Kept clear of the hero. At top:48% this blob sat directly behind the
+   primary button, and a warm cast bleeding out from under a button reads as a
+   rendering fault rather than atmosphere — particularly against a dark canvas,
+   where it is the brightest thing in the corner. */
+.lp .page-aurora .p2{width:42vw;height:42vw;top:74%;right:-16%;background:radial-gradient(circle,var(--g-orange),transparent 62%);animation:lpAurB 36s ease-in-out infinite alternate}
 .lp .page-aurora .p3{width:50vw;height:50vw;bottom:-12%;left:28%;background:radial-gradient(circle,var(--g-violet),transparent 60%);animation:lpAurA 42s ease-in-out infinite alternate-reverse}
 @keyframes lpAurA{to{transform:translate3d(10%,-8%,0) scale(1.2)}}
 @keyframes lpAurB{to{transform:translate3d(-9%,9%,0) scale(1.16)}}
