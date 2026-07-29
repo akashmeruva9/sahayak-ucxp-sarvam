@@ -44,19 +44,20 @@ function reply(page, body) {
                     body: JSON.stringify(body) }));
 }
 
-/** Hold long enough to clear MIN_HOLD_MS, then release. */
+/** Start, talk for long enough to clear MIN_MS, stop. */
 async function speak(page) {
   const mic = page.getByTestId('mic-button');
-  await mic.dispatchEvent('pointerdown');
+  await mic.click();
+  await expect(mic).toHaveAttribute('data-recording', 'true');
   await page.waitForTimeout(1100);
-  await mic.dispatchEvent('pointerup');
+  await mic.click();
 }
 
-/** Press and release immediately — what a merchant does the first time. */
+/** Start and stop straight away — no speech in the file. */
 async function tap(page) {
   const mic = page.getByTestId('mic-button');
-  await mic.dispatchEvent('pointerdown');
-  await mic.dispatchEvent('pointerup');
+  await mic.click();
+  await mic.click();
 }
 
 test('a spoken answer fills the profile and the languages', async ({ page }) => {
@@ -128,7 +129,8 @@ test('a failure says so inline and leaves the form typeable', async ({ page }) =
   await expect(page.getByTestId('field-name')).toHaveValue('Typed By Hand');
 });
 
-test('a tap is caught here, not blamed on the room being noisy', async ({ page }) => {
+test('stopping straight away is caught here, not blamed on a noisy room',
+  async ({ page }) => {
   await stubMicrophone(page);
   let called = false;
   await page.route('**/api/voice-onboard', (route) => {
@@ -138,14 +140,14 @@ test('a tap is caught here, not blamed on the room being noisy', async ({ page }
                                                   language: '', error: '' }) });
   });
 
-  await createBusiness(page);
-  await tap(page);
+    await createBusiness(page);
+    await tap(page);
 
-  // A tap yields a container header with no speech. Saaras would answer with an
-  // empty transcript and the merchant would be told to find a quieter room.
-  await expect(page.getByTestId('mic-error')).toContainText('Hold the button down');
-  expect(called, 'a tap must not reach the server at all').toBe(false);
-});
+    // Yields a container header with no speech. Saaras would answer with an empty
+    // transcript and the merchant would be sent to find a quieter room.
+    await expect(page.getByTestId('mic-error')).toContainText('too short');
+    expect(called, 'it must not reach the server at all').toBe(false);
+  });
 
 test('Assamese and Urdu are marked text-only in Section 4', async ({ page }) => {
   await createBusiness(page);

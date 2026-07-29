@@ -112,13 +112,13 @@ export default function S1BusinessProfile({ sections, updateSection, slug }) {
           <span className="text-xs text-ink-faint">తెలుగు · हिंदी · தமிழ் · and 10 more</span>
         </div>
         <MicButton
-          label="Hold to speak"
+          label="Start speaking"
           busy={voiceBusy}
           onResult={onVoice}
         />
         <p className="mt-2 text-xs text-ink-faint">
-          Say your shop’s name, where it is, and what you sell. We only fill blank
-          boxes — anything you have already typed stays as it is.
+          Click Start, say your shop’s name, where it is and what you sell, then click
+          Stop. We only fill blank boxes — anything you have already typed stays as it is.
         </p>
         {heard && (
           <p className="mt-2 text-xs text-ink-muted" data-testid="voice-heard">

@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { Spinner } from './Primitives';
 
-/** Below this, a hold is a tap: a container header with no speech inside it. */
-const MIN_HOLD_MS = 900;
+/** Below this there is no speech in the file, only a container header. */
+const MIN_MS = 900;
+/** Nobody means to record for a minute. Stop rather than upload a huge file. */
+const MAX_MS = 60_000;
 
 /** Records one answer, hands the audio up, and gets out of the way.
  *
- * Press and hold to talk, release to send — the same gesture as a voice note,
- * which is the one recording interaction a merchant already knows. There is no
- * transport state to reason about and no way to leave a recording running by
- * accident.
+ * Click to start, click to stop. Push-to-talk was tried first and was the wrong
+ * choice: it is invisible unless you already know the convention, and because
+ * the microphone permission prompt appears *during* the press, the very first
+ * attempt is a press whose release lands somewhere the recorder cannot hear it.
+ * A toggle has one meaning, survives the permission dialog, and reads the same
+ * to someone who has never used the product.
  *
  * This component owns the microphone and nothing else. It never decides what
  * the fields mean; it returns a Blob and lets the section fill itself in, so
@@ -18,6 +22,7 @@ const MIN_HOLD_MS = 900;
 export default function MicButton({ onResult, busy = false, disabled = false, label }) {
   const [recording, setRecording] = useState(false);
   const [level, setLevel] = useState(0);
+  const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState('');
 
   const recorder = useRef(null);
@@ -26,14 +31,17 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
   const audioCtx = useRef(null);
   const frame = useRef(0);
   const startedAt = useRef(0);
+  const ticker = useRef(0);
+  const autoStop = useRef(0);
   const starting = useRef(false);
-  const pendingStop = useRef(false);
 
   // A merchant who navigates away mid-sentence must not leave the browser's
-  // recording indicator lit. This is the only place the tracks are stopped, so
-  // every exit path — release, error, unmount — comes through it.
+  // recording indicator lit. Every exit path -- stop, error, unmount -- comes
+  // through here, so the microphone is released exactly once.
   const teardown = () => {
     cancelAnimationFrame(frame.current);
+    clearInterval(ticker.current);
+    clearTimeout(autoStop.current);
     if (audioCtx.current) {
       audioCtx.current.close().catch(() => {});
       audioCtx.current = null;
@@ -47,6 +55,10 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
 
   useEffect(() => teardown, []);
 
+  const stop = () => {
+    if (recorder.current?.state === 'recording') recorder.current.stop();
+  };
+
   const start = async () => {
     if (recording || busy || disabled || starting.current) return;
     setError('');
@@ -57,19 +69,16 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
     }
 
     starting.current = true;
-    pendingStop.current = false;
-
     let media;
     try {
       media = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
       starting.current = false;
-      // Denied, dismissed, or no microphone at all. Each needs a different
-      // sentence, because "allow the microphone" is useless advice to someone
-      // who does not have one.
+      // Denied, dismissed, or no microphone at all. Each needs its own sentence,
+      // because "allow the microphone" is useless advice to someone without one.
       setError(
         err?.name === 'NotAllowedError'
-          ? 'Microphone access was blocked. Allow it in your browser, or type your details in below.'
+          ? 'Microphone access was blocked. Allow it in your browser, then click again.'
           : err?.name === 'NotFoundError'
             ? 'No microphone found. Please type your details in below.'
             : 'Could not start recording. Please type your details in below.',
@@ -80,9 +89,9 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
     stream.current = media;
     chunks.current = [];
 
-    // A level meter, not a waveform: the merchant needs to know we can hear
-    // them, and silence that looks identical to speech is the fastest way to
-    // lose their trust in the feature.
+    // A level meter, not a waveform: the merchant needs to see that we can hear
+    // them. Silence that looks identical to speech is the fastest way to lose
+    // their trust in the feature.
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const analyser = ctx.createAnalyser();
@@ -113,50 +122,35 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
     };
     rec.onstop = () => {
       const held = Date.now() - startedAt.current;
-      // Sarvam accepts "audio/webm"; it does not need the ";codecs=opus" that
-      // MediaRecorder appends, and the bare type is what its docs list.
+      // Sarvam's docs list "audio/webm"; MediaRecorder appends ";codecs=opus",
+      // which the bare type does not need.
       const isMp4 = rec.mimeType?.includes('mp4');
       const blob = new Blob(chunks.current, { type: isMp4 ? 'audio/mp4' : 'audio/webm' });
       teardown();
       setRecording(false);
+      setSeconds(0);
 
-      // A tap produces a container header and no audio. That is several hundred
-      // bytes -- large enough to reach Saaras, which then hears nothing and
-      // answers with an empty transcript. The merchant is told "we couldn't
-      // make out any speech", goes somewhere quieter, and taps again. Catch it
-      // here, where we still know the real cause.
-      if (held < MIN_HOLD_MS || !blob.size) {
-        setError('Hold the button down while you speak, then let go.');
+      // Stopping straight away yields a container header and no speech. That is
+      // several hundred bytes, so it would upload happily, and Saaras would
+      // answer with an empty transcript -- sending the merchant off to find a
+      // quieter room to fix a problem that was never about noise.
+      if (held < MIN_MS || !blob.size) {
+        setError('That was too short. Click Start, say your sentence, then click Stop.');
         return;
       }
       onResult(blob, isMp4 ? 'speech.mp4' : 'speech.webm');
     };
 
     // A timeslice makes ondataavailable fire while recording rather than only
-    // at stop, so a short hold still yields real audio frames.
+    // at stop, so even a brief answer carries real audio frames.
     rec.start(250);
     startedAt.current = Date.now();
     starting.current = false;
     setRecording(true);
-
-    // The merchant may have pressed and released during the permission prompt
-    // or device setup above, all of which is async. Without this the release
-    // was dropped and the recorder ran on with nobody to stop it.
-    if (pendingStop.current) {
-      pendingStop.current = false;
-      // Give the timeslice one tick to produce a frame, so the release still
-      // yields audio rather than an empty container.
-      setTimeout(stop, MIN_HOLD_MS);
-    }
-  };
-
-  const stop = () => {
-    if (recorder.current?.state === 'recording') {
-      recorder.current.stop();
-      return;
-    }
-    // Released before the recorder existed: remember it, and start() will honour it.
-    if (starting.current) pendingStop.current = true;
+    setSeconds(0);
+    ticker.current = setInterval(
+      () => setSeconds(Math.floor((Date.now() - startedAt.current) / 1000)), 250);
+    autoStop.current = setTimeout(stop, MAX_MS);
   };
 
   return (
@@ -167,43 +161,32 @@ export default function MicButton({ onResult, busy = false, disabled = false, la
           data-testid="mic-button"
           data-recording={String(recording)}
           disabled={disabled || busy}
-          aria-label={recording ? 'Recording — release to finish' : label}
-          onPointerDown={start}
-          onPointerUp={stop}
-          onPointerLeave={stop}
-          // Keyboard parity: space and enter hold while pressed, like the pointer.
-          onKeyDown={(e) => {
-            if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
-              e.preventDefault();
-              start();
-            }
-          }}
-          onKeyUp={(e) => {
-            if (e.key === ' ' || e.key === 'Enter') {
-              e.preventDefault();
-              stop();
-            }
-          }}
+          onClick={recording ? stop : start}
           className={`ucxp-press flex select-none items-center gap-2 rounded-btn border
                       px-3.5 py-2 text-[13px] font-medium transition-colors
                       ${recording ? 'border-ink bg-surface' : 'border-line bg-canvas hover:bg-surface'}
                       ${disabled || busy ? 'cursor-not-allowed opacity-60' : ''}`}
         >
-          {busy ? <Spinner /> : <span aria-hidden="true">🎙</span>}
-          {busy ? 'Listening…' : recording ? 'Release to finish' : label}
+          {busy ? <Spinner /> : <span aria-hidden="true">{recording ? '⏹' : '🎙'}</span>}
+          {busy ? 'Listening…' : recording ? `Stop · ${seconds}s` : label}
         </button>
 
         {recording && (
-          <span
-            className="h-1.5 w-24 overflow-hidden rounded-full bg-surface"
-            data-testid="mic-level"
-            aria-hidden="true"
-          >
+          <>
             <span
-              className="block h-full rounded-full bg-ink transition-[width] duration-75"
-              style={{ width: `${Math.round(level * 100)}%` }}
-            />
-          </span>
+              className="h-1.5 w-24 overflow-hidden rounded-full bg-surface"
+              data-testid="mic-level"
+              aria-hidden="true"
+            >
+              <span
+                className="block h-full rounded-full bg-ink transition-[width] duration-75"
+                style={{ width: `${Math.round(level * 100)}%` }}
+              />
+            </span>
+            <span className="text-xs text-ink-muted" data-testid="mic-hint">
+              Speak now, then click Stop
+            </span>
+          </>
         )}
       </div>
 
