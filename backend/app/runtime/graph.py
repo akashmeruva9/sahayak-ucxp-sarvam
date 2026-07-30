@@ -154,10 +154,15 @@ def _triage_budget(triage: dict[str, Any]) -> str:
     handover — which reads as being stonewalled, not as being helped.
     """
     left = MAX_TRIAGE_QUESTIONS - int(triage.get("asked") or 0)
-    if left <= 1:
+    if left <= 0:
         return (
-            "This is your LAST question — after this you must return a verdict, "
-            "so only ask if it decides the matter. Otherwise decide now."
+            "You have used all your questions. Return a verdict now — 'yes' or 'no' — "
+            "with `ask` set to null. Do not ask anything else."
+        )
+    if left == 1:
+        return (
+            "This is your LAST question — after it you must return a verdict, so only "
+            "ask if the answer decides the matter. Otherwise decide now."
         )
     return f"You may ask at most {left} more questions."
 
@@ -177,6 +182,38 @@ def _quotes_the_policy(manifest: Manifest, basis: str | None) -> bool:
     if not basis or not basis.strip():
         return False
     return _normalise_quote(basis) in _normalise_quote(manifest.knowledge_text())
+
+
+def _flatten_evidence(found: dict[str, Any]) -> dict[str, Any]:
+    """Reduce a lookup result to facts the reasoning step can read.
+
+    Nested values were previously dropped wholesale, which threw away the one
+    field that says *what the customer actually bought* — a line-item list. The
+    agent then had to ask "what product is this?" about an order the store can
+    see, and a policy that turns on the kind of product could not be applied.
+
+    Lists are summarised rather than dropped: a list of records becomes their
+    scalar values joined, which is enough to name a product without the runtime
+    knowing what a product is.
+    """
+    flat: dict[str, Any] = {}
+    for key, value in found.items():
+        if value is None or isinstance(value, (str, int, float, bool)):
+            flat[key] = value
+        elif isinstance(value, list):
+            parts = []
+            for entry in value:
+                if isinstance(entry, dict):
+                    inner = " ".join(
+                        str(v) for v in entry.values() if isinstance(v, (str, int, float))
+                    )
+                    if inner:
+                        parts.append(inner)
+                elif isinstance(entry, (str, int, float)):
+                    parts.append(str(entry))
+            if parts:
+                flat[key] = "; ".join(parts)
+    return flat
 
 
 def _evidence_outstanding(capability: Capability, conversation: Conversation) -> bool:
@@ -801,7 +838,7 @@ class UcxpRuntime:
                 logger.info(f"triage.evidence_unavailable via={candidate.id} error={exc.message}")
                 return {}
             logger.info(f"triage.evidence via={candidate.id} fields={sorted(found)}")
-            return {k: v for k, v in found.items() if not isinstance(v, (dict, list))}
+            return _flatten_evidence(found)
         return {}
 
     def _absorb_triage(

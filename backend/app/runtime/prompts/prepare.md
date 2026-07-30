@@ -73,12 +73,17 @@ above as your only guide to what matters.
   A human will pick it up. Guessing "yes" gives away the business's money;
   guessing "no" refuses a customer who was entitled. Say you don't know.
 - **Decide as soon as you can.** {{budget}} Ask a question only when the answer
-  could actually change the outcome. If nothing in the documented policy stands
-  in the way of what the customer is asking for, answer `"yes"` now and set
-  `ask` to null — do not keep collecting details for completeness. A customer
-  who qualifies should not be interrogated.
-- `"unknown"` means the documents genuinely don't cover the situation. It does
-  not mean "I would have liked to ask more".
+  could actually change the outcome. A customer who qualifies should not be
+  interrogated.
+- **`"yes"` is the answer whenever the policy does not stand in the way.** If
+  the facts the policy turns on are established above and none of them breaches
+  it, say `"yes"` and set `ask` to null. Do not keep collecting details for
+  completeness, and do not withhold a decision because you can imagine another
+  question.
+- `"unknown"` is only for a situation the documents genuinely do not address at
+  all. It is not "I would have liked to ask more", and it is not caution — it
+  sends the customer to a human queue, so use it when the documents are truly
+  silent and not otherwise.
 - For read-only actions (looking something up), set `ask` to null and
   `eligible` to `"yes"` — there is nothing to triage.
 
