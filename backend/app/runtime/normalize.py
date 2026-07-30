@@ -119,7 +119,12 @@ def _receipt_for(cap_name: str) -> dict[str, Any] | None:
     if any(v in lname for v in ("track", "status", "order", "where")):
         return {"label": "{{result.status}}", "tone": "success"}
     if "refund" in lname:
-        return {"label": "Refund {{result.status}} · ref {{result.refund_id}}", "tone": "success"}
+        # Names the next thing that happens to the customer — a date they have
+        # to be in for — rather than a status word they can do nothing with.
+        return {
+            "label": "Pickup {{result.pickup_on}} · ref {{result.refund_id}}",
+            "tone": "success",
+        }
     if "cancel" in lname:
         return {"label": "{{result.status}}", "tone": "warning"}
     return None
@@ -204,6 +209,25 @@ def _response_template(cap: dict) -> str:
     ]
     if not parts:
         return ""
+
+    # An action that takes something back from the customer has to say when
+    # someone is coming for it. A connector that schedules a collection returns
+    # these fields; one that doesn't renders nothing here and the composer falls
+    # back to the model, so this costs nothing when it doesn't apply.
+    if str(cap.get("method") or "GET").upper() not in _READ_ONLY_METHODS:
+        # The completion estimate belongs *after* the collection, not beside it:
+        # the clock starts when the item has been checked, not now.
+        upfront = [p for field, p in _SENTENCE_FIELDS if field in example
+                   and field != "eta_days" and (field != "amount" or "currency" in example)]
+        tail = (
+            " Once it's been checked, your refund is processed within "
+            "{{result.eta_days}} working days." if "eta_days" in example else ""
+        )
+        return (
+            f"{lead} {', '.join(upfront)}. Our delivery agent will collect it on "
+            "{{result.pickup_on}}, between {{result.pickup_window}}. "
+            "{{result.instructions}}" + tail
+        )
     return f"{lead} {', '.join(parts)}."
 
 def normalize(raw: dict[str, Any]) -> dict[str, Any]:

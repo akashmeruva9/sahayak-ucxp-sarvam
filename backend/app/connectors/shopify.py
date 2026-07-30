@@ -182,6 +182,20 @@ def _stable(seed: str, modulo: int) -> int:
     return int(hashlib.sha256(seed.encode()).hexdigest(), 16) % modulo
 
 
+def _pickup_slot(order_id: str) -> tuple[str, str]:
+    """A collection date two or three days out, skipping Sunday.
+
+    Deterministic on the order number so the same request quotes the same slot
+    on every retry — a customer who asks twice must not be told two different
+    dates. Reverse pickup is how a return actually completes: the agent collects
+    and checks the item, and only then does the money move.
+    """
+    day = date.today() + timedelta(days=2 + _stable(order_id, 2))
+    if day.weekday() == 6:  # Sunday — no collections
+        day += timedelta(days=1)
+    return day.strftime("%A, %d %B"), "10 AM to 6 PM"
+
+
 def _mock_order(order_id: str) -> dict[str, Any]:
     bucket = _stable(order_id, 4)
     return {
@@ -258,15 +272,26 @@ async def refund_order(business_id: str, order_id: str, payload: dict[str, Any] 
 
     reason = (payload or {}).get("reason") or None
     evidence_ref = (payload or {}).get("evidence_ref") or None
+    pickup_on, pickup_window = _pickup_slot(order_id)
     logger.info(
-        f"shopify.refund_requested business={business_id} order={order_id} "
-        f"amount={amount} days_since_delivery={days_since} reason={reason!r} "
-        f"evidence={evidence_ref or 'none'}"
+        f"shopify.pickup_scheduled business={business_id} order={order_id} "
+        f"amount={amount} days_since_delivery={days_since} pickup={pickup_on} "
+        f"reason={reason!r} evidence={evidence_ref or 'none'}"
     )
     return {
         "refund_id": f"RF{_stable(order_id, 100000):05d}",
         "order_id": order_id.lstrip("#"),
-        "status": "initiated",
+        # The money does not move yet, and the wording must not imply it does.
+        # A return is collected and inspected first; saying "refund initiated"
+        # to someone still holding the item is a promise the business has not
+        # made.
+        "status": "approved — pickup scheduled",
+        "pickup_on": pickup_on,
+        "pickup_window": pickup_window,
+        "instructions": (
+            "Please keep the item in its original box with all accessories and the invoice, "
+            "ready for our agent to check at pickup."
+        ),
         "amount": amount,
         "currency": currency,
         "eta_days": 5,
