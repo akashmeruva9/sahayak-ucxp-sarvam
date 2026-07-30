@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, TextInput, View } from "react-native";
 import type { NativeSyntheticEvent, TextInputKeyPressEventData } from "react-native";
 import Animated, {
@@ -64,35 +64,67 @@ export function ChatComposer({
         }
       : undefined;
 
+  /**
+   * Mic ⇄ send crossfade, plus the press response.
+   *
+   * All of it is Reanimated, deliberately. NativeWind implements `transition-*`
+   * and `active:*` with Reanimated as well, so putting those classes on a
+   * component that already carries a `useAnimatedStyle` gives one view two
+   * animated-style systems. The merged style then refers back to itself, and
+   * Reanimated's `isAnimated` — which walks a style with no cycle guard —
+   * recurses until the stack blows: `RangeError: Maximum call stack size
+   * exceeded`, killing the whole app on any screen holding a composer.
+   *
+   * One system per view. Press feedback lives here, the way Button and Card do it.
+   */
+  const reveal = useSharedValue(canSend ? 1 : 0);
+  const micPress = useSharedValue(1);
+  const sendPress = useSharedValue(1);
+  const attachPress = useSharedValue(1);
+
+  useEffect(() => {
+    reveal.value = withTiming(canSend ? 1 : 0, { duration: 160 });
+  }, [canSend, reveal]);
+
   const sendStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(canSend ? 1 : 0, { duration: 160 }),
-    transform: [{ scale: withTiming(canSend ? 1 : 0.6, { duration: 160 }) }],
+    opacity: reveal.value,
+    transform: [{ scale: (0.6 + reveal.value * 0.4) * sendPress.value }],
   }));
   const micStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(canSend ? 0 : 1, { duration: 160 }),
-    transform: [{ scale: withTiming(canSend ? 0.6 : 1, { duration: 160 }) }],
+    opacity: 1 - reveal.value,
+    transform: [{ scale: (1 - reveal.value * 0.4) * micPress.value }],
   }));
+  const attachStyle = useAnimatedStyle(() => ({
+    opacity: attaching ? 0.4 : 1,
+    transform: [{ scale: attachPress.value }],
+  }));
+
+  const press = (value: typeof micPress, to: number) => () => {
+    value.value = withTiming(to, { duration: 120 });
+  };
 
   return (
     <View
-      className={`flex-row items-end rounded-3xl border bg-surface px-2 py-2 transition-colors duration-150 dark:bg-elevated-dark ${
+      className={`flex-row items-end rounded-3xl border bg-surface px-2 py-2 dark:bg-elevated-dark ${
         focused
           ? "border-accent/60"
           : "border-hairline hover:border-ink-faint dark:border-hairline-dark dark:hover:border-white/20"
       }`}
     >
       {onAttach ? (
-        <Pressable
+        <AnimatedPressable
           onPress={onAttach}
+          onPressIn={press(attachPress, 0.9)}
+          onPressOut={press(attachPress, 1)}
           disabled={attaching}
           hitSlop={6}
           accessibilityLabel="Attach a PDF or photo"
           accessibilityRole="button"
-          className="h-10 w-10 items-center justify-center rounded-full transition duration-150 hover:bg-ink/[0.07] active:scale-90 dark:hover:bg-white/10"
-          style={{ opacity: attaching ? 0.4 : 1 }}
+          className="h-10 w-10 items-center justify-center rounded-full hover:bg-ink/[0.07] dark:hover:bg-white/10"
+          style={attachStyle}
         >
           <Paperclip size={21} color={colors.textMuted} />
-        </Pressable>
+        </AnimatedPressable>
       ) : null}
 
       <TextInput
@@ -116,8 +148,10 @@ export function ChatComposer({
         <AnimatedPressable
           pointerEvents={canSend ? "none" : "auto"}
           onPress={onMic}
+          onPressIn={press(micPress, 0.9)}
+          onPressOut={press(micPress, 1)}
           style={[{ position: "absolute" }, micStyle]}
-          className="h-10 w-10 items-center justify-center rounded-full transition duration-150 hover:bg-ink/[0.07] active:scale-90 dark:hover:bg-white/10"
+          className="h-10 w-10 items-center justify-center rounded-full hover:bg-ink/[0.07] dark:hover:bg-white/10"
         >
           <Mic size={22} color={colors.textMuted} />
         </AnimatedPressable>
@@ -125,8 +159,10 @@ export function ChatComposer({
         <AnimatedPressable
           pointerEvents={canSend ? "auto" : "none"}
           onPress={() => canSend && onSend()}
+          onPressIn={press(sendPress, 0.9)}
+          onPressOut={press(sendPress, 1)}
           style={[{ position: "absolute" }, sendStyle]}
-          className="h-10 w-10 items-center justify-center rounded-full transition duration-150 hover:brightness-110 active:scale-90"
+          className="h-10 w-10 items-center justify-center rounded-full hover:brightness-110"
           hitSlop={6}
         >
           <View

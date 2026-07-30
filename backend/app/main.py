@@ -9,6 +9,7 @@ through their manifests.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import time
 from contextlib import asynccontextmanager, suppress
 from typing import Annotated, Any, AsyncIterator
@@ -281,6 +282,14 @@ async def document(
         language=language,
         user_id=resolved_user,
         force_business_id=business_id,
+        # The evidence trail. The digest is what makes it auditable later: the
+        # same photo sent twice is provably the same photo.
+        attachment={
+            "kind": result.kind,
+            "filename": file.filename,
+            "digest": hashlib.sha256(data).hexdigest()[:16],
+            "chars": len(result.raw),
+        },
     )
     elapsed = (time.perf_counter() - started) * 1000
     logger.info(

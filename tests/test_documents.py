@@ -99,10 +99,24 @@ def test_a_scanned_pdf_reports_pdf_empty_and_suggests_a_photo():
     assert "photo" in EMPTY_MESSAGES["pdf_empty"]
 
 
-def test_a_blank_image_reports_image_empty():
+def test_an_image_with_no_text_is_accepted_as_evidence():
+    """A photo of a damaged product has no text in it — that is the point.
+
+    This used to be rejected as `image_empty` ("I couldn't read any text in that
+    image"), which is the wrong answer to a customer who just sent exactly the
+    photo a refund asked them for.
+    """
     result = extract(_png(size=(400, 400)), content_type="image/png", filename="b.png")
-    assert not result.ok
-    assert result.kind == "image_empty"
+    assert result.ok
+    assert result.kind == "photo"
+    assert result.raw == ""
+
+
+def test_a_photo_is_never_described_as_if_it_had_been_seen():
+    """There is no vision model, so the framing must not invite one to pretend."""
+    result = extract(_png(size=(400, 400)), content_type="image/png", filename="b.png")
+    assert "do not describe it" in result.text
+    assert "cannot see its contents" in result.text
 
 
 def test_oversized_files_are_rejected_before_being_parsed():

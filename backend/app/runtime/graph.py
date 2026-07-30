@@ -139,6 +139,123 @@ def _might_contain_value(text: str) -> bool:
     return bool(_VALUE_LIKE.search(text or ""))
 
 
+#: How many questions triage may ask before it must decide or hand over. A
+#: support agent establishes the facts; it doesn't interrogate.
+MAX_TRIAGE_QUESTIONS = 2
+
+#: Values that mean "we didn't establish this" — never worth repeating back.
+_NOT_A_FACT = {"unknown", "unclear", "n/a", "na", "none", "not specified", "not provided", "null"}
+
+
+def _triage_budget(triage: dict[str, Any]) -> str:
+    """Tell the reasoning step how much rope it has left.
+
+    Without this it asks politely forever and the customer times out at a
+    handover — which reads as being stonewalled, not as being helped.
+    """
+    left = MAX_TRIAGE_QUESTIONS - int(triage.get("asked") or 0)
+    if left <= 1:
+        return (
+            "This is your LAST question — after this you must return a verdict, "
+            "so only ask if it decides the matter. Otherwise decide now."
+        )
+    return f"You may ask at most {left} more questions."
+
+
+def _normalise_quote(text: str) -> str:
+    return " ".join((text or "").lower().replace("'", "'").split())
+
+
+def _quotes_the_policy(manifest: Manifest, basis: str | None) -> bool:
+    """True when `basis` is genuinely in the business's published documents.
+
+    A refusal is only legitimate if the business actually wrote it down. Without
+    this check the model could refuse a customer on a rule it invented — which
+    is worse than approving too freely, because it is stated in the merchant's
+    voice and sounds authoritative. If the quote isn't verbatim, we don't refuse.
+    """
+    if not basis or not basis.strip():
+        return False
+    return _normalise_quote(basis) in _normalise_quote(manifest.knowledge_text())
+
+
+def _evidence_outstanding(capability: Capability, conversation: Conversation) -> bool:
+    """True while this action is still missing something it must have on file."""
+    if "reason" in capability.evidence_required and not _stated_reason(conversation):
+        return True
+    return "photo" in capability.evidence_required and not conversation.has_photo()
+
+
+def _evidence_rule(capability: Capability, conversation: Conversation) -> str:
+    """Tell the reasoning step what this action still needs on file.
+
+    The gate below enforces it regardless; telling the model too means it asks
+    in the business's voice and in the right order, instead of being overruled
+    by a stock sentence after it had already decided everything was fine.
+    """
+    outstanding = []
+    if "reason" in capability.evidence_required and not _stated_reason(conversation):
+        outstanding.append("the reason they want this (what went wrong)")
+    if "photo" in capability.evidence_required and not conversation.has_photo():
+        outstanding.append("a photo of the item")
+    if not outstanding:
+        return "Everything this action requires is already on file."
+    return (
+        "This action cannot run until the customer has provided "
+        + " and ".join(outstanding)
+        + ". Ask for whatever is still missing — one thing at a time, the reason first — "
+        "and do not return a final 'yes' until it is all on file."
+    )
+
+
+#: Words that only ever restate the request. "The customer wants to return the
+#: item" is a paraphrase of what they asked for, not a reason for asking — and
+#: a claim file full of those is worth nothing to the merchant reviewing it.
+_REQUEST_WORDS = {
+    "a", "an", "and", "back", "cancel", "customer", "for", "get", "give", "has", "have", "he",
+    "her", "his", "i", "is", "it", "item", "items", "like", "me", "money", "my", "need", "needs",
+    "of", "order", "please", "product", "refund", "refunded", "request", "requests", "return",
+    "returned", "returning", "returns", "she", "her", "the", "their", "them", "they", "this",
+    "to", "want", "wanted", "wants", "would", "wish", "wishes", "back", "purchase", "buy",
+    "bought", "asking", "asks", "ask", "raise", "process", "initiate", "user", "wanting",
+}
+
+
+def _stated_reason(conversation: Conversation) -> str | None:
+    """The reason the customer gave — if they have actually given one.
+
+    Triage records what it learned, but a model asked for a "reason" will
+    happily write back "customer wants to return item", which is the request
+    restated. Something substantive has to survive after the request vocabulary
+    is stripped, or nobody has said what went wrong yet.
+    """
+    for key, value in ((conversation.triage or {}).get("learned") or {}).items():
+        if "reason" not in key.lower():
+            continue
+        text = str(value).strip()
+        if not text:
+            continue
+        substantive = [w for w in re.findall(r"[a-z']+", text.lower()) if w not in _REQUEST_WORDS]
+        if substantive:
+            return text
+        logger.info(f"triage.reason_restates_request value={text!r}")
+    return None
+
+
+def _handoff_line(manifest: Manifest) -> str:
+    """The handover the manifest declares, in the business's own words.
+
+    Business-generic: the runtime supplies no contact, no team and no wording —
+    it repeats what the merchant published. A refusal that ends the conversation
+    is a job abandoned; this is the route out of it.
+    """
+    escalation = getattr(manifest, "escalation", None)
+    message = getattr(escalation, "message", None) if escalation else None
+    if isinstance(message, str) and message.strip():
+        return message.strip()
+    return "I've passed this to the support team to review."
+
+
 class UcxpRuntime:
     """Builds and runs the graph. One instance per process."""
 
@@ -182,10 +299,13 @@ class UcxpRuntime:
             lambda s: "gather" if s.get("capability_id") else "compose",
             {"gather": "gather", "compose": "compose"},
         )
-        # A missing slot or a pending confirmation ends the turn with a question.
+        # A missing slot, a pending confirmation, a policy refusal or a documented
+        # answer all end the turn without touching the business's systems.
         builder.add_conditional_edges(
             "gather",
-            lambda s: "compose" if s.get("missing_input") or s.get("knowledge_answer") else "act",
+            lambda s: "compose"
+            if s.get("missing_input") or s.get("knowledge_answer") or s.get("denied_message")
+            else "act",
             {"compose": "compose", "act": "act"},
         )
         builder.add_edge("act", "compose")
@@ -440,11 +560,30 @@ class UcxpRuntime:
 
         missing = [r for r in capability.required_inputs if not r.optional and r.name not in collected]
 
-        # Second prompt: normalise what we have, or answer straight from the
-        # docs. Only worth a round trip when something is actually missing —
-        # business rules run against the *result*, so they need no LLM here.
+        # A gated capability moves money or cancels something, so before we do it
+        # we work out *what actually happened* — the same questions a support
+        # agent would ask, drawn from this business's own documents. Triage is
+        # done when it has reached a verdict or asked its fill of questions.
+        triage = conversation.triage if conversation.triage.get("capability") == capability.id else {}
+        # Keep reasoning while evidence is still outstanding: the customer's next
+        # message is the reason we asked for, and something has to absorb it.
+        needs_triage = (
+            capability.confirm
+            and not conversation.awaiting_confirmation
+            and (not triage.get("settled") or _evidence_outstanding(capability, conversation))
+        )
+
+        # Second prompt: normalise what we have, answer straight from the docs,
+        # and run policy triage. Only worth a round trip when it can change the
+        # outcome — result-shaped business rules need no LLM here.
         knowledge_answer: str | None = None
-        if missing and _might_contain_value(state["english_text"]):
+        if needs_triage and not missing:
+            evidence = await self._look_up_evidence(manifest, capability, collected, conversation)
+            if evidence:
+                triage = {**triage, "capability": capability.id, "evidence": evidence}
+                conversation.triage = triage
+
+        if (missing and _might_contain_value(state["english_text"])) or needs_triage:
             prepared = await think_json(
                 self.engine,
                 build_prompt(
@@ -456,6 +595,9 @@ class UcxpRuntime:
                     )
                     or "(none)",
                     collected="\n".join(f"- {k}: {v}" for k, v in collected.items()) or "(nothing yet)",
+                    triage=conversation.triage_text() or "(nothing established yet)",
+                    budget=_triage_budget(triage),
+                    evidence_rule=_evidence_rule(capability, conversation),
                     context=conversation.context_text(),
                     knowledge=manifest.knowledge_text() or "(no documented policies)",
                     text=state["english_text"],
@@ -471,6 +613,19 @@ class UcxpRuntime:
             answer = prepared.get("answer_from_knowledge")
             if isinstance(answer, str) and answer.strip():
                 knowledge_answer = answer.strip()
+
+            if needs_triage:
+                triage = self._absorb_triage(
+                    conversation,
+                    manifest,
+                    capability,
+                    prepared.get("triage"),
+                    # Collecting the reason and the photo is procedure, not
+                    # investigation. Charging those turns against the policy
+                    # question budget spent it before the evidence was even in,
+                    # and escalated a customer who had done everything asked.
+                    evidence_pending=_evidence_outstanding(capability, conversation),
+                )
 
             missing = [r for r in capability.required_inputs if not r.optional and r.name not in collected]
 
@@ -498,12 +653,100 @@ class UcxpRuntime:
                 "latency": {"gather_ms": elapsed},
             }
 
-        # Everything present. Destructive capabilities confirm first.
+        # The business's own documents rule this out. Say so in their words and
+        # hand it to the escalation path the manifest declares — the customer
+        # gets a decision and a route, not a dead end.
+        if triage.get("eligible") == "no":
+            conversation.clear_pending()
+            logger.info(f"gather.denied capability={capability.id} basis={triage.get('policy_basis')!r}")
+            reason = triage.get("reason") or "I'm not able to do that under this store's policy."
+            basis = (triage.get("policy_basis") or "").strip().rstrip(".")
+            quoted = f' Their policy says: "{basis}."' if basis else ""
+            return {
+                "inputs": collected,
+                "denied_message": f"{reason}{quoted} {_handoff_line(manifest)}",
+                "latency": {"gather_ms": elapsed},
+            }
+
+        # Still working out what happened — ask the next question.
+        if triage.get("ask"):
+            conversation.pending_capability = capability.id
+            conversation.pending_inputs = collected
+            conversation.awaiting_confirmation = False
+            logger.info(f"gather.triage capability={capability.id} asked={triage.get('asked')}")
+            return {
+                "inputs": collected,
+                "missing_input": "__triage__",
+                "missing_prompt": triage["ask"],
+                "latency": {"gather_ms": elapsed},
+            }
+
+        # The documents don't settle it. Guessing "yes" gives away the business's
+        # money and guessing "no" refuses someone who was entitled, so we hand it
+        # to a human rather than pretend. Checked *after* the evidence gate below
+        # would have spoken, so nobody is escalated for failing to supply
+        # something we never got round to asking them for.
+        if (
+            triage.get("eligible") == "unknown"
+            and triage.get("settled")
+            and not _evidence_outstanding(capability, conversation)
+        ):
+            conversation.clear_pending()
+            logger.info(f"gather.unresolved capability={capability.id}")
+            return {
+                "inputs": collected,
+                "denied_message": "I don't want to give you a wrong answer on this one — the "
+                f"store's policy doesn't cover it clearly enough for me to decide. {_handoff_line(manifest)}",
+                "latency": {"gather_ms": elapsed},
+            }
+
+        # Understood and permitted — but a write still needs its evidence. This
+        # gate is deterministic on purpose: the reasoning step decides *whether*
+        # the policy allows a refund, and it can be argued with. Whether a stated
+        # reason and a photograph are actually on file is a matter of fact, and
+        # a customer must not be able to talk their way past it.
+        if capability.confirm and not conversation.awaiting_confirmation:
+            for item in capability.evidence_required:
+                if item == "reason" and not _stated_reason(conversation):
+                    conversation.pending_capability = capability.id
+                    conversation.pending_inputs = collected
+                    conversation.awaiting_confirmation = False
+                    logger.info(f"gather.evidence_missing capability={capability.id} needs=reason")
+                    return {
+                        "inputs": collected,
+                        "missing_input": "__evidence__",
+                        "missing_prompt": "Before I raise this, could you tell me what's wrong "
+                        "with it — the reason you'd like to return it?",
+                        "latency": {"gather_ms": elapsed},
+                    }
+                if item == "photo" and not conversation.has_photo():
+                    conversation.pending_capability = capability.id
+                    conversation.pending_inputs = collected
+                    conversation.awaiting_confirmation = False
+                    logger.info(f"gather.evidence_missing capability={capability.id} needs=photo")
+                    return {
+                        "inputs": collected,
+                        "missing_input": "__evidence__",
+                        "missing_prompt": "Thanks. Could you send a photo of the item as well? "
+                        "I need one on file before I can raise the refund.",
+                        "latency": {"gather_ms": elapsed},
+                    }
+
         if capability.confirm and not conversation.awaiting_confirmation:
             conversation.pending_capability = capability.id
             conversation.pending_inputs = collected
             conversation.awaiting_confirmation = True
             summary = ", ".join(f"{k} {v}" for k, v in collected.items())
+            # Show what we understood, so the customer can correct us before
+            # anything irreversible happens — but keep it to the facts that
+            # decided it, not a replay of the conversation.
+            established = ", ".join(
+                f"{k.replace('_', ' ')} {v}"
+                for k, v in ((conversation.triage or {}).get("learned") or {}).items()
+                if v not in (None, "") and k not in collected
+            )
+            if established:
+                summary = f"{summary} — {established}"
             logger.info(f"gather.confirm capability={capability.id}")
             return {
                 "inputs": collected,
@@ -513,8 +756,125 @@ class UcxpRuntime:
                 "latency": {"gather_ms": elapsed},
             }
 
-        conversation.clear_pending()
+        # Release the slot/confirmation state, but leave triage standing: `act`
+        # runs next and the claim it sends to the business — the reason, the
+        # evidence reference — lives there. Clearing it here filed every refund
+        # with no reason attached. `act` clears it once it has been used.
+        conversation.pending_capability = None
+        conversation.pending_inputs = {}
+        conversation.awaiting_confirmation = False
         return {"inputs": collected, "latency": {"gather_ms": elapsed}}
+
+    async def _look_up_evidence(
+        self,
+        manifest: Manifest,
+        capability: Capability,
+        collected: dict[str, Any],
+        conversation: Conversation,
+    ) -> dict[str, Any]:
+        """Look the facts up rather than make the customer recall them.
+
+        Asking "when was it delivered?" about an order the store can see is the
+        difference between an agent and a form. So before triaging a gated
+        action we run the manifest's own read-only capability whose inputs we
+        already have — for these merchants, tracking the order — and hand the
+        result to the reasoning step as established fact.
+
+        Business-generic: the runtime looks for *a read-only capability it can
+        already satisfy*. It has no idea what an order or a delivery date is.
+        """
+        cached = (conversation.triage or {}).get("evidence")
+        if isinstance(cached, dict):
+            return cached
+
+        for candidate in manifest.capabilities:
+            if candidate.id == capability.id or candidate.confirm or not candidate.action:
+                continue
+            needed = [r.name for r in candidate.required_inputs if not r.optional]
+            if not needed or any(name not in collected for name in needed):
+                continue
+            try:
+                found = await self.executor.execute(
+                    manifest, candidate.action, {**collected, "context": conversation.facts}
+                )
+            except ActionError as exc:
+                logger.info(f"triage.evidence_unavailable via={candidate.id} error={exc.message}")
+                return {}
+            logger.info(f"triage.evidence via={candidate.id} fields={sorted(found)}")
+            return {k: v for k, v in found.items() if not isinstance(v, (dict, list))}
+        return {}
+
+    def _absorb_triage(
+        self,
+        conversation: Conversation,
+        manifest: Manifest,
+        capability: Capability,
+        raw: Any,
+        evidence_pending: bool = False,
+    ) -> dict[str, Any]:
+        """Fold this turn's triage verdict into the conversation.
+
+        The runtime supplies the procedure — ask, count, verify the quote, stop.
+        Every word of the content comes from the business's own documents.
+        """
+        prior = conversation.triage if conversation.triage.get("capability") == capability.id else {}
+        triage: dict[str, Any] = {
+            "capability": capability.id,
+            "asked": int(prior.get("asked") or 0),
+            "learned": dict(prior.get("learned") or {}),
+            "evidence": dict(prior.get("evidence") or {}),
+        }
+
+        if not isinstance(raw, dict):
+            # The model gave us nothing usable. Don't invent a verdict — let the
+            # confirm gate behave as it always did.
+            triage["eligible"] = "yes"
+            triage["settled"] = True
+            conversation.triage = triage
+            return triage
+
+        learned = raw.get("learned")
+        if isinstance(learned, dict):
+            for key, value in learned.items():
+                if not isinstance(key, str) or value in (None, ""):
+                    continue
+                # "product category: unknown" is not something we established;
+                # recording it puts a non-fact in front of the customer at the
+                # confirmation, which is where they are checking our work.
+                if str(value).strip().lower() in _NOT_A_FACT:
+                    continue
+                triage["learned"][key] = value
+
+        eligible = str(raw.get("eligible") or "unknown").strip().lower()
+        if eligible not in {"yes", "no", "unknown"}:
+            eligible = "unknown"
+        basis = raw.get("policy_basis")
+
+        # A "no" has to be backed by something the business actually published.
+        if eligible == "no" and not _quotes_the_policy(manifest, basis):
+            logger.warning(f"triage.unsupported_denial capability={capability.id} basis={basis!r}")
+            eligible = "unknown"
+            basis = None
+
+        ask = raw.get("ask")
+        ask = ask.strip() if isinstance(ask, str) and ask.strip() else None
+        if ask and eligible == "unknown" and not evidence_pending:
+            triage["asked"] += 1
+
+        # Out of questions: decide with what we have rather than keep asking.
+        # Never while evidence is still coming — the picture isn't complete yet,
+        # so "I can't tell" is not yet an honest answer.
+        if triage["asked"] >= MAX_TRIAGE_QUESTIONS and eligible == "unknown" and not evidence_pending:
+            logger.info(f"triage.budget_spent capability={capability.id}")
+            ask = None
+
+        triage["eligible"] = eligible
+        triage["policy_basis"] = basis
+        triage["reason"] = raw.get("reason")
+        triage["ask"] = ask
+        triage["settled"] = ask is None
+        conversation.triage = triage
+        return triage
 
     # ------------------------------------------------------------------ #
     # 5. act — call the endpoint the manifest declares, then apply its rules
@@ -529,7 +889,53 @@ class UcxpRuntime:
         if not capability.action:
             return {"result": {}, "latency": {"act_ms": 0.0}}
 
-        scope: dict[str, Any] = {**inputs, "context": conversation.facts}
+        # The claim travels with the action: what the customer said was wrong,
+        # and a reference to the evidence they sent. Always present (blank when
+        # the capability asks for neither) so a manifest can template it without
+        # the render failing on a capability that requires nothing.
+        photo = next(
+            (a for a in reversed(conversation.attachments) if a.get("kind") in {"photo", "image"}),
+            None,
+        )
+        claim = {
+            "reason": _stated_reason(conversation) or "",
+            "evidence_ref": (photo or {}).get("digest", ""),
+        }
+        scope: dict[str, Any] = {**inputs, "context": conversation.facts, "claim": claim}
+
+        # Eligibility first, for anything that changes something. A rule that
+        # doesn't mention `result` is asking "may we?", not "what happened?" —
+        # and answering that *after* calling the endpoint means the refund is
+        # already away by the time we decide the customer wasn't entitled to it.
+        if capability.confirm:
+            pre_scope = {
+                **inputs,
+                "context": conversation.facts,
+                "triage": (conversation.triage or {}).get("learned") or {},
+            }
+            for rule in capability.rules:
+                if "result" in (rule.when or ""):
+                    continue
+                try:
+                    triggered = evaluate_condition(rule.when, pre_scope)
+                except RuleError as exc:
+                    logger.error(f"act.pre_rule_error rule={rule.id} error={exc}")
+                    conversation.clear_pending()
+                    return {
+                        "result": {},
+                        "denied_message": "I couldn't check this against the store's policy just "
+                        f"now, so I'd rather not decide it myself. {_handoff_line(manifest)}",
+                        "latency": {"act_ms": (time.perf_counter() - started) * 1000},
+                    }
+                if triggered:
+                    logger.info(f"act.denied_before_action rule={rule.id}")
+                    conversation.clear_pending()
+                    return {
+                        "result": {},
+                        "denied_message": rule.deny,
+                        "latency": {"act_ms": (time.perf_counter() - started) * 1000},
+                    }
+
         try:
             result = await self.executor.execute(manifest, capability.action, scope)
         except ActionError as exc:
@@ -541,12 +947,30 @@ class UcxpRuntime:
             }
 
         # Business rules are evaluated against the result — data, not code.
-        rule_scope = {**inputs, "result": result, "context": conversation.facts}
+        rule_scope = {
+            **inputs,
+            "result": result,
+            "context": conversation.facts,
+            "triage": (conversation.triage or {}).get("learned") or {},
+        }
         for rule in capability.rules:
             try:
                 triggered = evaluate_condition(rule.when, rule_scope)
             except RuleError as exc:
                 logger.error(f"act.rule_error rule={rule.id} error={exc}")
+                # A rule we cannot evaluate is not a rule that passed. On a
+                # capability that changes something, treating it as permission
+                # is how an ineligible customer gets refunded — so hand it to a
+                # human instead. Read-only capabilities carry on: a broken rule
+                # must not take order tracking down with it.
+                if capability.confirm:
+                    conversation.clear_pending()
+                    return {
+                        "result": result,
+                        "denied_message": "I couldn't check this against the store's policy just "
+                        f"now, so I'd rather not decide it myself. {_handoff_line(manifest)}",
+                        "latency": {"act_ms": (time.perf_counter() - started) * 1000},
+                    }
                 continue
             if triggered:
                 logger.info(f"act.denied rule={rule.id}")
@@ -889,8 +1313,18 @@ class UcxpRuntime:
         language: str | None = None,
         user_id: str | None = None,
         force_business_id: str | None = None,
+        attachment: dict[str, Any] | None = None,
     ) -> tuple[TurnState, Conversation]:
         conversation = self.store.get_or_create(conversation_id, user_id)
+        # Recorded before the turn runs, so a capability that requires a photo
+        # can see the one that arrived with this very message.
+        if attachment:
+            conversation.add_attachment(
+                kind=attachment.get("kind", "file"),
+                filename=attachment.get("filename"),
+                digest=attachment.get("digest", ""),
+                chars=int(attachment.get("chars") or 0),
+            )
         conversation.add_turn("user", text)
 
         initial: TurnState = {

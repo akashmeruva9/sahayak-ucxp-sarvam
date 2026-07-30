@@ -117,6 +117,28 @@ async def _fetch_order(domain: str, token: str, order_number: str) -> dict[str, 
     return orders[0] if orders else None
 
 
+def _delivery(order: dict[str, Any], fulfillments: list[dict[str, Any]]) -> tuple[str | None, int | None]:
+    """When the order was delivered, and how long ago.
+
+    Every return policy in these manifests turns on this date, so a support
+    agent needs it before it can decide anything — and it should *look it up*
+    rather than ask the customer to remember. `delivered_on` is None when the
+    order isn't delivered yet, which is itself the answer to "can I return it".
+    """
+    stamp = next(
+        (f.get("updated_at") or f.get("created_at")
+         for f in fulfillments if f.get("shipment_status") == "delivered"),
+        None,
+    ) or (order.get("closed_at") if order.get("fulfillment_status") == "fulfilled" else None)
+    if not stamp:
+        return None, None
+    try:
+        delivered = date.fromisoformat(str(stamp)[:10])
+    except ValueError:
+        return None, None
+    return delivered.isoformat(), (date.today() - delivered).days
+
+
 def _map_order(order: dict[str, Any]) -> dict[str, Any]:
     """Flatten a Shopify order into the fields the composer speaks from."""
     fulfillments = order.get("fulfillments") or []
@@ -129,6 +151,7 @@ def _map_order(order: dict[str, Any]) -> dict[str, Any]:
         or ("being prepared" if order.get("financial_status") == "paid" else "pending")
     )
     tracking = fulfillments[0] if fulfillments else {}
+    delivered_on, days_since = _delivery(order, fulfillments)
     items = [
         {"title": li.get("title", "item"), "qty": li.get("quantity", 1)}
         for li in (order.get("line_items") or [])
@@ -143,6 +166,8 @@ def _map_order(order: dict[str, Any]) -> dict[str, Any]:
         "tracking_number": tracking.get("tracking_number"),
         "tracking_url": tracking.get("tracking_url"),
         "placed_on": (order.get("created_at") or "")[:10],
+        "delivered_on": delivered_on,
+        "days_since_delivery": days_since,
     }
 
 
@@ -217,6 +242,7 @@ async def refund_order(business_id: str, order_id: str, payload: dict[str, Any] 
         raise _unreachable(business_id, source, f"refund order={order_id}")
 
     amount, currency = None, "INR"
+    delivered_on, days_since = None, None
     if domain and token:
         try:
             order = await _fetch_order(domain, token, order_id)
@@ -224,11 +250,19 @@ async def refund_order(business_id: str, order_id: str, payload: dict[str, Any] 
                 raise HTTPException(status_code=404, detail=f"I couldn't find order {order_id} to refund.")
             amount = order.get("total_price")
             currency = order.get("currency", "INR")
+            delivered_on, days_since = _delivery(order, order.get("fulfillments") or [])
         except httpx.HTTPError:
             pass
     if amount is None:
         amount = _mock_order(order_id)["amount"]
 
+    reason = (payload or {}).get("reason") or None
+    evidence_ref = (payload or {}).get("evidence_ref") or None
+    logger.info(
+        f"shopify.refund_requested business={business_id} order={order_id} "
+        f"amount={amount} days_since_delivery={days_since} reason={reason!r} "
+        f"evidence={evidence_ref or 'none'}"
+    )
     return {
         "refund_id": f"RF{_stable(order_id, 100000):05d}",
         "order_id": order_id.lstrip("#"),
@@ -236,4 +270,8 @@ async def refund_order(business_id: str, order_id: str, payload: dict[str, Any] 
         "amount": amount,
         "currency": currency,
         "eta_days": 5,
+        "delivered_on": delivered_on,
+        "days_since_delivery": days_since,
+        "reason": reason,
+        "evidence_ref": evidence_ref,
     }

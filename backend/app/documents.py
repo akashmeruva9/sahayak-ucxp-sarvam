@@ -130,6 +130,24 @@ def frame_document(extracted: str, caption: str, source: str) -> str:
     )
 
 
+def frame_photo(caption: str) -> str:
+    """Announce a photo that carries no text — the evidence case.
+
+    The runtime has no vision model, so it must not pretend to have looked at
+    the picture. What it legitimately knows is that a genuine image arrived and
+    decoded, and that it is now on file against this conversation. Saying more
+    than that in the customer's own claim file would be a fabrication.
+    """
+    caption = caption.strip()
+    intent = caption or "I'm sending the photo you asked for."
+    return (
+        f"{intent}\n\n"
+        "[The customer attached a photo. It has been received and stored as evidence for this "
+        "request. You cannot see its contents — do not describe it, and do not claim to have "
+        "inspected or verified what it shows. Treat the photo requirement as satisfied.]"
+    )
+
+
 def _classify(content_type: str | None, filename: str | None) -> str:
     """Decide pdf/image/unsupported from the content type, then the extension.
 
@@ -182,6 +200,13 @@ def extract(
         return Extraction(ok=False, kind="extract_failed", error=str(exc))
 
     if not raw:
+        # A photo of a damaged product has no text in it, and that is not a
+        # failure — it is the evidence. Rejecting it told customers "I couldn't
+        # read any text in that image" when they had sent exactly what was
+        # asked for. A PDF with no text really is unreadable, so it still fails.
+        if kind == "image":
+            logger.info(f"document.photo_no_text file={filename} bytes={len(data)}")
+            return Extraction(ok=True, kind="photo", text=frame_photo(caption), raw="")
         return Extraction(ok=False, kind=f"{kind}_empty")
 
     source = "PDF" if kind == "pdf" else "screenshot/photo"

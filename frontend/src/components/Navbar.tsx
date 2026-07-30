@@ -47,6 +47,17 @@ const LABELS: Record<string, string> = {
 };
 
 /**
+ * The routes that are actually tabs.
+ *
+ * A custom `tabBar` is handed **every** route in the navigator, including ones
+ * marked `href: null` — that option only hides a route from Expo Router's own
+ * bar. Without this list, `conversation/[id]` rendered as a fifth item labelled
+ * with its raw route name, which widened the bar until it covered the chat
+ * composer underneath.
+ */
+const TAB_ROUTES = ["home", "companies", "history", "settings"];
+
+/**
  * Height of the pill itself: py-2 (8+8) around items with py-2.5 (10+10)
  * wrapping a 20px icon.
  */
@@ -74,6 +85,17 @@ export function Navbar({ state, navigation }: NavbarProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useThemeColors();
 
+  const activeName = state.routes[state.index]?.name;
+  const tabs = state.routes.filter((route) => TAB_ROUTES.includes(route.name));
+
+  /**
+   * A conversation is a focused context: it has its own back button and pins a
+   * composer to the bottom, and this bar floats *over* the screen rather than
+   * sitting below it. Stepping aside is what gives the chat its full height —
+   * reserving space for a bar nobody needs there would only shrink the thread.
+   */
+  if (!TAB_ROUTES.includes(activeName)) return null;
+
   return (
     <View
       style={{ paddingBottom: Math.max(insets.bottom, 12) }}
@@ -89,8 +111,9 @@ export function Navbar({ state, navigation }: NavbarProps) {
           elevation: 10,
         }}
       >
-        {state.routes.map((route, index) => {
-          const focused = state.index === index;
+        {tabs.map((route) => {
+          // `state.index` indexes the unfiltered list, so compare by name.
+          const focused = route.name === activeName;
           const Icon = ICONS[route.name] ?? House;
 
           const onPress = () => {

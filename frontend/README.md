@@ -699,3 +699,4 @@ in `constants/theme.ts` — and the one `finalize-web-head.mjs` injects — is
 | What happens to a message after it leaves here | [`docs/request-lifecycle.md`](../docs/request-lifecycle.md) |
 | Deploying the web build and the APK | [`docs/operations.md`](../docs/operations.md) |
 | Why the client is shaped this way | [`docs/decisions.md`](../docs/decisions.md) §5 |
+Can you 

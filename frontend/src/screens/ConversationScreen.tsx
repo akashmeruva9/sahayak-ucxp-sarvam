@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, Phone } from "lucide-react-native";
 import type { Message } from "@/types";
@@ -18,17 +19,16 @@ import {
   ChatComposer,
   ScreenContainer,
   VoiceOverlay,
-  useNavbarClearance,
 } from "@/components";
 import { useThemeColors } from "@/hooks/useThemeColors";
 
 export function ConversationScreen({ id }: { id: string }) {
   const router = useRouter();
   const { colors } = useThemeColors();
-  // A conversation lives inside the tab shell, and the tab bar floats over the
-  // screen rather than sitting below it — so the composer has to reserve the
-  // space itself or the bar lands on top of the input.
-  const navClearance = useNavbarClearance();
+  // The tab bar hides itself on a conversation (see Navbar), so the composer
+  // only has to clear the system navigation, not the bar.
+  const insets = useSafeAreaInsets();
+  const composerInset = Math.max(insets.bottom, 12);
   const listRef = useRef<FlatList<Message>>(null);
   const [draft, setDraft] = useState("");
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -142,7 +142,7 @@ export function ConversationScreen({ id }: { id: string }) {
         />
 
         <View
-          style={{ paddingBottom: navClearance }}
+          style={{ paddingBottom: composerInset }}
           className="border-t border-hairline/60 px-4 pt-2 dark:border-hairline-dark/60"
         >
           <ChatComposer

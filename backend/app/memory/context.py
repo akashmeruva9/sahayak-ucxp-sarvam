@@ -37,6 +37,15 @@ class Conversation:
     pending_inputs: dict[str, Any] = field(default_factory=dict)
     #: A capability waiting for yes/no confirmation.
     awaiting_confirmation: bool = False
+    #: Policy triage for a pending gated action — what we've understood so far
+    #: and the verdict the business's own documents support. Kept apart from
+    #: ``pending_inputs`` because those become the action's arguments, and a
+    #: triage answer ("the seal is broken") is not one.
+    triage: dict[str, Any] = field(default_factory=dict)
+    #: Files the customer has sent, newest last. This is the claim's evidence
+    #: trail, so it deliberately outlives ``clear_pending()`` — a photo sent for
+    #: a refund is still the photo they sent, whatever happens to the request.
+    attachments: list[dict[str, Any]] = field(default_factory=list)
     turns: list[dict[str, str]] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
@@ -64,6 +73,47 @@ class Conversation:
         self.pending_capability = None
         self.pending_inputs = {}
         self.awaiting_confirmation = False
+        self.triage = {}
+
+    def add_attachment(self, kind: str, filename: str | None, digest: str, chars: int = 0) -> None:
+        """Record a file the customer sent, as the evidence trail for a claim."""
+        self.attachments.append(
+            {
+                "kind": kind,
+                "filename": filename or "",
+                "digest": digest,
+                "chars": chars,
+                "at": time.time(),
+            }
+        )
+        self.updated_at = time.time()
+
+    def has_photo(self) -> bool:
+        """True once the customer has sent an actual photograph.
+
+        A PDF or a screenshot of an order confirmation is a *document*: it
+        proves what was bought, not what arrived damaged. Only a photo counts
+        as the picture a refund asks for.
+        """
+        return any(a.get("kind") in {"photo", "image"} for a in self.attachments)
+
+    def triage_text(self, include_evidence: bool = True) -> str:
+        """What triage has established, for the confirm line and the prompt.
+
+        Evidence (looked up from the business's own systems) is labelled as
+        such, so the reasoning step knows it is fact rather than something the
+        customer said — and knows not to ask for it again.
+        """
+        triage = self.triage or {}
+        lines = []
+        if include_evidence:
+            for key, value in (triage.get("evidence") or {}).items():
+                if value not in (None, "", []):
+                    lines.append(f"- {key.replace('_', ' ')}: {value}   (from the store's records)")
+        for key, value in (triage.get("learned") or {}).items():
+            if value not in (None, "", []):
+                lines.append(f"- {key.replace('_', ' ')}: {value}")
+        return "\n".join(lines)
 
     def history_text(self, limit: int = 6) -> str:
         recent = self.turns[-limit:]

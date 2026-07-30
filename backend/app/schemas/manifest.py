@@ -65,6 +65,11 @@ class Capability(BaseModel):
     required_inputs: list[RequiredInput] = Field(default_factory=list)
     rules: list[Rule] = Field(default_factory=list)
     confirm: bool = False
+    #: Evidence the customer must supply before this action may run — any of
+    #: "reason" and "photo". Declared per capability so the requirement is data:
+    #: a business that wants no photo publishes an empty list, and the runtime
+    #: learns that without a line of code changing.
+    evidence_required: list[Literal["reason", "photo"]] = Field(default_factory=list)
     action: str | None = None
     response: str = ""
     receipt: Receipt | None = None

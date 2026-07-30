@@ -45,6 +45,23 @@ def _needs_confirmation(cap: dict[str, Any], cap_name: str) -> bool:
         return method not in _READ_ONLY_METHODS
     return any(v in cap_name.lower() for v in _DESTRUCTIVE)
 
+
+def _evidence_required(cap: dict[str, Any], confirm: bool) -> list[str]:
+    """What the customer must supply before a write may run.
+
+    A published manifest can state this outright (`"evidence": ["reason"]`, or
+    `[]` to ask for nothing). When it doesn't, an action that changes something
+    defaults to both: no business wants to move money on "refund it" alone, and
+    a claim with no stated reason and no photo is one nobody can audit later.
+
+    Read-only capabilities require nothing — looking up an order should never
+    cost the customer a photograph.
+    """
+    declared = cap.get("evidence")
+    if isinstance(declared, list):
+        return [item for item in ("reason", "photo") if item in declared]
+    return ["reason", "photo"] if confirm else []
+
 # Substring → glyph/color, matched against the (lowercased) category so a
 # "Food & Beverage" or "Apparel & Textiles" still gets an intentional look.
 _CATEGORY_STYLE: list[tuple[str, tuple[str, str]]] = [
@@ -227,17 +244,27 @@ def normalize(raw: dict[str, Any]) -> dict[str, Any]:
             "method": cap.get("method", "GET").upper(),
             "url": _endpoint_url(cap.get("endpoint", ""), business_id, data_source),
             "headers": {},  # auth is a connector concern; the mock ignores it
-            "body": None,   # identifiers travel in the path; POSTs need no body
+            # Identifiers travel in the path. A write also carries the claim —
+            # why the customer asked and what evidence backs it — so the record
+            # the business keeps says more than "someone wanted their money
+            # back". Reads send nothing.
+            "body": (
+                None
+                if cap.get("method", "GET").upper() in _READ_ONLY_METHODS
+                else {"reason": "{{claim.reason}}", "evidence_ref": "{{claim.evidence_ref}}"}
+            ),
             "timeout_s": 8.0,
         })
 
+        confirm = _needs_confirmation(cap, cap_name)
         capabilities.append({
             "id": cap_name,
             "description": description,
             "examples": [],
             "required_inputs": required_inputs,
             "rules": [],
-            "confirm": _needs_confirmation(cap, cap_name),
+            "confirm": confirm,
+            "evidence_required": _evidence_required(cap, confirm),
             "action": endpoint_id,
             "response": _response_template(cap),
             "receipt": _receipt_for(cap_name),
