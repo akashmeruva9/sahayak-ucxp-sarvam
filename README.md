@@ -9,13 +9,12 @@ two `grep`s and two `curl`s, in §2.
 
 | Surface | Where |
 |---|---|
-| Runtime (live) | <https://sahayak-ucxp-sarvam-production.up.railway.app> |
 | Web app (live) | <https://sahayak-ucxp.vercel.app> |
 | Android | release APK, built from the same Expo codebase |
 | WhatsApp | Twilio sandbox → `POST /whatsapp/webhook` |
 | Voice call | Sarvam Samvaad agent → `POST /agent/execute` |
-| Deck | [Google Slides](https://docs.google.com/presentation/d/1nnpIAuOZ8mrtoTnzKNjGvEPaeVxSKGnRwMhsYY4F-AY/edit?usp=sharing) |
-| Merchant onboarding demo | [Loom](https://www.loom.com/share/c7904325fba347adaaad6f623799d98a) |
+| Deck | [Canva](https://canva.link/bcgrk9wfxtp9qw6) |
+| Demo | [Google Drive](https://drive.google.com/file/d/1dSaY8hZvnzxXDwqozSHYTDSjnnU0nqdM/view) |
 
 https://github.com/user-attachments/assets/ce71b48b-8d3c-4edc-8088-5113533392cf
 
