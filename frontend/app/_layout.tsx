@@ -129,7 +129,10 @@ export default function RootLayout() {
     return () => clearTimeout(t);
   }, []);
 
-  const fontsReady = fontsLoaded || !!fontError || timedOut;
+  // On web the fonts are four ~330 KB downloads; holding the first paint for them
+  // (up to the 1.2s cap) is the lag a visitor feels on load. Render immediately
+  // and let Inter swap in — native keeps the gate because it sits behind the splash.
+  const fontsReady = WEB || fontsLoaded || !!fontError || timedOut;
 
   // Sign-in is compulsory, so nothing renders until the stored session has
   // been read. Deciding before `authReady` would flash the sign-in screen at
