@@ -59,7 +59,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     // be set on every path. If this threw, the app would sit on a blank screen
     // forever with no way back — worse than showing the sign-in form.
     try {
-      const { data } = await supabase.auth.getSession();
+      // getSession() refreshes an expired token over the network with no
+      // timeout of its own, and `ready` gates the whole app on it. Cap the wait:
+      // a slow Supabase should cost a sign-in prompt, not a blank page.
+      const { data } = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("session restore timed out")), 4000),
+        ),
+      ]);
       const session = data.session;
       setAuthToken(session?.access_token ?? null);
       set({

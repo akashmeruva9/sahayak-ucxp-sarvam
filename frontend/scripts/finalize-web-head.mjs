@@ -62,6 +62,10 @@ const HEAD = `
     </script>
 `;
 
+// Shown from first byte until React replaces #root's children. The bundle is
+// ~4.5 MB of JS, so without this the page is blank while it downloads/parses.
+const LOADER = `<div id="sahayak-loader" style="flex:1;display:flex;align-items:center;justify-content:center;background:#12100C;color:#F2E8D5;font:600 20px Inter,system-ui,sans-serif;letter-spacing:.02em">Sahayak<span style="margin-left:10px;width:14px;height:14px;border:2px solid #F2E8D5;border-right-color:transparent;border-radius:50%;animation:sahayak-spin .8s linear infinite"></span></div><style>@keyframes sahayak-spin{to{transform:rotate(360deg)}}</style>`;
+
 if (!existsSync(target)) {
   console.error(`finalize-web-head: ${target} not found — run \`expo export -p web\` first.`);
   process.exit(1);
@@ -87,6 +91,8 @@ if (!html.includes("</head>")) {
   process.exit(1);
 }
 html = html.replace("</head>", `${HEAD}  </head>`);
+
+html = html.replace('<div id="root"></div>', `<div id="root">${LOADER}</div>`);
 
 writeFileSync(target, html);
 console.log(`finalize-web-head: head written to ${target}`);
