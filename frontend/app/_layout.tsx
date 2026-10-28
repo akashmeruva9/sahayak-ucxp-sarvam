@@ -42,12 +42,16 @@ const PUBLIC_WEB_ROUTES = ["/", "/sign-in"];
 function WebAuthGate() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
+  const authReady = useAuthStore((s) => s.ready);
 
   useEffect(() => {
-    if (!authConfigured || user) return;
+    // The tree now mounts before the stored session is read, so an unknown user
+    // is not yet a signed-out user — redirecting early would bounce a signed-in
+    // customer off a deep link like /home.
+    if (!authConfigured || !authReady || user) return;
     if (PUBLIC_WEB_ROUTES.includes(pathname)) return;
     router.replace("/sign-in");
-  }, [pathname, user]);
+  }, [pathname, user, authReady]);
 
   return null;
 }
@@ -146,7 +150,9 @@ export default function RootLayout() {
   // (see WebAuthGate) instead of replacing the whole tree.
   const mustSignIn = authConfigured && !user && !WEB;
 
-  const ready = fontsReady && (authReady || !authConfigured);
+  // Web renders at once: the landing page is public, and WebAuthGate waits for the
+  // session itself. Native still gates on auth because it swaps in the sign-in screen.
+  const ready = fontsReady && (WEB || authReady || !authConfigured);
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
