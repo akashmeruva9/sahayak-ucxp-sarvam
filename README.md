@@ -14,9 +14,9 @@ two `grep`s and two `curl`s, in §2.
 | WhatsApp | Twilio sandbox → `POST /whatsapp/webhook` |
 | Voice call | Sarvam Samvaad agent → `POST /agent/execute` |
 | Deck | [Canva](https://canva.link/bcgrk9wfxtp9qw6) |
-| Demo | [Google Drive](https://drive.google.com/file/d/1dSaY8hZvnzxXDwqozSHYTDSjnnU0nqdM/view) |
+| Demo | [Google Drive](https://drive.google.com/file/d/1wYmC7KAdk6p2E8STL1A-TuyYvlAwnPb0/view?usp=sharing) |
 
-https://github.com/user-attachments/assets/ce71b48b-8d3c-4edc-8088-5113533392cf
+https://drive.google.com/file/d/1wYmC7KAdk6p2E8STL1A-TuyYvlAwnPb0/view?usp=sharing
 
 https://github.com/user-attachments/assets/ede17ab2-73b6-46e2-9e45-6e043a5b5059
 
