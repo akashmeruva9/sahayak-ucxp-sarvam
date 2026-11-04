@@ -16,7 +16,7 @@ two `grep`s and two `curl`s, in §2.
 | Deck | [Canva](https://canva.link/bcgrk9wfxtp9qw6) |
 | Demo | [Google Drive](https://drive.google.com/file/d/1wYmC7KAdk6p2E8STL1A-TuyYvlAwnPb0/view?usp=sharing) |
 
-https://drive.google.com/file/d/1wYmC7KAdk6p2E8STL1A-TuyYvlAwnPb0/view?usp=sharing
+https://github.com/user-attachments/assets/fa20573a-8d16-46e7-bd67-376eea119c84
 
 https://github.com/user-attachments/assets/ede17ab2-73b6-46e2-9e45-6e043a5b5059
 
