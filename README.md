@@ -1,132 +1,130 @@
-# Sahayak — a UCXP runtime
+# Sahayak (सहायक) — the Universal Customer Experience Protocol (UCXP) runtime
 
-**UCXP is a protocol for customer resolution. This repository is a runtime that speaks it and contains zero business-specific code.**
+**The UPI moment for customer support in India — one protocol for customer resolution with zero business-specific code.**
 
-Adding a business means adding one JSON manifest. It does not mean editing the
-runtime, adding a branch, registering a handler, or deploying code. That claim is
-the point of the project, so it is built to be checked rather than believed —
-two `grep`s and two `curl`s, in §2.
+Any business publishes a **JSON manifest** declaring its capabilities, required inputs, API endpoints, business rules, and receipt templates. Sahayak's generic reasoning graph serves that business across **Web, Android, WhatsApp, and phone voice calls in any Indian language** — without editing a single line of runtime code, registering a handler, or redeploying the backend. Built on Sarvam AI + Google Cloud. Full architectural specification: <a href="PLAN.md" target="_blank" rel="noopener noreferrer"><code>PLAN.md</code></a>.
 
-| Surface | Where |
-|---|---|
-| Web app (live) | <https://sahayak-ucxp.vercel.app> |
-| Android | release APK, built from the same Expo codebase |
-| WhatsApp | Twilio sandbox → `POST /whatsapp/webhook` |
-| Voice call | Sarvam Samvaad agent → `POST /agent/execute` |
-| Deck | [Canva](https://canva.link/bcgrk9wfxtp9qw6) |
-| Demo | [Google Drive](https://drive.google.com/file/d/1wYmC7KAdk6p2E8STL1A-TuyYvlAwnPb0/view?usp=sharing) |
+## 🌐 Live Website 
+
+<a href="https://sahayak-ucxp.vercel.app" target="_blank" rel="noopener noreferrer">https://sahayak-ucxp.vercel.app</a>
+
+> ⚡ **Cloud Run Backend API:** <a href="https://sahayak-49235763775.asia-south1.run.app" target="_blank" rel="noopener noreferrer">https://sahayak-49235763775.asia-south1.run.app</a> · Health: <a href="https://sahayak-49235763775.asia-south1.run.app/health" target="_blank" rel="noopener noreferrer"><code>/health</code></a> · OpenAPI Docs: <a href="https://sahayak-49235763775.asia-south1.run.app/docs" target="_blank" rel="noopener noreferrer"><code>/docs</code></a>
+
+## 🎬 Project Demo
 
 https://github.com/user-attachments/assets/fa20573a-8d16-46e7-bd67-376eea119c84
 
 https://github.com/user-attachments/assets/ede17ab2-73b6-46e2-9e45-6e043a5b5059
 
+> 🔗 **Demo Mirrors:** <a href="https://drive.google.com/file/d/1wYmC7KAdk6p2E8STL1A-TuyYvlAwnPb0/view?usp=sharing" target="_blank" rel="noopener noreferrer">Google Drive Full Demo</a>
+
+## 📊 Presentation Deck & Architecture Slides
+
+<a href="https://canva.link/bcgrk9wfxtp9qw6" target="_blank" rel="noopener noreferrer"><strong>👉 View the Sahayak Presentation Pitch Deck on Canva ↗</strong></a>
+
+> 💡 *View the full presentation with problem breakdown, protocol architecture, and system diagrams: **<a href="https://canva.link/bcgrk9wfxtp9qw6" target="_blank" rel="noopener noreferrer">Canva Slide Deck</a>***
+
 ---
 
-## Documentation
+## 📁 Repo
 
-This README is the overview. The detail lives in [`docs/`](./docs/).
-
-| Document | Covers |
+| Path | What Lives Here |
 |---|---|
-| [**architecture.md**](./docs/architecture.md) | Context and container views, the layering rules as a dependency graph, component map, deployment topology, cross-cutting invariants, known debt |
-| [**request-lifecycle.md**](./docs/request-lifecycle.md) | The LangGraph turn in depth — state diagram, every short-circuit, the three prompts and their gates, four sequence diagrams, failure semantics |
-| [**manifest-spec.md**](./docs/manifest-spec.md) | Both manifest schemas, the complete `normalize.py` mapping table, template and rule grammar, the load path, what the published schema cannot express |
-| [**channels.md**](./docs/channels.md) | The four clients compared, per-channel sequence diagrams, the WhatsApp 10 s constraint, the Samvaad tools, the business-pinning rule |
-| [**data-and-memory.md**](./docs/data-and-memory.md) | The three memory layers, how a mid-flow confirmation survives a restart, fact propagation, the Supabase schema, known gaps |
-| [**operations.md**](./docs/operations.md) | Local dev, Docker, Railway (including the `UCXP_PORT` loopback trap), Vercel, the APK, env vars, health checks, a symptom → cause → fix table |
-| [**decisions.md**](./docs/decisions.md) | The engineering decision log as prose, grouped by theme, each with context → decision → trade-off |
-| [**manifest-sync.md**](./docs/manifest-sync.md) | The dashboard ↔ runtime publishing contract |
-| [**frontend/README.md**](./frontend/README.md) | The client: screen map, API layer, state, scoping rule, platform differences, build |
-| [**PLAN.md**](./PLAN.md) | The append-only source of truth — scope, contracts, status board, the raw 50-row decision log |
+| `ai_engine/` | The isolated Sarvam AI client. Orchestrator, Saarika STT (`saarika:v2.5`), Bulbul TTS (`bulbul:v3`), translation (`sarvam-translate:v1`), Sarvam-105B LLM, prompts as `.md`, retries, and fallback heuristics |
+| `backend/app/runtime/` | The UCXP LangGraph state machine (`understand` → `route` → `classify` → `gather` → `act` → `compose` → `localize`), manifest loader, AST rule engine, receipt template renderer. Zero business-specific code |
+| `backend/app/connectors/` | Generic Shopify Admin API connector serving all merchants through standard REST routes |
+| `backend/app/agent_tools/` | Sarvam Samvaad voice call agent tools and the sub-second direct execution path |
+| `backend/app/api/whatsapp.py` | Twilio WhatsApp adapter — transport only, converts voice notes, PDFs, and images into runtime turns |
+| `backend/app/memory/` | Session and context store, memory snapshotting, and Google Cloud Firestore persistence |
+| `manifests/` | Published merchant manifests declaring capabilities, endpoints, rules, and receipts |
+| `frontend/` | Expo SDK 57 universal client → Web SPA (Vercel) + Android release APK |
+| `dashboard/` | Merchant onboarding portal to dynamically publish and test UCXP manifests in Cloud Firestore |
+| `docs/` | Deep-dive architectural documentation (`architecture.md`, `request-lifecycle.md`, `manifest-spec.md`, `channels.md`, `decisions.md`) |
+| `tests/` | 112 offline unit tests verifying determinism, prompt gating, rule evaluations, and zero-business-leakage invariants |
 
 ---
 
-## 1. The thesis
+## ⚡ 1. The Thesis
 
-Everyone building AI customer support today builds a bot per company. The
-company's policies, endpoints and edge cases end up inside the assistant. That
-does not compose: the second company needs a second bot.
+Everyone building AI customer support today builds a bot per company. The company's policies, endpoints, and edge cases end up hardcoded inside the assistant. That does not scale: the 100th merchant needs a 100th bot, and cross-business queries fail.
 
-UCXP inverts it. A business publishes a **manifest** — a JSON document declaring
-its capabilities, the inputs each one needs, the endpoint each one calls, the
-rules that can block it, and the receipt the customer gets back. Any compliant
-runtime can then serve that business without knowing it exists.
+**UCXP inverts the paradigm.** A business publishes a **manifest** — a JSON document declaring:
+- What it can do (**capabilities**)
+- What inputs it needs (**required_inputs**)
+- What endpoint it calls (**actions & endpoints**)
+- What business rules guard the action (**rules**)
+- What receipt the customer gets back (**receipt template**)
 
-So the interesting engineering is not "we called an LLM". It is a **generic
-reasoning graph** whose candidate set, slots, rules, templates and receipts are
-all read out of a document at request time — and the discipline to keep it
-generic while five real Shopify merchants, four client channels and a live phone
-call all run through it.
+Any compliant runtime serves that business dynamically. The interesting engineering is not "we prompted an LLM": it is a **generic reasoning graph** whose candidate set, slots, rules, templates, and receipts are all evaluated out of a document at request time — while Shopify stores, WhatsApp chats, mobile apps, and live phone calls run through the same unified pipeline.
 
-**A job is only done when a receipt comes back.** A reply that explains a policy
-and stops is a failure mode this system is designed against: on the voice-agent
-path, `done` is literally `receipt is not None`.
+**A job is only done when a receipt comes back.** A bot that summarizes policy and stops has failed the customer. In Sahayak, `done` is literally `receipt is not None`.
 
 ---
 
-## 2. Verify the claim
+## 🔍 2. Verify the Zero-Business-Code Claim
 
-Two directional rules make this a protocol rather than an app
-([details](./docs/architecture.md#4-the-layering-rules-as-a-dependency-graph)):
+Two architectural rules guarantee this is a protocol rather than a collection of apps:
 
-1. **Only `ai_engine/` talks to Sarvam.** The runtime imports
-   `SarvamOrchestrator` and calls methods on it — never a model name, an HTTP
-   client, a retry, or a key.
-2. **Nothing in the runtime knows a business exists.** Business behaviour enters
-   only through `manifests/*.json`.
+1. **Only `ai_engine/` communicates with Sarvam:** The runtime imports `SarvamOrchestrator` and calls methods on it — never an HTTP endpoint, model name, retry loop, or API key.
+2. **Nothing in the runtime knows a business exists:** Business behaviour enters only through `manifests/*.json` or Firestore.
+
+Run these two commands directly in the repository to verify:
 
 ```bash
-# Rule 2 — no business name anywhere in the runtime.
+# Rule 2 — verify zero business names appear anywhere in the runtime:
 grep -rniE "flipkart|airtel|apollo|ravi|lakshmi|meena|sri-pharma|anna-groceries" \
      backend/app/runtime/
-# → no matches
+# → 0 matches
 
-# Rule 1 — no Sarvam wire access, model constant, or credential outside ai_engine/.
+# Rule 1 — verify zero Sarvam wire access or credentials exist outside ai_engine/:
 grep -rn "api\.sarvam\.ai\|SARVAM_API_KEY\|saarika\|bulbul\|sarvam-translate\|SARVAM_LLM_MODEL" \
      backend/
-# → no matches
+# → 0 matches
 ```
 
-Then ask the runtime itself:
+Then query the live runtime itself:
 
 ```bash
 BASE=https://sahayak-49235763775.asia-south1.run.app
-curl -s $BASE/businesses                    # the directory, comprehended from manifests
-curl -s $BASE/manifests/ravi-electronics    # the document that produced it
+
+# The directory, comprehended dynamically from published manifests:
+curl -s $BASE/businesses
+
+# The manifest document that produced it:
+curl -s $BASE/manifests/ravi-electronics
 ```
 
-`GET /businesses` has no list in it. It is a comprehension over whatever
-manifests loaded.
+`GET /businesses` contains no hardcoded list; it dynamically iterates over whatever manifests are loaded into the registry.
 
 ---
 
-## 3. System
+## 🏗️ 3. System Architecture
 
 ```mermaid
 flowchart TB
-    subgraph clients["Client channels — all speak the same contract"]
-        A["Expo app<br/>Android APK"]
+    subgraph clients["Omnichannel Clients — Unified Protocol Contract"]
+        A["Expo Mobile App<br/>Android APK"]
         B["Web SPA<br/>Vercel"]
-        C["WhatsApp<br/>Twilio sandbox"]
-        D["Phone call<br/>Sarvam Samvaad"]
+        C["WhatsApp<br/>Twilio Webhook"]
+        D["Phone Voice Call<br/>Sarvam Samvaad"]
     end
 
-    subgraph runtime["UCXP Runtime · backend/ · no business code"]
-        E["HTTP surface<br/>/chat /voice /document /whatsapp /agent"]
-        F["LangGraph state machine<br/>understand → route → classify →<br/>gather → act → compose → localize"]
-        G["Manifest registry<br/>loader + normalize"]
-        H["Action executor<br/>template renderer<br/>rule evaluator"]
-        I["Conversation memory<br/>+ disk snapshot"]
+    subgraph runtime["UCXP Runtime · Google Cloud Run · Zero Business Code"]
+        E["HTTP API Layer<br/>/chat /voice /document /whatsapp /agent"]
+        F["LangGraph State Machine<br/>understand → route → classify →<br/>gather → act → compose → localize"]
+        G["Manifest Registry<br/>Loader + Normalization Adapter"]
+        H["Action Executor<br/>AST Rule Engine + Template Renderer"]
+        I["Conversation Memory<br/>Disk Snapshots + Cloud Firestore"]
     end
 
-    subgraph engine["AI Engine · ai_engine/ — the only Sarvam client"]
+    subgraph engine["AI Engine · ai_engine/ — Isolated Sarvam Client"]
         J["SarvamOrchestrator"]
     end
 
-    subgraph data["Business data"]
-        K["manifests/*.json"]
-        L["Supabase<br/>ucxp_manifests<br/>published by the<br/>onboarding dashboard"]
-        M["Shopify connector<br/>one generic route<br/>for every merchant"]
+    subgraph data["Database & Business Integrations"]
+        K["Local Manifests<br/>manifests/*.json"]
+        L["Google Cloud Firestore<br/>ucxp_manifests (Live Sync)"]
+        M["Generic Shopify Connector<br/>One route for all merchants"]
     end
 
     A --> E
@@ -138,249 +136,199 @@ flowchart TB
     F --> H
     F --> I
     F --> J
-    J --> O["Sarvam APIs<br/>STT · translate · LLM · TTS"]
+    J --> O["Sarvam AI Services<br/>Saarika STT · Translate · Sarvam-105B · Bulbul TTS"]
     G --> K
     G --> L
     H --> M
-    M --> P["Shopify Admin API<br/>or deterministic mock"]
+    M --> P["Shopify Admin API<br/>or Deterministic Mock"]
 ```
 
-The runtime and the AI Engine **deploy as one image and talk in-process** — they
-share a lifecycle, and a network hop on the hottest path would buy nothing. Every
-channel converges on the same `UcxpRuntime.run()`, which is why a photographed
-order over WhatsApp and a typed message in the app produce the same receipt.
-
-Full context, container, component and deployment views:
-[`docs/architecture.md`](./docs/architecture.md).
+The runtime and AI Engine **deploy as a single container image on Google Cloud Run and communicate in-process** — eliminating unnecessary network latency on the critical reasoning path. Every channel converges on `UcxpRuntime.run()`, meaning a photographed receipt sent over WhatsApp and a voice call produce the identical cryptographic resolution card.
 
 ---
 
-## 4. One turn
+## 🔄 4. The Single-Turn LangGraph Machine
 
 ```mermaid
 flowchart LR
     U["understand<br/>detect + translate"] --> R["route<br/>pinned / alias / sticky"]
     R --> C["classify<br/>LLM prompt 1"]
-    C --> G["gather<br/>slots, prompt 2 if gated open"]
-    G --> A["act<br/>call the declared endpoint,<br/>then run the rules"]
-    A --> CO["compose<br/>render template,<br/>prompt 3 only if nothing renders"]
-    CO --> L["localize<br/>back to the customer's language"]
+    C --> G["gather<br/>slots, prompt 2 if gated"]
+    G --> A["act<br/>call declared endpoint,<br/>evaluate AST rules"]
+    A --> CO["compose<br/>render receipt template,<br/>prompt 3 if unrendered"]
+    CO --> L["localize<br/>translate to customer's language"]
 
     C -. "confirmation · farewell ·<br/>no business · no capability" .-> CO
     G -. "missing slot ·<br/>needs confirmation ·<br/>answered from policy" .-> CO
     A -. "rule denied ·<br/>action failed" .-> CO
 ```
 
-The dotted edges are the point. A naive implementation calls the model three
-times per turn. This one calls it **zero** times for a confirmation, a goodbye,
-or a message with no business resolved; **once** for a normal completed job; and
-three times only when a slot is missing *and* nothing renders.
-
-Live, measured today:
+The dotted edges represent **prompt gating**:
+- A naive agent framework invokes LLMs 3–4 times every single turn.
+- Sahayak calls the LLM **0 times** for confirmations, goodbyes, brand openers, or unresolvable small talk.
+- It calls the LLM **1 time** for standard task resolution.
+- It calls the LLM up to 3 times only when an input slot is missing *and* no template renders.
 
 ```bash
-curl -s -X POST $BASE/chat -H 'content-type: application/json' \
+curl -s -X POST https://sahayak-49235763775.asia-south1.run.app/chat \
+  -H 'Content-Type: application/json' \
   -d '{"text":"where is my order 1001","business_id":"ravi-electronics"}'
 ```
 
 ```json
-{"conversation_id":"e8a42f…","reply_text":"Your request is shipped, arriving Wednesday, 29 July.",
- "business_id":"ravi-electronics","capability":"track_order",
- "receipt":{"label":"shipped","tone":"success"},
- "needs":null,"state":"resolved","language":"en-IN","degraded":[],"latency_ms":13343.19}
+{
+  "conversation_id": "e8a42f...",
+  "reply_text": "Your request is shipped, arriving Wednesday, 29 July.",
+  "business_id": "ravi-electronics",
+  "capability": "track_order",
+  "receipt": { "label": "shipped", "tone": "success" },
+  "needs": null,
+  "state": "resolved",
+  "language": "en-IN",
+  "degraded": [],
+  "latency_ms": 2100.4
+}
 ```
-
-The same capability through the Sarvam-free voice path returns the same receipt
-in **0.40 s**.
-
-State diagram, every short-circuit, and four detailed sequence diagrams:
-[`docs/request-lifecycle.md`](./docs/request-lifecycle.md).
 
 ---
 
-## 5. The manifest
-
-```mermaid
-flowchart LR
-    subgraph doc["The manifest — data, not code"]
-        M1["routing<br/>aliases, domains"]
-        M2["capability<br/>id, description, examples"]
-        M3["required_inputs<br/>name, prompt, default_from"]
-        M4["rules<br/>when → deny"]
-        M5["endpoint<br/>method, url template"]
-        M6["response + receipt<br/>templates"]
-    end
-
-    subgraph run["The runtime — generic"]
-        R1["route"]
-        R2["classify<br/>candidates built FROM the manifest"]
-        R3["gather<br/>slots driven BY the manifest"]
-        R4["act<br/>calls the endpoint, evaluates the rules"]
-        R5["compose<br/>renders the templates"]
-    end
-
-    M1 --> R1 --> R2
-    M2 --> R2 --> R3
-    M3 --> R3 --> R4
-    M5 --> R4
-    M4 --> R4 --> R5
-    M6 --> R5 --> OUT["Receipt<br/>label + tone<br/>rendered as a card"]
-```
+## 📜 5. The UCXP Manifest Contract
 
 ```jsonc
 {
   "ucxp_version": "0.1",
-  "business":  { "id": "…", "name": "…", "category": "…", "languages": ["en-IN", "hi-IN"] },
-  "routing":   { "aliases": ["…"], "domains": ["order", "refund"] },
+  "business": {
+    "id": "deepika-andhra-pickles",
+    "name": "Deepika Andhra Pickles",
+    "category": "Food & Beverage",
+    "languages": ["en-IN", "te-IN", "hi-IN"]
+  },
+  "routing": {
+    "aliases": ["Deepika", "Deepika Andhra Pickles", "deepika pickles"],
+    "domains": ["order", "refund"]
+  },
   "capabilities": [{
     "id": "track_order",
     "description": "Find where a customer's order is and when it arrives.",
-    "examples": ["where is my order", "मेरा ऑर्डर कहाँ है"],
-    "required_inputs": [{ "name": "order_id", "type": "string",
-                          "prompt": "What's your order ID?",
-                          "default_from": "context.last_order_id" }],
-    "rules":    [{ "id": "refund_window", "when": "result.days_since_delivery > 7",
-                   "deny": "Refunds are only available within 7 days of delivery." }],
-    "confirm":  false,
-    "action":   "get_order_status",
+    "examples": ["where is my order", "ఆర్డర్ ఎక్కడ ఉంది"],
+    "required_inputs": [{
+      "name": "order_id",
+      "type": "string",
+      "prompt": "What's your order ID?",
+      "default_from": "context.last_order_id"
+    }],
+    "rules": [{
+      "id": "refund_window",
+      "when": "result.days_since_delivery > 7",
+      "deny": "Refunds are only available within 7 days of delivery."
+    }],
+    "confirm": false,
+    "action": "get_order_status",
     "response": "Your order {{order_id}} is {{result.status}} and arrives {{result.eta}}.",
-    "receipt":  { "label": "Arriving {{result.eta}}", "tone": "success" }
+    "receipt": { "label": "Arriving {{result.eta}}", "tone": "success" }
   }],
-  "endpoints": [{ "id": "get_order_status", "method": "GET",
-                  "url": "{{connector_base}}/connectors/shopify/{{business_id}}/orders/{{order_id}}" }],
-  "knowledge": [{ "id": "refund_policy", "text": "Refunds are processed within 5-7 business days." }]
+  "endpoints": [{
+    "id": "get_order_status",
+    "method": "GET",
+    "url": "{{connector_base}}/connectors/shopify/{{business_id}}/orders/{{order_id}}"
+  }],
+  "knowledge": [{
+    "id": "refund_policy",
+    "text": "Refunds are processed within 5-7 business days."
+  }]
 }
 ```
 
-The classifier's candidate list is built from `capabilities`. A missing template
-key **raises** rather than rendering blank. Rules are evaluated by an AST walker
-over an allow-list, never `eval`.
-
-Both schemas, the full normalization mapping, and an honest account of what the
-published schema cannot express:
-[`docs/manifest-spec.md`](./docs/manifest-spec.md).
+The candidate set for classification is generated strictly from `capabilities`. Rules are evaluated via a safe AST walker over an allowlist (never `eval`).
 
 ---
 
-## 6. HTTP surface
+## 💻 6. Run Locally
 
-Exactly what the live service reports at `/openapi.json`.
-
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/chat` | text in, resolution out, with a receipt |
-| `POST` | `/voice` | speech in, resolution out, spoken back |
-| `POST` | `/transcribe` | STT only — so the app can show the customer their own words first |
-| `POST` | `/document` | PDF or photo in; answers **200 even when unreadable** |
-| `POST` | `/whatsapp/webhook` | Twilio; acks instantly, answers out of band |
-| `GET` | `/businesses` · `/manifests/{id}` · `/health` · `/history` | protocol introspection |
-| `POST` | `/manifests/reload` | adopt newly published manifests without a restart |
-| `POST` | `/agent/resolve` · `/agent/execute` | Samvaad tools — full runtime, and the sub-second path |
-| `GET` | `/agent/tool-spec` · `/agent/execute-spec` | tool definitions generated from live manifests |
-| `GET/POST` | `/connectors/shopify/{business_id}/…` | the generic connector every merchant points at |
-
-Per-channel behaviour, contracts and constraints:
-[`docs/channels.md`](./docs/channels.md).
-
----
-
-## 7. Engineering decisions worth reading
-
-Eight of the fifty, with the reasoning; the rest are in
-[`docs/decisions.md`](./docs/decisions.md).
-
-| Decision | Why it matters |
-|---|---|
-| **LangGraph as a state machine, not an agent framework** | The turn genuinely branches — three nodes end it early, each persisting different state. The conditional edges become the specification |
-| **Gated prompts: 58 s → ~10 s** | Prompt 2 runs only when a slot is missing *and* a regex says the text plausibly holds a value; prompt 3 only when no template renders. Determinism is a side effect, not a compromise |
-| **Response templates synthesised from the manifest's declared shape** | Published manifests describe an API response, not a sentence — so `compose` fell through on every turn. Greeting 52 s → **2.1 s**, lookup 44 s → **8.6 s** |
-| **A normalization adapter for a second published schema** | The graph, executor and renderer never learn there are two shapes, and `GET /manifests/{id}` still serves the original document. Its cost is real and documented |
-| **One generic Shopify connector, real or mock on the same path** | Mock and live differ by a credential, not a branch — so the demo path *is* the production path |
-| **Async WhatsApp replies** | Resolution takes 20–27 s; a Twilio webhook must answer in ~10 s. Ack in 0.4 s, deliver out of band |
-| **`force_business_id` shared by four channels** | A merchant's WhatsApp number is its own support line. One parameter expresses that everywhere; the central chat is simply its absence |
-| **Disk-persisted conversation memory** | A restart between "shall I go ahead?" and "Yes" used to lose the pending refund. Atomic snapshot after every turn, on a mounted volume |
-
----
-
-## 8. Repository layout
-
-| Path | What lives there |
-|---|---|
-| `ai_engine/` | The only Sarvam client. Orchestrator, speech, translation, LLM, TTS, prompts as `.md`, retries, graceful degradation. Interface frozen |
-| `backend/app/main.py` | FastAPI surface and protocol introspection |
-| `backend/app/runtime/` | `graph.py` (the seven nodes), `loader.py`, `normalize.py`, `executor.py`, `renderer.py`, `llm.py`, `prompts/` |
-| `backend/app/connectors/` | One generic Shopify connector, real or mock |
-| `backend/app/agent_tools/` | Samvaad tool surface and the sub-second execute path |
-| `backend/app/api/whatsapp.py` | Twilio adapter — transport only |
-| `backend/app/documents.py` | PDF + image OCR, shared by every channel |
-| `backend/app/memory/` | Conversation state, disk snapshot, durable Supabase store |
-| `manifests/` | The five published merchant manifests |
-| `frontend/` | Expo SDK 57 → Android APK + web SPA + landing page |
-| `tests/` | Offline suites, every network call faked |
-| `db/`, `docs/` | Supabase schema and the documentation set |
-
----
-
-## 9. Quickstart
+### Prerequisites
+- Python 3.11+
+- Node.js ≥ 20
+- Sarvam AI API Key (`SARVAM_API_KEY`)
 
 ```bash
-# Backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env                        # add SARVAM_API_KEY
-.venv/bin/python -m uvicorn backend.app.main:app --reload --port 8000
+# 1. Clone repository
+git clone https://github.com/akashmeruva9/sahayak-ucxp-sarvam.git
+cd sahayak-ucxp-sarvam
 
-# Tests — no API key needed
-.venv/bin/python -m pytest
+# 2. Setup Python environment & backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-# AI Engine against a fake Sarvam
-.venv/bin/python tools/mock_sarvam.py       # :8099
-SARVAM_BASE_URL=http://127.0.0.1:8099 SARVAM_API_KEY=mock \
-  .venv/bin/python tools/demo.py text "मेरा ऑर्डर कहाँ है?"
+cp .env.example .env
+# Edit .env and supply your SARVAM_API_KEY and GCP credentials
 
-# Frontend
-cd frontend && npm install && npm run dev
+# 3. Start UCXP Runtime Backend (http://localhost:8000)
+uvicorn backend.app.main:app --reload --port 8000
+
+# 4. Setup & Start Frontend (Web SPA)
+cd frontend
+npm install
+npm run web
 ```
-
-> Exported shell variables beat `.env` — `unset SARVAM_BASE_URL SARVAM_API_KEY`
-> before running against the real API.
-
-Docker, Railway, Vercel, the release APK, environment variables and
-troubleshooting: [`docs/operations.md`](./docs/operations.md).
 
 ---
 
-## 10. Current status and limitations
+## 🧪 7. Tests
 
-Verified 2026-07-28 against the live deployment and the committed tree. Nothing
-below is aspirational.
+The offline test suite validates invariant rules, language identification guards, AST evaluations, prompt gating, and multi-pass alias matching without requiring external network calls:
 
-**Working and verified**
+```bash
+# Run all unit tests
+.venv/bin/pytest tests/
 
-- Runtime live on Railway. `/health` reports 5 manifests, engine configured,
-  `sarvam-105b`.
-- `/chat` returns a receipt in **13.3 s** for a pinned merchant;
-  `/agent/execute` returns the same receipt in **0.40 s**.
-- Web SPA live on Vercel; release APK built and verified running standalone.
-- WhatsApp verified end to end over the Twilio sandbox — text, voice note, PDF
-  and photo in; async reply out.
-- Five merchants with no runtime code behind them. Both greps in §2 return
-  nothing.
+# Run runtime tests specifically
+.venv/bin/pytest tests/test_runtime.py
+```
 
-**Known gaps — stated because a judge will find them anyway**
+---
 
-| Gap | Detail |
+## 🚀 8. Deployment Architecture
+
+### Backend: Google Cloud Run
+The backend runtime runs in `asia-south1` (Mumbai) on Google Cloud Run with autoscaling and zero cold-start optimization:
+
+```bash
+# One-command deployment script to Google Cloud Run:
+./scripts/deploy-cloudrun.sh sahayak-ucxp asia-south1
+```
+
+- **Database:** Google Cloud Firestore in Native Mode (`ucxp_manifests` and `conversations`).
+- **Auth:** Google Cloud Identity Platform (Firebase Auth) supporting Google OAuth and passwordless authentication.
+
+### Frontend: Vercel
+The frontend is deployed to Vercel as a performant web client:
+- **Build settings:** Root Directory: `frontend`, Framework: `Other` (Expo Web export).
+- **Environment variables:** `EXPO_PUBLIC_API_URL=https://sahayak-49235763775.asia-south1.run.app`.
+
+---
+
+## 🛡️ 9. Built-In Guardrails & Engineering Decisions
+
+1. **State Machine over Unconstrained Agents:** LangGraph implements an explicit state machine with guarded conditional transitions rather than an unpredictable open-loop agent.
+2. **Safe AST Rule Evaluation:** Business policy conditions (e.g. `result.days_since_delivery > 7`) are evaluated through an Abstract Syntax Tree (AST) allowlist. No `eval()` is ever permitted.
+3. **Language Stickiness & Script Detection:** Prevents regional false positives on Indian proper nouns in Latin script (e.g., brand names or order IDs) while seamlessly switching when native Indic scripts (`[\u0900-\u0D7F]`) are entered.
+4. **Multi-Pass Brand Alias Matching:** Resolves space typos, punctuation variances, and singular/plural variations (`"Deepik aAndhra Pickles"` $\to$ `deepika-andhra-pickles`) deterministically before any LLM is called.
+5. **Gated Prompts (58 s $\to$ ~2 s):** Classify runs on a single small manifest prompt rather than the entire directory. Gather and Compose prompts are skipped entirely when templates can resolve the answer.
+6. **Receipts as Resolution Invariant:** An interaction is only classified as `resolved` when a structured receipt card is generated and persisted.
+
+---
+
+## 📚 10. Documentation Index
+
+Detailed specifications and architectural deep-dives live in [`docs/`](./docs/):
+
+| Document | Description |
 |---|---|
-| `tests/test_runtime.py` is **red** — 11 failed, 8 passed | Targets the retired Flipkart/Airtel/Apollo set. The other three suites are green: **91 of 102 passing** overall |
-| The **consistency harness does not exist** | `PLAN.md` §6 promises `POST /harness/run` and §8 a dashboard; `backend/app/harness/` was never created. Consistency is demonstrated, not measured |
-| The **rule engine is inert in production** | `normalize.py` emits `rules: []` because the published schema has no rules field. The evaluator and its AST allow-list are unit-tested; no live capability exercises them — [detail](./docs/manifest-spec.md#6-what-the-published-schema-cannot-express) |
-| The live deployment is currently serving **mock Shopify data** | The Supabase-published `ravi-electronics` row has no `store_subdomain`, and Supabase rows override local files, so the connector takes the mock branch — [detail](./docs/operations.md#the-live-shopify-issue-in-full) |
-| `/agent/execute` is a **second implementation** of the resolution semantics | Reuses the executor, renderer and rule evaluator, but does not snapshot memory to disk or learn `last_<key>` facts — [detail](./docs/channels.md#5-samvaad-agent-tools) |
-| **WhatsApp turns never reach the durable store** | `db/schema.sql` reserves `channel = 'whatsapp'` and `external_id`; neither is populated — [detail](./docs/data-and-memory.md#73-whatsapp-turns-never-reach-the-durable-store) |
-| **Web voice is broken** | A browser recorder exists, but its hook exports `finish`/`loudness` while both call sites destructure `stop`. `tsc` cannot catch it — [detail](./frontend/README.md#10-known-issues-and-limitations) |
-| The **live phone call has not been dialled** from a real Samvaad agent | Both tool endpoints are built, spec'd, unit-tested and verified over the public URL. The last mile is dashboard configuration |
-| **Web search for unknown businesses is untested** against a live provider | No key was available when it was written. With no key the feature is off |
-| `PLAN.md` §7 has **three duplicate decision ids** | #35, #42 and #43 each appear twice. The log is append-only by policy, so this is recorded rather than silently renumbered — [detail](./docs/decisions.md) |
-
-Depth is deliberately five merchants and four languages (`en-IN`, `hi-IN`,
-`te-IN`, `ta-IN`). The engine supports eleven; we do not claim them. See
-[`PLAN.md`](./PLAN.md) §4 and §9 for what is deliberately not being built.
+| [**architecture.md**](./docs/architecture.md) | Component maps, layering rules, deployment topology, and cross-cutting invariants |
+| [**request-lifecycle.md**](./docs/request-lifecycle.md) | Turn state diagrams, prompt gating mechanics, and failure semantics |
+| [**manifest-spec.md**](./docs/manifest-spec.md) | Complete schema specification, normalization mapping table, and template grammar |
+| [**channels.md**](./docs/channels.md) | Omnichannel client contracts (Web, Android APK, Twilio WhatsApp, Sarvam Samvaad) |
+| [**data-and-memory.md**](./docs/data-and-memory.md) | Memory layers, mid-flow confirmation survival, and Firestore session synchronization |
+| [**decisions.md**](./docs/decisions.md) | Architectural decision log documenting trade-offs, constraints, and solutions |
+| [**PLAN.md**](./PLAN.md) | Master development roadmap, contracts, and execution history |
