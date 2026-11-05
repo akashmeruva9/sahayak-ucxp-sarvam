@@ -19,8 +19,6 @@ https://github.com/user-attachments/assets/fa20573a-8d16-46e7-bd67-376eea119c84
 
 ### 📑 **<a href="https://canva.link/bcgrk9wfxtp9qw6" target="_blank" rel="noopener noreferrer">👉 View the Sahayak Presentation Pitch Deck on Canva ↗</a>**
 
-> 💡 *View the full presentation with problem breakdown, protocol architecture, and system diagrams: **<a href="https://canva.link/bcgrk9wfxtp9qw6" target="_blank" rel="noopener noreferrer">Canva Slide Deck</a>***
-
 ---
 
 ## 📁 Repo
