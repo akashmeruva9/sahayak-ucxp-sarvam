@@ -6,7 +6,7 @@ Any business publishes a **JSON manifest** declaring its capabilities, required 
 
 ## 🌐 Live Website 
 
-<a href="https://sahayak-ucxp.vercel.app" target="_blank" rel="noopener noreferrer">https://sahayak-ucxp.vercel.app</a>
+### 🚀 **<a href="https://sahayak-ucxp.vercel.app" target="_blank" rel="noopener noreferrer">https://sahayak-ucxp.vercel.app ↗</a>**
 
 
 ## 🎬 Project Demo
@@ -17,7 +17,7 @@ https://github.com/user-attachments/assets/fa20573a-8d16-46e7-bd67-376eea119c84
 
 ## 📊 Presentation Deck & Architecture Slides
 
-<a href="https://canva.link/bcgrk9wfxtp9qw6" target="_blank" rel="noopener noreferrer"><strong>👉 View the Sahayak Presentation Pitch Deck on Canva ↗</strong></a>
+### 📑 **<a href="https://canva.link/bcgrk9wfxtp9qw6" target="_blank" rel="noopener noreferrer">👉 View the Sahayak Presentation Pitch Deck on Canva ↗</a>**
 
 > 💡 *View the full presentation with problem breakdown, protocol architecture, and system diagrams: **<a href="https://canva.link/bcgrk9wfxtp9qw6" target="_blank" rel="noopener noreferrer">Canva Slide Deck</a>***
 
