@@ -8,13 +8,10 @@ Any business publishes a **JSON manifest** declaring its capabilities, required 
 
 <a href="https://sahayak-ucxp.vercel.app" target="_blank" rel="noopener noreferrer">https://sahayak-ucxp.vercel.app</a>
 
-> ⚡ **Cloud Run Backend API:** <a href="https://sahayak-49235763775.asia-south1.run.app" target="_blank" rel="noopener noreferrer">https://sahayak-49235763775.asia-south1.run.app</a> · Health: <a href="https://sahayak-49235763775.asia-south1.run.app/health" target="_blank" rel="noopener noreferrer"><code>/health</code></a> · OpenAPI Docs: <a href="https://sahayak-49235763775.asia-south1.run.app/docs" target="_blank" rel="noopener noreferrer"><code>/docs</code></a>
 
 ## 🎬 Project Demo
 
 https://github.com/user-attachments/assets/fa20573a-8d16-46e7-bd67-376eea119c84
-
-https://github.com/user-attachments/assets/ede17ab2-73b6-46e2-9e45-6e043a5b5059
 
 > 🔗 **Demo Mirrors:** <a href="https://drive.google.com/file/d/1wYmC7KAdk6p2E8STL1A-TuyYvlAwnPb0/view?usp=sharing" target="_blank" rel="noopener noreferrer">Google Drive Full Demo</a>
 
