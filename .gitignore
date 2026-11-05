@@ -3,6 +3,8 @@
 .env
 .env.local
 .env.*.local
+*.env.yaml
+cloudrun.env.yaml
 
 # --- Python ----------------------------------------------------------------
 .venv/
@@ -41,3 +43,5 @@ frontend/.android-patches/
 # be a third version to keep in step — and edits here would never reach the
 # live dashboard.
 dashboard/
+.vercel
+.env*

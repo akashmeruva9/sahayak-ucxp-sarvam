@@ -1,0 +1,27 @@
+# Exclude large, client-side, and local development files from Cloud Build context
+.gcloudignore
+.git/
+.github/
+.claude/
+.cursor/
+
+frontend/
+.venv/
+venv/
+__pycache__/
+**/*__pycache__*/**
+*.py[cod]
+.pytest_cache/
+tests/
+tools/
+docs/
+
+.env
+.env.local
+.env.*.local
+.ucxp_state.json
+logs/
+*.log
+*.wav
+*.apk
+.DS_Store

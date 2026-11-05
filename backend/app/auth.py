@@ -94,6 +94,30 @@ async def _verify_remotely(token: str, settings: RuntimeSettings) -> AuthedUser 
     return AuthedUser(id=user_id, email=body.get("email", "")) if user_id else None
 
 
+def _verify_google(token: str) -> AuthedUser | None:
+    """Verify Google / Firebase OAuth ID token using Google public certificates."""
+    try:
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as google_requests
+        req = google_requests.Request()
+        id_info = None
+        try:
+            id_info = id_token.verify_firebase_token(token, req)
+        except Exception:
+            try:
+                id_info = id_token.verify_oauth2_token(token, req)
+            except Exception:
+                pass
+        if id_info:
+            user_id = id_info.get("sub") or id_info.get("user_id")
+            email = id_info.get("email", "")
+            if user_id:
+                return AuthedUser(id=user_id, email=email)
+    except Exception as exc:
+        logger.debug(f"auth.google_verify_skipped: {exc}")
+    return None
+
+
 async def resolve_user(
     authorization: str | None, settings: RuntimeSettings | None = None
 ) -> AuthedUser | None:
@@ -110,11 +134,17 @@ async def resolve_user(
     if cached:
         return cached
 
-    user = (
-        _verify_locally(token, settings)
-        if settings.supabase_jwt_secret
-        else await _verify_remotely(token, settings)
-    )
+    # 1. Try Google / Firebase ID token verification first
+    user = _verify_google(token)
+
+    # 2. Fall back to Supabase JWT verification
+    if not user:
+        user = (
+            _verify_locally(token, settings)
+            if settings.supabase_jwt_secret
+            else await _verify_remotely(token, settings)
+        )
+
     if user:
         _cache[token] = (user, time.time() + _CACHE_TTL_S)
         logger.info(f"auth.ok user={user.id[:8]}…")

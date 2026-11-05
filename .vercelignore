@@ -1,0 +1,12 @@
+.venv/
+frontend/node_modules/
+node_modules/
+backend/
+ai_engine/
+scripts/
+dashboard/
+.git/
+.cache/
+dist/
+__pycache__/
+*.pyc

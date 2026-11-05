@@ -120,7 +120,8 @@ it. §4.1 explains why that matters more than it looks.
 
 ## 4. Railway
 
-Live: `https://sahayak-ucxp-sarvam-production.up.railway.app`
+Live (Google Cloud Run): `https://sahayak-49235763775.asia-south1.run.app`
+(Previously on Railway: `https://sahayak-ucxp-sarvam-production.up.railway.app`)
 
 1. **Deploy from the repo root.** `railway.json` selects the Dockerfile builder
    and healthchecks `/health` with a 120 s timeout, restarting on failure up to

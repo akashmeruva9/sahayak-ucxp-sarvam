@@ -90,7 +90,7 @@ grep -rn "api\.sarvam\.ai\|SARVAM_API_KEY\|saarika\|bulbul\|sarvam-translate\|SA
 Then ask the runtime itself:
 
 ```bash
-BASE=https://sahayak-ucxp-sarvam-production.up.railway.app
+BASE=https://sahayak-49235763775.asia-south1.run.app
 curl -s $BASE/businesses                    # the directory, comprehended from manifests
 curl -s $BASE/manifests/ravi-electronics    # the document that produced it
 ```

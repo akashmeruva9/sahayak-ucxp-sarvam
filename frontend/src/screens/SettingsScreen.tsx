@@ -18,7 +18,7 @@ import {
 import type { ThemePreference } from "@/types";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { authConfigured } from "@/lib/supabase";
+import { authConfigured } from "@/lib/firebase";
 import { COMPILED_BASE_URL, pingBackend } from "@/api/client";
 import { ScreenContainer } from "@/components";
 import { useThemeColors } from "@/hooks/useThemeColors";

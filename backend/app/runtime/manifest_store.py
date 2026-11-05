@@ -34,13 +34,36 @@ def _headers(settings: RuntimeSettings) -> dict[str, str]:
 
 
 async def fetch_manifests(settings: RuntimeSettings) -> list[dict[str, Any]]:
-    """Return the raw manifest documents the dashboard has published.
+    """Return the raw manifest documents from Cloud Firestore or Supabase.
 
     Only ``status = active`` rows are loaded — a draft in the dashboard must not
     become a live business in the app.
     """
+    # 1. Try Google Cloud Firestore (primary)
+    try:
+        import os
+        from google.cloud import firestore
+        proj = os.getenv("GCP_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT") or "sahayak-ucxp"
+        db = firestore.Client(project=proj)
+        docs = db.collection("ucxp_manifests").where("status", "==", "active").stream()
+        documents: list[dict[str, Any]] = []
+        rows_count = 0
+        for doc in docs:
+            rows_count += 1
+            row = doc.to_dict()
+            m = row.get("manifest")
+            if isinstance(m, dict):
+                m.setdefault("business_id", row.get("business_id") or doc.id)
+                documents.append(m)
+        if rows_count > 0:
+            logger.info(f"manifest_store.firestore_fetched rows={rows_count} usable={len(documents)}")
+            return documents
+    except Exception as exc:
+        logger.warning(f"manifest_store.firestore_skipped {exc}")
+
+    # 2. Fall back to Supabase (secondary / fallback)
     if not settings.supabase_configured:
-        raise ManifestStoreUnavailable("SUPABASE_URL / SUPABASE_KEY not set")
+        raise ManifestStoreUnavailable("Neither Firestore nor Supabase configured")
 
     url = f"{settings.supabase_url.rstrip('/')}/rest/v1/{settings.manifest_table}"
     params = {"select": "business_id,manifest,status,version", "status": "eq.active"}
