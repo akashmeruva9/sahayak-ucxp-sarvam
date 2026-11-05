@@ -617,11 +617,15 @@ _ENGLISH_MARKERS: frozenset[str] = frozenset(
     booking book appointment complaint help support account price cost
     where's what's i'm i've don't can't won't
     hi hello hey yes no ok okay thanks thank please sorry sure bye
+    pickles pickle store stores electronics electronic fashion fashions
+    groceries grocery kitchen pharma pharmacy mart bazaar shop shopper
+    enterprises care express logistics tech solutions products item items
+    buy purchase sell cart brand business company
     """.split()
 )
 
 
-def looks_like_english(text: str, *, threshold: float = 0.4) -> bool:
+def looks_like_english(text: str, *, threshold: float = 0.33) -> bool:
     """True when enough of *text* is ordinary English to call it English.
 
     Only meaningful for Latin-script input, and deliberately generous: the cost

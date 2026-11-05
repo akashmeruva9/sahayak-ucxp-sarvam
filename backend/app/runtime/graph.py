@@ -22,6 +22,7 @@ from langgraph.graph import END, START, StateGraph
 from loguru import logger
 
 from ai_engine import SarvamOrchestrator
+from ai_engine.utils import looks_like_english
 
 from ..config import RuntimeSettings, get_settings
 from ..memory.context import Conversation, get_store
@@ -357,11 +358,42 @@ class UcxpRuntime:
         started = time.perf_counter()
         text = state["raw_text"].strip()
         hint = state.get("language_hint")
+        conversation = self.store.get_or_create(state["conversation_id"])
+
+        # Check for native Indic script characters (Devanagari, Telugu, Tamil, etc.)
+        has_indic_script = bool(re.search(r"[\u0900-\u0D7F]", text))
 
         detected = hint
         if not detected:
-            detection = await self.engine.detect_language(text)
-            detected = detection.language.value if detection.success else "en-IN"
+            if not has_indic_script:
+                words = text.split()
+                is_short = len(words) <= 5 or len(text) <= 35
+                matched_biz = self.registry.match_alias(text)
+
+                # 1. Active English conversation: short Latin inputs (proper nouns like
+                # brand names, order IDs, "yes", "track order") must not be flipped to
+                # regional languages by Sarvam LID false positives.
+                if conversation.language == "en-IN" and (is_short or matched_biz):
+                    detected = "en-IN"
+                # 2. Starting turn with an explicit registered business mention in Latin script
+                elif matched_biz and is_short:
+                    detected = "en-IN"
+                # 3. Text looks like English
+                elif looks_like_english(text):
+                    detected = "en-IN"
+
+            if not detected:
+                detection = await self.engine.detect_language(text)
+                detected = detection.language.value if detection.success else "en-IN"
+
+                # Guard: if LID returns a regional Indian language for pure Latin text on a short phrase
+                # while conversation was in English, force en-IN
+                if (
+                    not has_indic_script
+                    and conversation.language == "en-IN"
+                    and (len(text.split()) <= 5 or len(text) <= 35)
+                ):
+                    detected = "en-IN"
 
         english = text
         degraded: list[str] = []
@@ -1162,9 +1194,17 @@ class UcxpRuntime:
         offers = [_friendly_input(c.id) for c in (manifest.capabilities if manifest else [])]
         knowledge = bool(manifest and manifest.knowledge)
 
-        # An opener is answered from the manifest, instantly. Paraphrasing a
-        # greeting through the reasoning model costs ~40s to say hello.
-        if _is_greeting(state["english_text"]):
+        # An opener or naming a business is answered from the manifest, instantly.
+        # Paraphrasing a greeting or brand welcome through the reasoning model
+        # costs ~40s to say hello.
+        is_greeting = _is_greeting(state["english_text"])
+        is_naming_business = False
+        if manifest and state.get("business_source") == "alias" and not state.get("capability_id"):
+            user_words = state["english_text"].strip().split()
+            if len(user_words) <= 4:
+                is_naming_business = True
+
+        if is_greeting or is_naming_business:
             template = self._welcome(manifest)
             close = (
                 f"and point them to what you can do here ({', '.join(offers)})."
@@ -1172,7 +1212,7 @@ class UcxpRuntime:
                 else "and do not offer to look anything up."
             )
             outcome = (
-                f"The customer greeted {known}. Greet them back warmly as {known} {close}"
+                f"The customer reached {known}. Welcome them warmly as {known} {close}"
             )
             return (outcome, "", template, "smalltalk")
 

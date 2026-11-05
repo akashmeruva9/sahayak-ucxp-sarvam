@@ -342,6 +342,8 @@ def test_alias_matching_is_data_driven():
     assert registry.match_alias("where is my flipkart order") == "flipkart"
     assert registry.match_alias("Airtel Fiber बंद कर दो") == "airtel"
     assert registry.match_alias("book an apollo clinic slot") == "apollo"
+    assert registry.match_alias("anna grocery") == "anna-groceries"
+    assert registry.match_alias("ravi electronic") == "ravi-electronics"
     assert registry.match_alias("what is the weather") is None
 
 

@@ -6,8 +6,10 @@ business means adding a file here — the runtime is never edited.
 
 from __future__ import annotations
 
+import difflib
 import json
 from pathlib import Path
+import re
 
 from loguru import logger
 from pydantic import ValidationError
@@ -117,21 +119,76 @@ class ManifestRegistry:
 
     # -- routing --------------------------------------------------------- #
     def match_alias(self, text: str) -> str | None:
-        """Cheap, deterministic business match on an explicit brand mention.
+        """Data-driven business match on an explicit or fuzzy brand mention.
 
         Runs before any LLM call: if the user named the business, there is
         nothing to infer. The longest alias wins, so a two-word brand beats the
         single word it contains.
+        Handles:
+        1. Exact substring matching
+        2. Space/punctuation normalized matching (e.g. extra spaces, hyphens)
+        3. Fuzzy ratio matching for slight typos
         """
-        haystack = (text or "").lower()
+        haystack = (text or "").lower().strip()
+        if not haystack:
+            return None
+
+        # Pass 1: exact substring match (longest needle wins)
         best: tuple[int, str] | None = None
         for manifest in self._manifests.values():
             for alias in [manifest.business.name, *manifest.routing.aliases]:
                 needle = alias.lower().strip()
-                if needle and needle in haystack:
+                if not needle:
+                    continue
+                # If needle is very short (<= 3 chars, e.g. "mi"), require word boundary
+                if len(needle) <= 3:
+                    if re.search(r"\b" + re.escape(needle) + r"\b", haystack):
+                        if best is None or len(needle) > best[0]:
+                            best = (len(needle), manifest.id)
+                elif needle in haystack:
                     if best is None or len(needle) > best[0]:
                         best = (len(needle), manifest.id)
-        return best[1] if best else None
+        if best:
+            return best[1]
+
+        # Pass 2: normalized non-alphanumeric/space-collapsed match
+        norm_haystack = re.sub(r"[^a-z0-9]", "", haystack)
+        if len(norm_haystack) >= 3:
+            for manifest in self._manifests.values():
+                for alias in [manifest.business.name, *manifest.routing.aliases]:
+                    norm_needle = re.sub(r"[^a-z0-9]", "", alias.lower())
+                    if not norm_needle or len(norm_needle) < 3:
+                        continue
+                    if norm_needle in norm_haystack:
+                        if best is None or len(norm_needle) > best[0]:
+                            best = (len(norm_needle), manifest.id)
+                    elif (
+                        norm_haystack in norm_needle
+                        and len(norm_haystack) >= 5
+                        and len(norm_haystack) >= 0.5 * len(norm_needle)
+                    ):
+                        if best is None or len(norm_haystack) > best[0]:
+                            best = (len(norm_haystack), manifest.id)
+        if best:
+            return best[1]
+
+        # Pass 3: fuzzy ratio matching on normalized text for typos
+        if 3 <= len(norm_haystack) <= 50:
+            best_ratio = 0.0
+            best_id: str | None = None
+            for manifest in self._manifests.values():
+                for alias in [manifest.business.name, *manifest.routing.aliases]:
+                    norm_needle = re.sub(r"[^a-z0-9]", "", alias.lower())
+                    if not norm_needle or len(norm_needle) < 3:
+                        continue
+                    ratio = difflib.SequenceMatcher(None, norm_needle, norm_haystack).ratio()
+                    if ratio > best_ratio:
+                        best_ratio = ratio
+                        best_id = manifest.id
+            if best_ratio >= 0.75:
+                return best_id
+
+        return None
 
     def full_catalogue(self) -> str:
         """Every business *with its capabilities*, for unscoped conversations.
