@@ -1,25 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Web microphone capture — the browser can do this perfectly well; it is
- * `expo-audio` that has no web recorder, which is why the native hook falls
- * back to a simulated clip here.
+ * Web microphone capture with Voice Activity Detection (VAD) and silence timeout.
  *
- * Same shape as `useVoiceRecorder.ts` so every caller (VoiceOverlay, CallScreen)
- * works unchanged; Metro picks this file on web automatically.
- *
- * `getUserMedia` triggers the browser's own permission prompt, and a refusal is
- * reported as `permission-denied` rather than silently producing nothing.
+ * Same contract as `useVoiceRecorder.ts` so callers (VoiceOverlay, CallScreen)
+ * work identically across web and native.
  */
 export type RecordingIssue = "permission-denied" | "web-unsupported" | "recorder-error";
 
-/**
- * Deliberately identical to `useVoiceRecorder.ts`. Metro swaps the two by
- * filename, so nothing at the call site knows which one it got — and when the
- * native hook's surface changed and this one didn't, every caller on web threw
- * "stop is not a function" the moment someone pressed the button. The two files
- * are one contract with two implementations.
- */
 export interface StartResult {
   ok: boolean;
   issue?: RecordingIssue;
@@ -28,6 +16,15 @@ export interface StartResult {
 export interface Clip {
   uri: string | null;
   durationMs: number;
+}
+
+export interface VoiceRecorderOptions {
+  /** Callback triggered when speech is followed by silenceThresholdMs of pause */
+  onSilenceTimeout?: () => void;
+  /** Silence pause duration in milliseconds to trigger onSilenceTimeout (default: 3000ms) */
+  silenceThresholdMs?: number;
+  /** Minimum ms of active speech needed before pause detection is armed (default: 600ms) */
+  minSpeechMs?: number;
 }
 
 type RecorderState = "idle" | "requesting" | "recording";
@@ -45,15 +42,30 @@ function pickMimeType(): string | undefined {
   return candidates.find((t) => MR.isTypeSupported(t));
 }
 
-export function useVoiceRecorder() {
+export function useVoiceRecorder(options?: VoiceRecorderOptions) {
   const [state, setState] = useState<RecorderState>("idle");
   const [durationMs, setDurationMs] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [silenceRemainingMs, setSilenceRemainingMs] = useState(3000);
+
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const stream = useRef<MediaStream | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAt = useRef(0);
+
+  // Web Audio VAD
+  const audioContext = useRef<AudioContext | null>(null);
+  const analyser = useRef<AnalyserNode | null>(null);
+  const noiseFloor = useRef(0);
+  const speechAccumulatedMs = useRef(0);
+  const hasSpoken = useRef(false);
+  const lastSpeechAt = useRef(0);
+  const silenceFired = useRef(false);
 
   const clearTimer = useCallback(() => {
     if (timer.current) {
@@ -62,10 +74,17 @@ export function useVoiceRecorder() {
     }
   }, []);
 
-  /** Release the mic so the browser's recording indicator goes away. */
+  /** Release the mic and audio context so the browser's recording indicator goes away. */
   const stopTracks = useCallback(() => {
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
+    if (audioContext.current) {
+      audioContext.current.close().catch(() => {});
+      audioContext.current = null;
+    }
+    analyser.current = null;
+    setAudioLevel(0);
+    setIsSpeaking(false);
   }, []);
 
   useEffect(() => {
@@ -75,15 +94,12 @@ export function useVoiceRecorder() {
     };
   }, [clearTimer, stopTracks]);
 
-
   const start = useCallback(async (): Promise<StartResult> => {
     setState("requesting");
     chunks.current = [];
 
     const media = globalThis.navigator?.mediaDevices;
     const MR = (globalThis as { MediaRecorder?: typeof MediaRecorder }).MediaRecorder;
-    // Both are absent on http:// origins other than localhost — browsers gate
-    // microphone access on a secure context, so say that rather than "denied".
     if (!media?.getUserMedia || !MR) {
       const reason: RecordingIssue =
         globalThis.isSecureContext === false ? "permission-denied" : "web-unsupported";
@@ -92,28 +108,106 @@ export function useVoiceRecorder() {
     }
 
     try {
-      // This is the call that raises the browser's permission prompt.
       const s = await media.getUserMedia({ audio: true });
       stream.current = s;
+
+      // Web Audio Analyser for Real-Time VAD & Metering
+      const AudioCtx = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
+      if (AudioCtx) {
+        try {
+          const ctx = new AudioCtx();
+          audioContext.current = ctx;
+          if (ctx.state === "suspended") {
+            ctx.resume().catch(() => {});
+          }
+          const src = ctx.createMediaStreamSource(s);
+          const an = ctx.createAnalyser();
+          an.fftSize = 256;
+          an.smoothingTimeConstant = 0.25;
+          src.connect(an);
+          analyser.current = an;
+        } catch {
+          /* Fallback: recording works even without AudioContext */
+        }
+      }
+
+      noiseFloor.current = 0;
+      speechAccumulatedMs.current = 0;
+      hasSpoken.current = false;
+      lastSpeechAt.current = 0;
+      silenceFired.current = false;
+      const initialSilence = optionsRef.current?.silenceThresholdMs ?? 3000;
+      setSilenceRemainingMs(initialSilence);
 
       const mimeType = pickMimeType();
       const mr = new MR(s, mimeType ? { mimeType } : undefined);
       mr.ondataavailable = (e: BlobEvent) => {
         if (e.data && e.data.size > 0) chunks.current.push(e.data);
       };
-      mr.start();
+      mr.start(100);
       recorder.current = mr;
 
       startedAt.current = Date.now();
       setDurationMs(0);
       clearTimer();
-      timer.current = setInterval(() => setDurationMs(Date.now() - startedAt.current), 100);
+
+      // Sampling loop for duration & VAD (every 80ms)
+      timer.current = setInterval(() => {
+        const elapsed = Date.now() - startedAt.current;
+        setDurationMs(elapsed);
+
+        if (analyser.current) {
+          const buffer = new Uint8Array(analyser.current.frequencyBinCount);
+          analyser.current.getByteFrequencyData(buffer);
+          let sum = 0;
+          for (let i = 0; i < buffer.length; i++) {
+            sum += buffer[i];
+          }
+          const avg = sum / buffer.length;
+          const normalized = Math.min(1.0, avg / 70);
+          setAudioLevel(normalized);
+
+          // Adaptive background room noise floor
+          if (noiseFloor.current === 0) {
+            noiseFloor.current = avg;
+          } else {
+            noiseFloor.current = noiseFloor.current * 0.96 + avg * 0.04;
+          }
+
+          const threshold = Math.max(9, noiseFloor.current * 1.8 + 3);
+          const nowSpeaking = avg > threshold;
+          setIsSpeaking(nowSpeaking);
+
+          const silenceLimit = optionsRef.current?.silenceThresholdMs ?? 3000;
+          const minSpeech = optionsRef.current?.minSpeechMs ?? 600;
+          const now = Date.now();
+
+          if (nowSpeaking) {
+            speechAccumulatedMs.current += 80;
+            if (speechAccumulatedMs.current >= minSpeech) {
+              hasSpoken.current = true;
+            }
+            lastSpeechAt.current = now;
+            setSilenceRemainingMs(silenceLimit);
+          } else {
+            if (hasSpoken.current && lastSpeechAt.current > 0) {
+              const silenceElapsed = now - lastSpeechAt.current;
+              const remaining = Math.max(0, silenceLimit - silenceElapsed);
+              setSilenceRemainingMs(remaining);
+
+              if (silenceElapsed >= silenceLimit && !silenceFired.current) {
+                silenceFired.current = true;
+                optionsRef.current?.onSilenceTimeout?.();
+              }
+            }
+          }
+        }
+      }, 80);
 
       setState("recording");
       return { ok: true };
     } catch (err) {
       const name = (err as { name?: string })?.name ?? "";
-      // NotAllowedError is a refusal; anything else is the device failing.
       const reason: RecordingIssue =
         name === "NotAllowedError" || name === "SecurityError"
           ? "permission-denied"
@@ -135,7 +229,6 @@ export function useVoiceRecorder() {
       return { uri: null, durationMs: elapsed };
     }
 
-    // `stop()` is async — the final chunk only lands on the stop event.
     const blob = await new Promise<Blob | null>((resolve) => {
       mr.onstop = () => {
         const type = mr.mimeType || "audio/webm";
@@ -154,8 +247,6 @@ export function useVoiceRecorder() {
     if (!blob || blob.size === 0) {
       return { uri: null, durationMs: elapsed };
     }
-    // A blob: URL keeps the caller's contract identical to native, where the
-    // recorder hands back a file URI. The upload layer resolves it back.
     return { uri: URL.createObjectURL(blob), durationMs: elapsed };
   }, [clearTimer, stopTracks]);
 
@@ -173,21 +264,18 @@ export function useVoiceRecorder() {
     stopTracks();
   }, [clearTimer, stopTracks]);
 
-  return { isRecording: state === "recording", durationMs, start, stop, cancel };
+  return {
+    isRecording: state === "recording",
+    durationMs,
+    audioLevel,
+    isSpeaking,
+    silenceRemainingMs,
+    start,
+    stop,
+    cancel,
+  };
 }
 
-/**
- * The two implementations are one contract.
- *
- * Metro chooses between this file and `useVoiceRecorder.ts` by filename, so no
- * caller can tell them apart — and nothing checked that they matched. When the
- * native hook was rewritten and this one was not, `stop` simply did not exist
- * on web: pressing the button threw "is not a function" at the customer, with
- * the mic already running.
- *
- * This makes that a build error instead. It costs nothing at runtime — a type
- * assignment the bundler drops.
- */
 type NativeHook = typeof import("./useVoiceRecorder").useVoiceRecorder;
 const _sameShape: NativeHook = useVoiceRecorder;
 void _sameShape;

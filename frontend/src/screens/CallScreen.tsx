@@ -118,7 +118,26 @@ export function CallScreen({
   const { colors } = useThemeColors();
   const business = businessId ? getBusiness(businessId) : null;
 
-  const { isRecording, durationMs, start, stop, cancel } = useVoiceRecorder();
+  const sendRef = useRef<() => Promise<void>>(async () => {});
+
+  const {
+    isRecording,
+    durationMs,
+    audioLevel,
+    isSpeaking,
+    silenceRemainingMs,
+    start,
+    stop,
+    cancel,
+  } = useVoiceRecorder({
+    silenceThresholdMs: 3000,
+    minSpeechMs: 600,
+    onSilenceTimeout: () => {
+      if (live.current && !sending.current) {
+        void sendRef.current();
+      }
+    },
+  });
   const recordTurn = useConversationStore((s) => s.recordVoiceTurn);
   const [phase, setPhase] = useState<Phase>("connecting");
   const [lines, setLines] = useState<Line[]>([]);
@@ -285,6 +304,8 @@ export function CallScreen({
     if (live.current) void listen();
   }, [stop, listen, failTurn, play, businessId, recordTurn]);
 
+  sendRef.current = send;
+
   /** The caller pressed the button: stop if recording, otherwise reopen. */
   const onMicPress = useCallback(() => {
     if (isRecording) void send();
@@ -445,9 +466,26 @@ export function CallScreen({
 
       {/* Call controls */}
       <View className="items-center px-6 pb-6">
-        <View className="h-14 w-full items-center justify-center">
+        <View className="h-16 w-full items-center justify-center">
           {isRecording ? (
-            <Waveform active color={palette.accent} height={44} barCount={24} />
+            <View className="items-center">
+              <Waveform active level={audioLevel} color={isSpeaking ? "#10B981" : palette.accent} height={36} barCount={26} />
+              <Text
+                className={`mt-1.5 text-[12.5px] font-medium tracking-wide ${
+                  isSpeaking
+                    ? "font-semibold text-emerald-500"
+                    : silenceRemainingMs < 3000
+                      ? "font-semibold text-amber-500"
+                      : "text-ink-muted dark:text-white/60"
+                }`}
+              >
+                {isSpeaking
+                  ? "Speaking… (take a 3s pause when done)"
+                  : silenceRemainingMs < 3000
+                    ? `Pause detected · Submitting in ${(silenceRemainingMs / 1000).toFixed(1)}s`
+                    : "Listening… Speak anytime"}
+              </Text>
+            </View>
           ) : (
             <Text
               className={`text-[13px] font-semibold uppercase tracking-widest ${
@@ -460,11 +498,11 @@ export function CallScreen({
         </View>
 
         {isRecording ? (
-          <Text className="mb-3 text-[26px] font-semibold text-ink dark:text-white">
+          <Text className="mb-2 text-[24px] font-semibold text-ink dark:text-white">
             {formatDuration(durationMs)}
           </Text>
         ) : (
-          <View className="mb-3 h-[34px]" />
+          <View className="mb-2 h-[32px]" />
         )}
 
         <View className="flex-row items-center gap-7">
@@ -472,7 +510,7 @@ export function CallScreen({
             onPress={endCall}
             accessibilityRole="button"
             accessibilityLabel="End call"
-            className="h-16 w-16 items-center justify-center rounded-full bg-rose-500"
+            className="h-16 w-16 items-center justify-center rounded-full bg-rose-500 shadow-md active:scale-95 transition"
           >
             <PhoneOff size={26} color="#FFFFFF" />
           </Pressable>
@@ -482,11 +520,8 @@ export function CallScreen({
             disabled={busy}
             accessibilityRole="button"
             accessibilityLabel={isRecording ? "Stop and send" : "Start speaking"}
-            className="h-20 w-20 items-center justify-center rounded-full"
+            className="h-20 w-20 items-center justify-center rounded-full shadow-lg active:scale-95 transition"
             style={{
-              // Driven by the recorder itself, never by our idea of the phase:
-              // a button that shows "recording" while nothing is being captured
-              // is how this screen came to lie about what the call was doing.
               backgroundColor: isRecording ? palette.accent : busy ? colors.hairline : "transparent",
               borderWidth: isRecording ? 0 : 2,
               borderColor: busy ? colors.hairline : palette.accent,
@@ -500,13 +535,17 @@ export function CallScreen({
           </Pressable>
         </View>
 
-        <Text className="mt-4 text-center text-[12px] text-ink-faint dark:text-white/30">
+        <Text className="mt-4 text-center text-[12px] text-ink-faint dark:text-white/40">
           {isRecording
-            ? "Tap when you've finished speaking"
+            ? silenceRemainingMs < 3000
+              ? `Auto-sending in ${(silenceRemainingMs / 1000).toFixed(1)}s · or tap the mic to send now`
+              : isSpeaking
+                ? "Listening… Just take a 3-second pause when you're done speaking"
+                : "Hands-free active: speak naturally, it processes automatically on a 3s pause"
             : phase === "thinking"
-              ? "Working on it — the mic is off for a moment"
+              ? "Working on resolution — mic reopens right after"
               : phase === "speaking"
-                ? "Speaking — the mic comes back on straight after"
+                ? "Assistant speaking — mic reopens automatically"
                 : phase === "error"
                   ? "Tap the mic to try again"
                   : "Opening the mic…"}

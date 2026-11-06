@@ -12,6 +12,7 @@ interface WaveformProps {
   barCount?: number;
   color?: string;
   height?: number;
+  level?: number;
 }
 
 const MIN = 0.18;
@@ -21,31 +22,30 @@ function Bar({
   color,
   height,
   seed,
+  currentLevel = 0,
 }: {
   active: boolean;
   color: string;
   height: number;
   seed: number;
+  currentLevel?: number;
 }) {
-  const level = useSharedValue(MIN);
+  const barLevel = useSharedValue(MIN);
 
   useEffect(() => {
     if (active) {
-      // Each bar breathes at its own pace + amplitude for an organic waveform.
-      const peak = 0.55 + ((seed * 37) % 45) / 100; // 0.55 – 1.0
-      const duration = 340 + ((seed * 53) % 260); // 340 – 600ms
-      level.value = withRepeat(
-        withTiming(peak, { duration }),
-        -1,
-        true
-      );
+      // Scale with live audio level if present, else organic idle breathing
+      const audioFactor = currentLevel > 0.05 ? Math.min(1.0, currentLevel * 2.2) : 0.45;
+      const peak = Math.min(1.0, 0.25 + audioFactor * (0.55 + ((seed * 37) % 45) / 100));
+      const duration = 240 + ((seed * 53) % 220);
+      barLevel.value = withRepeat(withTiming(peak, { duration }), -1, true);
     } else {
-      level.value = withTiming(MIN, { duration: 220 });
+      barLevel.value = withTiming(MIN, { duration: 220 });
     }
-  }, [active, level, seed]);
+  }, [active, barLevel, seed, currentLevel]);
 
   const style = useAnimatedStyle(() => ({
-    height: Math.max(4, level.value * height),
+    height: Math.max(4, barLevel.value * height),
   }));
 
   return (
@@ -55,12 +55,13 @@ function Bar({
   );
 }
 
-/** Animated audio waveform used during voice recording. */
+/** Animated audio waveform with real-time level sensitivity */
 export function Waveform({
   active,
   barCount = 28,
   color = "#FFFFFF",
   height = 44,
+  level = 0,
 }: WaveformProps) {
   return (
     <View
@@ -68,7 +69,14 @@ export function Waveform({
       style={{ height }}
     >
       {Array.from({ length: barCount }).map((_, i) => (
-        <Bar key={i} active={active} color={color} height={height} seed={i + 1} />
+        <Bar
+          key={i}
+          active={active}
+          color={color}
+          height={height}
+          seed={i + 1}
+          currentLevel={level}
+        />
       ))}
     </View>
   );
